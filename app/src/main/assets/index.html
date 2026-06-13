@@ -274,7 +274,10 @@ document.addEventListener('DOMContentLoaded',()=>{
   else{console.log('[ExteraGram] Not configured — call ExteraGram.openEmailSettings()')}
 });
 
-// ── AUTO-BRIDGE: перехват отправки + рендер входящих баблов ──────────────────
+// ── AUTO-BRIDGE (nan0gram): перехват отправки + рендер входящих баблов ─────────
+// Стратегия перехвата: ПОЛЛИНГ поля ввода.
+// keydown/click ненадёжны в Android WebView (мягкая клавиатура не даёт keydown).
+// Поллинг 120ms: когда поле очищается после непустого состояния — сообщение отправлено.
 
 function _escHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -282,93 +285,100 @@ function _escHtml(s){
 
 const BridgeAuto={
   _sentTexts:new Set(),
+  _lastInputText:'',
+  _pollTimer:null,
+  _inputEl:null,
 
-  // Определяем chatId из заголовка активного чата
+  // Ищем поле ввода — пробуем несколько стратегий
+  _findInput(){
+    // Пробуем кешированный элемент
+    if(this._inputEl&&document.contains(this._inputEl))return this._inputEl;
+    const el=
+      document.querySelector('[contenteditable="true"]')||
+      document.querySelector('textarea')||
+      document.querySelector('input[type="text"]');
+    if(el)this._inputEl=el;
+    return el;
+  },
+
+  // chatId из заголовка активного чата
   _getChatId(){
-    return(
+    const el=
       document.querySelector('[class*="peer-title"]')||
       document.querySelector('[class*="chat-title"]')||
       document.querySelector('[class*="peer-name"]')||
-      document.querySelector('[class*="header-name"]')
-    )?.textContent?.trim()||'chat';
+      document.querySelector('[class*="header"] h1')||
+      document.querySelector('[class*="header"] span');
+    const text=(el?.textContent||'').trim();
+    return text||'chat';
   },
 
-  // Читаем текст из активного поля ввода
-  _captureInput(){
-    const el=
-      document.querySelector('[contenteditable="true"]')||
-      document.querySelector('textarea[class*="input"]')||
-      document.querySelector('input[class*="msg"]');
-    if(!el)return'';
-    return(el.textContent||el.value||'').trim();
-  },
-
-  // Отправляем через Transport.send, дедупликация по тексту 2 сек
+  // Отправляем в мост, дедупликация 5 сек
   _sendOnce(text){
-    if(!text||this._sentTexts.has(text))return;
+    if(!text||text.length<1||this._sentTexts.has(text))return;
     this._sentTexts.add(text);
-    setTimeout(()=>this._sentTexts.delete(text),2000);
+    setTimeout(()=>this._sentTexts.delete(text),5000);
     const chatId=this._getChatId();
+    console.log('[nan0gram] →ПЕРЕХВАТ текст="'+text.slice(0,40)+'" chat='+chatId);
     Transport.send(chatId,text,'Я')
-      .then(ok=>console.log('[BridgeAuto] →email',ok?'✓':'queued'))
-      .catch(e=>console.error('[BridgeAuto] send error',e));
+      .then(ok=>console.log('[nan0gram] →email',ok?'✓ отправлено':'✗ в очередь'))
+      .catch(e=>console.error('[nan0gram] ошибка отправки:',e));
   },
 
-  // Перехватываем нажатие Enter в поле ввода
-  _hookEnter(){
-    document.addEventListener('keydown',e=>{
-      if(e.key!=='Enter'||e.shiftKey)return;
-      const active=document.activeElement;
-      if(!active)return;
-      const isInput=
-        active.getAttribute('contenteditable')==='true'||
-        active.tagName==='TEXTAREA'||
-        (active.tagName==='INPUT'&&active.type==='text');
-      if(!isInput)return;
-      const text=this._captureInput();
-      if(text)this._sendOnce(text);
-    },true);
+  // ПОЛЛИНГ: читаем поле каждые 120ms
+  // Когда поле было непустым и стало пустым — пользователь отправил сообщение
+  _startPoller(){
+    if(this._pollTimer)return;
+    this._pollTimer=setInterval(()=>{
+      const el=this._findInput();
+      if(!el)return;
+      const current=(el.textContent||el.value||'').trim();
+      if(this._lastInputText&&!current){
+        // Поле очистилось → перехватываем последний текст
+        this._sendOnce(this._lastInputText);
+      }
+      this._lastInputText=current;
+    },120);
+    console.log('[nan0gram] поллинг поля ввода запущен (120ms)');
   },
 
-  // Перехватываем клик на кнопку отправки
-  _hookSendBtn(){
-    document.addEventListener('click',e=>{
-      const btn=e.target.closest(
-        '[class*="send-btn"],[class*="btn-send"],[class*="msg-send"],'+
-        '[data-role="send"],[aria-label="Send"],[aria-label="Отправить"]'
-      );
-      if(!btn)return;
-      const text=this._captureInput();
-      if(text)this._sendOnce(text);
-    },true);
-  },
-
-  // Находим контейнер со списком сообщений
+  // Контейнер списка сообщений
   _getMsgList(){
-    return(
+    // Ищем прокручиваемый div с сообщениями — самый глубокий скроллируемый контейнер
+    const byClass=
+      document.querySelector('[class*="messages"]')||
       document.querySelector('[class*="msg-list"]')||
-      document.querySelector('[class*="messages-list"]')||
-      document.querySelector('[class*="chat-messages"]')||
-      document.querySelector('[class*="msglist"]')||
-      document.querySelector('[class*="bubbles"]')
-    );
+      document.querySelector('[class*="chat-body"]')||
+      document.querySelector('[class*="bubbles"]');
+    if(byClass)return byClass;
+    // Fallback: найти div внутри #root у которого overflow-y scroll/auto
+    const root=document.getElementById('root');
+    if(!root)return null;
+    const divs=root.querySelectorAll('div');
+    for(let i=divs.length-1;i>=0;i--){
+      const s=window.getComputedStyle(divs[i]);
+      if(s.overflowY==='scroll'||s.overflowY==='auto'){
+        return divs[i];
+      }
+    }
+    return root;
   },
 
-  // Рисуем входящий бабл в UI
+  // Рисуем входящий бабл
   _renderBubble(msg){
+    if(document.querySelector('[data-n0-id="'+msg.id+'"]'))return;
     const list=this._getMsgList();
     if(!list){
-      console.warn('[BridgeAuto] список сообщений не найден, повтор через 1с');
+      console.warn('[nan0gram] контейнер сообщений не найден, повтор через 1с');
       setTimeout(()=>this._renderBubble(msg),1000);
       return;
     }
-    if(document.querySelector('[data-bridge-id="'+msg.id+'"]'))return; // дедупликация
     const time=new Date(msg.ts).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
     const wrap=document.createElement('div');
-    wrap.setAttribute('data-bridge-id',msg.id);
+    wrap.setAttribute('data-n0-id',msg.id);
     wrap.style.cssText=
       'display:flex;justify-content:flex-start;padding:2px 12px 2px 8px;'+
-      'animation:bridgeFadeIn .22s ease';
+      'animation:n0FadeIn .22s ease';
     wrap.innerHTML=
       '<div style="max-width:68%;background:var(--msg-in,rgba(46,29,60,.88));'+
       'border-radius:18px 18px 18px 4px;padding:8px 12px 6px;'+
@@ -382,24 +392,25 @@ const BridgeAuto={
       '</div>';
     list.appendChild(wrap);
     list.scrollTop=list.scrollHeight;
-    console.log('[BridgeAuto] ←бабл',msg.id,'от',msg.author);
+    console.log('[nan0gram] ←бабл от '+msg.author+': "'+msg.text.slice(0,40)+'"');
   },
 
   init(){
-    // Входящие письма → бабл
+    // Входящие: Android → ExteraGram.onEmailReceived → Transport.receive → extgram:message → бабл
     W.addEventListener('extgram:message',e=>this._renderBubble(e.detail));
 
-    // Исходящие → Transport.send
-    this._hookEnter();
-    this._hookSendBtn();
+    // Исходящие: поллинг поля ввода
+    const wire=()=>this._startPoller();
+    if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire);
+    else wire();
 
-    // CSS-анимация появления бабла
+    // CSS-анимация входящих баблов
     const st=document.createElement('style');
     st.textContent=
-      '@keyframes bridgeFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}';
+      '@keyframes n0FadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}';
     document.head.appendChild(st);
 
-    console.log('[BridgeAuto] ✓ автопроводка активна');
+    console.log('[nan0gram] ✓ автопроводка активна (поллинг 120ms)');
   }
 };
 
