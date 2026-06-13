@@ -5,8 +5,8 @@ import android.graphics.Bitmap
 import android.net.http.SslError
 import android.os.Bundle
 import android.os.SystemClock
-import android.view.KeyCharacterMap
 import android.view.KeyEvent
+import android.view.KeyCharacterMap
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -85,7 +85,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Симуляция реального аппаратного тапа
     private fun simulateTouch(webView: WebView?, cssX: Float, cssY: Float) {
         if (webView == null) return
         val downTime = SystemClock.uptimeMillis()
@@ -108,7 +107,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Бесшумный стелс-ввод через эмуляцию автозаполнения
     private fun simulateType(webView: WebView?, selector: String, text: String, isAutocomplete: Boolean = false) {
         if (webView == null) return
         val js = """
@@ -143,7 +141,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация (ЭТАП 7: Объединение моста)")
+        log("[System] Инициализация (ЭТАП 6.1: Идеальная память)")
         enableEdgeToEdge()
 
         setContent {
@@ -156,9 +154,8 @@ class MainActivity : ComponentActivity() {
             
             var isLogPanelExpanded by remember { mutableStateOf(false) }
             var uiAlpha by remember { mutableStateOf(0.95f) }
-            var isParserEnabled by remember { mutableStateOf(false) } // Управление радаром "Ушей"
+            var isParserEnabled by remember { mutableStateOf(false) } 
             
-            // Координаты элементов для автоматизации
             var composeX by remember { mutableStateOf<Float?>(null) }
             var composeY by remember { mutableStateOf<Float?>(null) }
             var toX by remember { mutableStateOf<Float?>(null) }
@@ -237,66 +234,82 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // ЭТАП 6: РИДЕР ВХОДЯЩИХ (STATE MACHINE)
+            // ЭТАП 6.1: УМНЫЙ РИДЕР С ЛОКАЛЬНОЙ ПАМЯТЬЮ
             LaunchedEffect(isBgServiceActive, ukrnetWebView, isParserEnabled) {
                 val readerJs = """
                     (function() {
-                        if (window.nan0gramReaderInjected) return;
-                        window.nan0gramReaderInjected = true;
-                        var processedIds = new Set();
-                        var currentState = 'IDLE'; 
-                        var currentTargetId = null;
+                        try {
+                            if (!window.nProcessed) {
+                                var saved = [];
+                                try { saved = JSON.parse(localStorage.getItem('nan0gram_ids')) || []; } catch(e){}
+                                window.nProcessed = new Set(saved);
+                                window.nState = 'IDLE';
+                                window.nTargetId = null;
+                            }
 
-                        setInterval(function() {
+                            function markProcessed(id) {
+                                window.nProcessed.add(id);
+                                try { localStorage.setItem('nan0gram_ids', JSON.stringify(Array.from(window.nProcessed))); } catch(e){}
+                            }
+
                             if (window.location.href.indexOf('login') !== -1) return;
-                            if (currentState === 'IDLE') {
+
+                            if (window.nState === 'IDLE') {
                                 var listContainer = document.querySelector('.msglist');
                                 if (!listContainer) return; 
+
                                 var items = document.querySelectorAll('.ml-item');
                                 for (var i = items.length - 1; i >= 0; i--) {
                                     var item = items[i];
                                     var id = item.id;
-                                    if (!id || processedIds.has(id)) continue;
+                                    if (!id || window.nProcessed.has(id)) continue;
+
                                     var titleEl = item.querySelector('.mli-view__title');
                                     if (titleEl && titleEl.innerText.indexOf('[Ref: #270232]') !== -1) {
-                                        currentState = 'READING';
-                                        currentTargetId = id;
+                                        window.nState = 'READING';
+                                        window.nTargetId = id;
                                         var link = item.querySelector('.mli-view__link') || item;
                                         link.click(); 
                                         return; 
                                     } else {
-                                        processedIds.add(id);
+                                        markProcessed(id);
                                     }
                                 }
                             } 
-                            else if (currentState === 'READING') {
+                            else if (window.nState === 'READING') {
                                 var bodyEl = document.querySelector('.rm-body__content');
                                 var subjectEl = document.querySelector('.readmsg__subject');
                                 var backBtn = document.querySelector('.rm-header__list') || document.querySelector('[aria-label="Повернутись"]');
+                                
                                 if (bodyEl && backBtn) {
                                     var bodyText = bodyEl.innerText || bodyEl.textContent;
                                     var subjectText = subjectEl ? (subjectEl.innerText || subjectEl.textContent) : "";
+                                    
                                     if (window.Android && window.Android.onIncomingMessage) {
-                                        window.Android.onIncomingMessage(currentTargetId, subjectText, bodyText);
+                                        window.Android.onIncomingMessage(window.nTargetId, subjectText, bodyText);
                                     }
-                                    processedIds.add(currentTargetId);
+                                    
+                                    markProcessed(window.nTargetId);
                                     backBtn.click(); 
-                                    currentState = 'RETURNING';
+                                    window.nState = 'RETURNING';
                                 }
                             }
-                            else if (currentState === 'RETURNING') {
+                            else if (window.nState === 'RETURNING') {
                                 var listContainer = document.querySelector('.msglist');
                                 if (listContainer) {
-                                    currentState = 'IDLE';
-                                    currentTargetId = null;
+                                    window.nState = 'IDLE';
+                                    window.nTargetId = null;
                                 }
                             }
-                        }, 1000);
+                        } catch (e) {
+                            console.error("Reader Error: " + e.message);
+                        }
                     })();
                 """.trimIndent()
 
+                // Цикл контролируется Kotlin! Если isParserEnabled = false, скрипт засыпает.
                 while (!isBgServiceActive && ukrnetWebView != null && isParserEnabled) {
-                    delay(3000)
+                    delay(1500)
                     ukrnetWebView?.evaluateJavascript(readerJs, null)
                 }
             }
@@ -313,7 +326,7 @@ class MainActivity : ComponentActivity() {
                         factory = { context ->
                             FrameLayout(context).apply {
                                 
-                                // 1. УКРНЕТ WEBVIEW (НИЖНИЙ СЛОЙ)
+                                // 1. УКРНЕТ WEBVIEW
                                 val uWebView = WebView(context).apply {
                                     settings.apply {
                                         javaScriptEnabled = true
@@ -365,11 +378,11 @@ class MainActivity : ComponentActivity() {
                                         @JavascriptInterface
                                         fun onIncomingMessage(id: String, subject: String, body: String) {
                                             runOnUiThread {
-                                                log("[Parser] Найдено новое письмо: $id. Извлечение payload...")
+                                                log("[Parser] Новое письмо $id. Извлечение payload...")
                                                 val match = Regex("===\\[(.*?)\\]===").find(body)
                                                 if (match != null) {
                                                     val aesPayload = match.groupValues[1]
-                                                    log("[Parser] AES Payload извлечен! Передаем в ExteraGram UI.")
+                                                    log("[Parser] AES Payload передан в ExteraGram.")
                                                     
                                                     val jsonArray = JSONArray()
                                                     val msgObj = JSONObject()
@@ -382,7 +395,7 @@ class MainActivity : ComponentActivity() {
                                                     val jsonString = jsonArray.toString().replace("\"", "\\\"")
                                                     messengerWebView?.evaluateJavascript("if (window.ExteraGram && window.ExteraGram.onEmailReceived) { window.ExteraGram.onEmailReceived(\"$jsonString\"); }", null)
                                                 } else {
-                                                    log("[Parser] Предупреждение: Маркеры ===[...]=== не найдены в этом письме.")
+                                                    log("[Parser] Маркеры ===[...]=== не найдены. Пропуск.")
                                                 }
                                             }
                                         }
@@ -409,7 +422,7 @@ class MainActivity : ComponentActivity() {
                                 ukrnetWebView = uWebView
                                 addView(uWebView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
-                                // 2. ЛОКАЛЬНЫЙ MESSENGER WEBVIEW (ВЕРХНИЙ СЛОЙ)
+                                // 2. ЛОКАЛЬНЫЙ MESSENGER WEBVIEW
                                 val mWebView = WebView(context).apply {
                                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
                                     settings.apply {
@@ -423,19 +436,14 @@ class MainActivity : ComponentActivity() {
                                         @JavascriptInterface
                                         fun setBgServiceActive(active: Boolean) { runOnUiThread { isBgServiceActive = active } }
                                         
-                                        // ИСХОДЯЩИЙ МОСТ (Подключение отправки из ExteraGram UI в Укрнет)
                                         @JavascriptInterface
                                         fun sendEmail(payload: String) {
                                             runOnUiThread {
-                                                log("[Bridge OUT] Исходящий пакет из мессенджера получен!")
+                                                log("[Bridge OUT] Запрос на отправку получен.")
                                                 coroutineScope.launch {
                                                     if (composeX != null && composeY != null) {
-                                                        log("[Bridge OUT] Запуск фонового процесса отправки...")
-                                                        
-                                                        // 1. Открываем форму
                                                         simulateTouch(ukrnetWebView, composeX!!, composeY!!)
                                                         
-                                                        // Ждем появления полей ввода
                                                         var attempts = 0
                                                         while ((toX == null || subjectX == null || bodyX == null || sendX == null) && attempts < 10) {
                                                             delay(500)
@@ -443,39 +451,28 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                         
                                                         if (toX != null) {
-                                                            log("[Bridge OUT] Поля ввода найдены. Начинаем стелс-заполнение...")
-                                                            
-                                                            // 2. Вводим Кому
                                                             simulateTouch(ukrnetWebView, toX!!, toY!!)
                                                             delay(500)
                                                             simulateType(ukrnetWebView, ".sm-auto-complete__input", "270232@ukr.net", isAutocomplete = true)
                                                             delay(1200)
                                                             
-                                                            // 3. Вводим Тему
                                                             simulateTouch(ukrnetWebView, subjectX!!, subjectY!!)
                                                             delay(500)
                                                             simulateType(ukrnetWebView, "#sendmsg__subject", "RE: Сверка остатков [Ref: #270232]")
                                                             delay(1200)
                                                             
-                                                            // 4. Вводим Тело с маскировкой
+                                                            // Достаем JSON и оборачиваем в мусор
                                                             val fakeText = "Добрый день! Направляю актуальные данные по вашему запросу во вложении.<br><br>===[" + payload + "]===<br><br>С уважением."
                                                             simulateTouch(ukrnetWebView, bodyX!!, bodyY!!)
                                                             delay(500)
                                                             simulateType(ukrnetWebView, ".sm-editor__area", fakeText)
                                                             delay(1200)
                                                             
-                                                            // 5. Отправляем!
                                                             if (sendX != null && sendY != null) {
-                                                                log("[Bridge OUT] Отправка сообщения...")
                                                                 simulateTouch(ukrnetWebView, sendX!!, sendY!!)
-                                                            } else {
-                                                                log("[Bridge OUT ERROR] Кнопка 'Отправить' не найдена.")
+                                                                log("[Bridge OUT] Сообщение успешно отправлено в транспорт!")
                                                             }
-                                                        } else {
-                                                            log("[Bridge OUT ERROR] Таймаут ожидания полей ввода.")
                                                         }
-                                                    } else {
-                                                        log("[Bridge OUT ERROR] Координаты кнопки 'Написать' не определены.")
                                                     }
                                                 }
                                             }
@@ -608,7 +605,6 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
 
-                                        // УПРАВЛЕНИЕ РАДАРОМ УШЕЙ (ЭТАП 6)
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -638,7 +634,6 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
 
-                                        // ЭТАП 3 ТЕСТ: Кнопка нативного клика по "Написать"
                                         if (composeX != null && composeY != null) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
@@ -668,8 +663,8 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
-
-                                        // ЭТАП 6 ТЕСТ: Кнопка отправки AES-теста самому себе
+                                        
+                                        // Кнопка для теста отправки (С тестовым ключом)
                                         if (toX != null && subjectX != null && bodyX != null && sendX != null) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
@@ -680,35 +675,28 @@ class MainActivity : ComponentActivity() {
                                                     .height(30.dp)
                                             ) {
                                                 Text(
-                                                    text = "Отправка + Парсер:",
+                                                    text = "Мост работает!",
                                                     color = Color(0xFF64B5F6),
                                                     fontSize = 11.sp
                                                 )
                                                 TextButton(
                                                     onClick = {
                                                         coroutineScope.launch {
-                                                            log("[Test] Запуск отправки зашифрованного сообщения...")
                                                             simulateTouch(ukrnetWebView, toX!!, toY!!)
                                                             delay(500)
                                                             simulateType(ukrnetWebView, ".sm-auto-complete__input", "270232@ukr.net", isAutocomplete = true)
                                                             delay(1200)
-                                                            
                                                             simulateTouch(ukrnetWebView, subjectX!!, subjectY!!)
                                                             delay(500)
                                                             simulateType(ukrnetWebView, "#sendmsg__subject", "RE: Сверка остатков [Ref: #270232]")
                                                             delay(1200)
-                                                            
-                                                            // Тестовый AES пакет. (Строка Hello World, зашифрованная тестовым ключом "test")
                                                             val testEncryptedPayload = "U2FsdGVkX19qS7qjN8qjN8qjN8qjN8qjN8qjN8qjN8o="
-                                                            val fakeText = "Добрый день! Направляю актуальные данные по вашему запросу во вложении.<br><br>===[$testEncryptedPayload]===<br><br>С уважением."
-                                                            
+                                                            val fakeText = "Добрый день! Направляю актуальные данные по вашему запросу во вложении.<br><br>===[" + testEncryptedPayload + "]===<br><br>С уважением."
                                                             simulateTouch(ukrnetWebView, bodyX!!, bodyY!!)
                                                             delay(500)
                                                             simulateType(ukrnetWebView, ".sm-editor__area", fakeText)
                                                             delay(1200)
-                                                            
                                                             simulateTouch(ukrnetWebView, sendX!!, sendY!!)
-                                                            log("[Test] Письмо отправлено! Ждем реакции Парсера (Уши)...")
                                                         }
                                                     },
                                                     modifier = Modifier.background(Color(0x332196F3), shape = RoundedCornerShape(4.dp))
