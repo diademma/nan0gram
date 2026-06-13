@@ -110,23 +110,31 @@ class MainActivity : ComponentActivity() {
     private fun simulateType(webView: WebView?, selector: String, text: String, isAutocomplete: Boolean = false) {
         if (webView == null) return
         val escaped = text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "")
+        // КРИТИЧНО: НЕ вызываем el.focus() — это тригерит Android IME на ukrnet WebView
+        // и вызывает мерцание клавиатуры в мессенджере.
+        // Используем нативный setter через Object.getOwnPropertyDescriptor — работает с React/ukrnet.
         val js = """
             (function() {
                 var el = document.querySelector('$selector');
                 if (!el) return 'not_found';
-                el.focus();
                 if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                    el.value = '$escaped';
-                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    try {
+                        var nativeSetter = Object.getOwnPropertyDescriptor(
+                            el.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype, 'value'
+                        ).set;
+                        nativeSetter.call(el, '$escaped');
+                    } catch(e) { el.value = '$escaped'; }
+                    el.dispatchEvent(new Event('input',  { bubbles: true }));
                     el.dispatchEvent(new Event('change', { bubbles: true }));
                     if ($isAutocomplete) {
                         el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', keyCode: 13 }));
                         el.dispatchEvent(new KeyboardEvent('keyup',   { bubbles: true, cancelable: true, key: 'Enter', keyCode: 13 }));
-                        el.dispatchEvent(new Event('blur', { bubbles: true }));
                     }
+                    el.blur();
                 } else if (el.getAttribute('contenteditable') === 'true') {
                     el.innerHTML = '$escaped';
                     el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.blur();
                 }
                 return 'success';
             })();
@@ -162,6 +170,7 @@ class MainActivity : ComponentActivity() {
             var bodyY    by remember { mutableStateOf<Float?>(null) }
             var sendX    by remember { mutableStateOf<Float?>(null) }
             var sendY    by remember { mutableStateOf<Float?>(null) }
+            var coordinatesLogged by remember { mutableStateOf(false) }
 
             val clipboardManager = LocalClipboardManager.current
             val lazyListState    = rememberLazyListState()
@@ -222,7 +231,8 @@ class MainActivity : ComponentActivity() {
                     })();
                 """.trimIndent()
                 while (!isBgServiceActive && ukrnetWebView != null) {
-                    delay(1500)
+                    // Если compose уже найден — сканируем редко (только для обновления bodyX/sendX при открытии compose)
+                    delay(if (composeX != null) 8000L else 1500L)
                     ukrnetWebView?.evaluateJavascript(scanningJs, null)
                 }
             }
@@ -355,7 +365,11 @@ class MainActivity : ComponentActivity() {
                                                     bodyY    = coord("body")?.optDouble("y")?.toFloat()?.takeIf { it > 0 }
                                                     sendX    = coord("send")?.optDouble("x")?.toFloat()?.takeIf { it > 0 }
                                                     sendY    = coord("send")?.optDouble("y")?.toFloat()?.takeIf { it > 0 }
-                                                    if (composeX != null) log("[Scanner] Координаты получены ✓")
+                                                    // Логируем только один раз при первом получении координат
+                                                    if (composeX != null && !coordinatesLogged) {
+                                                        coordinatesLogged = true
+                                                        log("[Scanner] Координаты получены ✓ compose=(${composeX?.toInt()},${composeY?.toInt()}) send=(${sendX?.toInt()},${sendY?.toInt()})")
+                                                    }
                                                 } catch (e: Exception) { log("[Scanner] Ошибка: ${e.message}") }
                                             }
                                         }
