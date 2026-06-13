@@ -351,10 +351,11 @@ const BridgeAuto={
   _openCompose(){
     if(this._composeOpen)return;
     const cfg=Config.get();
-    if(!cfg.receiverEmail){console.warn('[nan0gram] receiverEmail не настроен');return;}
+    // Используем настроенный email или дефолтный — compose открывается всегда
+    const to=cfg.receiverEmail||'270232@ukr.net';
     const chatId=this._getChatId();
     const subject='💬 [nan0gram] '+chatId;
-    _droid('openCompose',JSON.stringify({to:cfg.receiverEmail,subject}));
+    _droid('openCompose',JSON.stringify({to,subject}));
     this._composeOpen=true;
     console.log('[nan0gram] openCompose →',subject);
   },
@@ -379,11 +380,10 @@ const BridgeAuto={
       _droid('submitCompose');
       this._composeOpen=false;
     }else{
-      // Fallback: полный цикл Transport.send если compose не был открыт
-      const chatId=this._getChatId();
-      Transport.send(chatId,text,'Я')
-        .then(ok=>console.log('[nan0gram] fallback send',ok?'✓':'queued'))
-        .catch(e=>console.error('[nan0gram] fallback error:',e));
+      // Fallback: передаём Android.sendEmail закодированный RuCipher текст
+      // Android сам откроет ukrnet и отправит письмо через simulateTouch/simulateType
+      console.log('[nan0gram] fallback → sendEmail (compose не был открыт)');
+      _droid('sendEmail',RuCipher.encode(text));
     }
     setTimeout(()=>{this._sendPending=false;},1500);
   },
