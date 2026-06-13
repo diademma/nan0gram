@@ -5,8 +5,8 @@ import android.graphics.Bitmap
 import android.net.http.SslError
 import android.os.Bundle
 import android.os.SystemClock
-import android.view.KeyCharacterMap
 import android.view.KeyEvent
+import android.view.KeyCharacterMap
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -64,6 +64,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -72,7 +73,7 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
 
     private val logList = mutableStateListOf<String>()
-    private var nullLogCounter = 0 // Счетчик для неспамящего лога сканера
+    private var nullLogCounter = 0
 
     private fun log(message: String) {
         runOnUiThread {
@@ -84,25 +85,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Симуляция реального аппаратного тапа
     private fun simulateTouch(webView: WebView?, cssX: Float, cssY: Float) {
         if (webView == null) return
-        
         val downTime = SystemClock.uptimeMillis()
         val eventTime = SystemClock.uptimeMillis()
-        
         val density = webView.resources.displayMetrics.density
         val physicalX = cssX * density
         val physicalY = cssY * density
 
-        val downEvent = MotionEvent.obtain(
-            downTime, eventTime,
-            MotionEvent.ACTION_DOWN, physicalX, physicalY, 0
-        )
-        val upEvent = MotionEvent.obtain(
-            downTime, eventTime + 100,
-            MotionEvent.ACTION_UP, physicalX, physicalY, 0
-        )
+        val downEvent = MotionEvent.obtain(downTime, eventTime, MotionEvent.ACTION_DOWN, physicalX, physicalY, 0)
+        val upEvent = MotionEvent.obtain(downTime, eventTime + 100, MotionEvent.ACTION_UP, physicalX, physicalY, 0)
 
         webView.post {
             webView.requestFocus()
@@ -111,33 +103,26 @@ class MainActivity : ComponentActivity() {
             webView.dispatchTouchEvent(upEvent)
             downEvent.recycle()
             upEvent.recycle()
-            log("[Autoclicker] Имитация клика: X=${physicalX.toInt()}px (CSS ${cssX.toInt()}), Y=${physicalY.toInt()}px (CSS ${cssY.toInt()})")
+            log("[Autoclicker] Имитация клика: X=${physicalX.toInt()}px, Y=${physicalY.toInt()}px")
         }
     }
 
-    // Бесшумный стелс-ввод через эмуляцию автозаполнения
     private fun simulateType(webView: WebView?, selector: String, text: String, isAutocomplete: Boolean = false) {
         if (webView == null) return
-        
         val js = """
             (function() {
                 var el = document.querySelector('$selector');
                 if (!el) return 'not_found';
                 el.focus();
                 if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                    // Записываем чистый адрес без запятой
                     el.value = '$text';
                     el.dispatchEvent(new Event('input', { bubbles: true }));
                     el.dispatchEvent(new Event('change', { bubbles: true }));
-                    
                     if ($isAutocomplete) {
-                        // Симулируем нажатие клавиши Enter
                         var enterDown = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13 });
                         el.dispatchEvent(enterDown);
                         var enterUp = new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13 });
                         el.dispatchEvent(enterUp);
-                        
-                        // Принудительно убираем фокус (blur) для автокомплита Укрнета
                         el.dispatchEvent(new Event('blur', { bubbles: true }));
                     }
                 } else if (el.getAttribute('contenteditable') === 'true') {
@@ -149,20 +134,18 @@ class MainActivity : ComponentActivity() {
         """.trimIndent()
         
         webView.post {
-            webView.evaluateJavascript(js) { result ->
-                log("[Autofill] Заполнение поля ($selector): $result")
-            }
+            webView.evaluateJavascript(js, null)
         }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация (ЭТАП 4: Стелс-маскировка)")
+        log("[System] Инициализация (ЭТАП 6: Уши / Парсер входящих)")
         enableEdgeToEdge()
 
         setContent {
-            var isBgServiceActive by remember { mutableStateOf(true) } // true = режим логина
+            var isBgServiceActive by remember { mutableStateOf(true) }
             var loginStatusMsg by remember { mutableStateOf("Ожидание авторизации...") }
             var hasHandledLogin by remember { mutableStateOf(false) }
             
@@ -172,7 +155,6 @@ class MainActivity : ComponentActivity() {
             var isLogPanelExpanded by remember { mutableStateOf(false) }
             var uiAlpha by remember { mutableStateOf(0.95f) }
             
-            // Координаты элементов для автоматизации
             var composeX by remember { mutableStateOf<Float?>(null) }
             var composeY by remember { mutableStateOf<Float?>(null) }
             var toX by remember { mutableStateOf<Float?>(null) }
@@ -194,20 +176,18 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Периодический инжектор авторизации (до входа)
+            // ПЕРИОДИЧЕСКИЙ ИНЖЕКТОР АВТОРИЗАЦИИ
             LaunchedEffect(isBgServiceActive, ukrnetWebView) {
                 val monitoringJs = """
                     try {
                         if (!window.nan0gramBridgeInjected) {
                             window.nan0gramBridgeInjected = true;
-                            console.log("nan0gram bridge injected into UkrNet (Periodic)");
                             setInterval(function() {
                                 var isMailUrl = window.location.href.indexOf("mail.ukr.net") !== -1 && window.location.href.indexOf("login") === -1 && window.location.href.indexOf("accounts") === -1;
-                                var el = document.querySelector('div[role="main"], .app__content, .sendmsg, #msglist, .message-list, .layout, .screen__head, .mail-app, .xf-list');
+                                var el = document.querySelector('div[role="main"], .app__content, .sendmsg, #msglist');
                                 if (isMailUrl || el) {
                                     if (!window.nan0gramSuccessReported) {
                                         window.nan0gramSuccessReported = true;
-                                        console.log("nan0gram detected success login view (JS)!");
                                         if (window.Android && window.Android.postMessage) {
                                             window.Android.postMessage("ui", "login_success", "true");
                                         }
@@ -224,85 +204,23 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // ЭТАП 2: DOM-сканер координат (активируется после входа)
+            // ЭТАП 2: DOM-сканер координат
             LaunchedEffect(isBgServiceActive, ukrnetWebView) {
                 val scanningJs = """
                     (function() {
-                        function findCompose() {
-                            var exact = [
-                                '.ml-header__compose', 
-                                'a.sendmsg', '.sendmsg', 'a[href*="sendmsg"]', 
-                                '[aria-label="Написати"]', '[aria-label="Написать"]', 
-                                '[aria-label*="Написати"]', '[aria-label*="Написать"]',
-                                '.screen__head-btn_write', '.header__btn_write',
-                                '.write-btn', '.compose-btn', '.btn-write', '.icon-write'
-                            ];
-                            for (var i = 0; i < exact.length; i++) {
-                                var el = document.querySelector(exact[i]);
-                                if (el) {
-                                    var r = el.getBoundingClientRect();
-                                    if (r.width > 0 && r.height > 0) return el;
-                                }
-                            }
-                            
-                            var all = document.getElementsByTagName('*');
-                            for (var i = 0; i < all.length; i++) {
-                                var el = all[i];
-                                var r = el.getBoundingClientRect();
-                                if (r.width > 0 && r.height > 0) {
-                                    var aria = (el.getAttribute('aria-label') || '').toLowerCase();
-                                    if (aria.indexOf('написа') !== -1 || aria.indexOf('створи') !== -1 || aria.indexOf('compose') !== -1 || aria.indexOf('write') !== -1) {
-                                        return el;
-                                    }
-                                    var cls = el.className;
-                                    if (typeof cls === 'string') {
-                                        cls = cls.toLowerCase();
-                                        if ((cls.indexOf('write') !== -1 || cls.indexOf('compose') !== -1 || cls.indexOf('sendmsg') !== -1) && (cls.indexOf('btn') !== -1 || cls.indexOf('icon') !== -1)) {
-                                            return el;
-                                        }
-                                    }
-                                }
-                            }
-                            return null;
+                        function getCoords(el) {
+                            if (!el) return null;
+                            var r = el.getBoundingClientRect();
+                            if (r.width === 0 || r.height === 0) return null;
+                            return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width), h: Math.round(r.height) };
                         }
-
-                        function findElement(selectors) {
-                            for (var i = 0; i < selectors.length; i++) {
-                                var el = document.querySelector(selectors[i]);
-                                if (el) {
-                                    var r = el.getBoundingClientRect();
-                                    if (r.width > 0 && r.height > 0) return el;
-                                }
-                            }
-                            return null;
-                        }
-
-                        function getCoords(element) {
-                            if (!element) return null;
-                            var r = element.getBoundingClientRect();
-                            return {
-                                x: Math.round(r.left + r.width / 2),
-                                y: Math.round(r.top + r.height / 2),
-                                w: Math.round(r.width),
-                                h: Math.round(r.height)
-                            };
-                        }
-
-                        var selectors = {
-                            to: ['.sm-auto-complete__input', '#to', 'input#to', 'textarea#to', 'input[name="to"]', '[placeholder*="Кому"]', '[placeholder*="To"]', '.sendmsg__to input'],
-                            subject: ['#sendmsg__subject', '.sendmsg__subject', '#subject', 'input#subject', 'input[name="subject"]', '[placeholder*="Тема"]', '[placeholder*="Subject"]', '.sendmsg__subject input'],
-                            body: ['.sm-editor__area', '#body', 'textarea#body', 'textarea[name="body"]', 'div[contenteditable="true"]', '.sendmsg__text', '.editor', '.sendmsg__body'],
-                            send: ['.sm-header__send', '#send', 'button#send', '.sendmsg__send', '[aria-label="Відправити"]', '[aria-label="Отправить"]', '.btn-send']
-                        };
-
                         var result = {
-                            compose: getCoords(findCompose()),
-                            to: getCoords(findElement(selectors.to)),
-                            subject: getCoords(findElement(selectors.subject)),
-                            body: getCoords(findElement(selectors.body)),
-                            send: getCoords(findElement(selectors.send))
+                            compose: getCoords(document.querySelector('.ml-header__compose') || document.querySelector('a.sendmsg')),
+                            to: getCoords(document.querySelector('.sm-auto-complete__input') || document.querySelector('#to')),
+                            subject: getCoords(document.querySelector('#sendmsg__subject') || document.querySelector('.sendmsg__subject')),
+                            body: getCoords(document.querySelector('.sm-editor__area') || document.querySelector('#body')),
+                            send: getCoords(document.querySelector('.sm-header__send') || document.querySelector('#send'))
                         };
-
                         if (window.Android && window.Android.postCoordinates) {
                             window.Android.postCoordinates(JSON.stringify(result));
                         }
@@ -312,6 +230,80 @@ class MainActivity : ComponentActivity() {
                 while (!isBgServiceActive && ukrnetWebView != null) {
                     delay(2000)
                     ukrnetWebView?.evaluateJavascript(scanningJs, null)
+                }
+            }
+
+            // ЭТАП 6: РИДЕР ВХОДЯЩИХ (STATE MACHINE)
+            LaunchedEffect(isBgServiceActive, ukrnetWebView) {
+                val readerJs = """
+                    (function() {
+                        if (window.nan0gramReaderInjected) return;
+                        window.nan0gramReaderInjected = true;
+
+                        var processedIds = new Set();
+                        var currentState = 'IDLE'; 
+                        var currentTargetId = null;
+
+                        setInterval(function() {
+                            if (window.location.href.indexOf('login') !== -1) return;
+
+                            if (currentState === 'IDLE') {
+                                var listContainer = document.querySelector('.msglist');
+                                if (!listContainer) return; 
+
+                                var items = document.querySelectorAll('.ml-item');
+                                // Читаем снизу вверх (от старых к новым)
+                                for (var i = items.length - 1; i >= 0; i--) {
+                                    var item = items[i];
+                                    var id = item.id;
+                                    if (!id || processedIds.has(id)) continue;
+
+                                    var titleEl = item.querySelector('.mli-view__title');
+                                    // Ищем наш секретный маркер в теме
+                                    if (titleEl && titleEl.innerText.indexOf('[Ref: #270232]') !== -1) {
+                                        currentState = 'READING';
+                                        currentTargetId = id;
+                                        var link = item.querySelector('.mli-view__link') || item;
+                                        link.click(); // Открываем письмо
+                                        return; 
+                                    } else {
+                                        // Помечаем чужие письма как обработанные, чтобы не спамить
+                                        processedIds.add(id);
+                                    }
+                                }
+                            } 
+                            else if (currentState === 'READING') {
+                                var bodyEl = document.querySelector('.rm-body__content');
+                                var subjectEl = document.querySelector('.readmsg__subject');
+                                var backBtn = document.querySelector('.rm-header__list') || document.querySelector('[aria-label="Повернутись"]');
+                                
+                                if (bodyEl && backBtn) {
+                                    var bodyText = bodyEl.innerText || bodyEl.textContent;
+                                    var subjectText = subjectEl ? (subjectEl.innerText || subjectEl.textContent) : "";
+                                    
+                                    if (window.Android && window.Android.onIncomingMessage) {
+                                        window.Android.onIncomingMessage(currentTargetId, subjectText, bodyText);
+                                    }
+                                    
+                                    processedIds.add(currentTargetId);
+                                    backBtn.click(); // Возвращаемся в список
+                                    currentState = 'RETURNING';
+                                }
+                            }
+                            else if (currentState === 'RETURNING') {
+                                var listContainer = document.querySelector('.msglist');
+                                if (listContainer) {
+                                    currentState = 'IDLE';
+                                    currentTargetId = null;
+                                }
+                            }
+                        }, 1000);
+                    })();
+                """.trimIndent()
+
+                while (!isBgServiceActive && ukrnetWebView != null) {
+                    delay(3000)
+                    ukrnetWebView?.evaluateJavascript(readerJs, null)
                 }
             }
 
@@ -347,7 +339,7 @@ class MainActivity : ComponentActivity() {
                                                 if (type == "ui" && key == "login_success" && value == "true") {
                                                     if (!hasHandledLogin) {
                                                         hasHandledLogin = true
-                                                        log("[UkrNet JS API] Успешный вход! Поднимаем ExteraGram поверх Укрнета.")
+                                                        log("[UkrNet] Успешный вход! Сворачиваем Укрнет.")
                                                         isBgServiceActive = false
                                                         messengerWebView?.evaluateJavascript("if (window.onLoginSuccess) { window.onLoginSuccess(); }", null)
                                                     }
@@ -359,65 +351,50 @@ class MainActivity : ComponentActivity() {
                                         fun postCoordinates(json: String) {
                                             runOnUiThread {
                                                 if (json != "{\"compose\":null,\"to\":null,\"subject\":null,\"body\":null,\"send\":null}") {
-                                                    log("[Scanner API] Обнаружены элементы: $json")
-                                                    
                                                     try {
                                                         val obj = JSONObject(json)
-                                                        
-                                                        val compose = obj.optJSONObject("compose")
-                                                        if (compose != null) {
-                                                            composeX = compose.optDouble("x", -1.0).toFloat()
-                                                            composeY = compose.optDouble("y", -1.0).toFloat()
-                                                        } else {
-                                                            composeX = null
-                                                            composeY = null
-                                                        }
+                                                        composeX = obj.optJSONObject("compose")?.optDouble("x", -1.0)?.toFloat()?.takeIf { it != -1f }
+                                                        composeY = obj.optJSONObject("compose")?.optDouble("y", -1.0)?.toFloat()?.takeIf { it != -1f }
+                                                        toX = obj.optJSONObject("to")?.optDouble("x", -1.0)?.toFloat()?.takeIf { it != -1f }
+                                                        toY = obj.optJSONObject("to")?.optDouble("y", -1.0)?.toFloat()?.takeIf { it != -1f }
+                                                        subjectX = obj.optJSONObject("subject")?.optDouble("x", -1.0)?.toFloat()?.takeIf { it != -1f }
+                                                        subjectY = obj.optJSONObject("subject")?.optDouble("y", -1.0)?.toFloat()?.takeIf { it != -1f }
+                                                        bodyX = obj.optJSONObject("body")?.optDouble("x", -1.0)?.toFloat()?.takeIf { it != -1f }
+                                                        bodyY = obj.optJSONObject("body")?.optDouble("y", -1.0)?.toFloat()?.takeIf { it != -1f }
+                                                        sendX = obj.optJSONObject("send")?.optDouble("x", -1.0)?.toFloat()?.takeIf { it != -1f }
+                                                        sendY = obj.optJSONObject("send")?.optDouble("y", -1.0)?.toFloat()?.takeIf { it != -1f }
+                                                    } catch (e: Exception) {}
+                                                }
+                                            }
+                                        }
 
-                                                        val to = obj.optJSONObject("to")
-                                                        if (to != null) {
-                                                            toX = to.optDouble("x", -1.0).toFloat()
-                                                            toY = to.optDouble("y", -1.0).toFloat()
-                                                        } else {
-                                                            toX = null
-                                                            toY = null
-                                                        }
-
-                                                        val subject = obj.optJSONObject("subject")
-                                                        if (subject != null) {
-                                                            subjectX = subject.optDouble("x", -1.0).toFloat()
-                                                            subjectY = subject.optDouble("y", -1.0).toFloat()
-                                                        } else {
-                                                            subjectX = null
-                                                            subjectY = null
-                                                        }
-
-                                                        val body = obj.optJSONObject("body")
-                                                        if (body != null) {
-                                                            bodyX = body.optDouble("x", -1.0).toFloat()
-                                                            bodyY = body.optDouble("y", -1.0).toFloat()
-                                                        } else {
-                                                            bodyX = null
-                                                            bodyY = null
-                                                        }
-
-                                                        val send = obj.optJSONObject("send")
-                                                        if (send != null) {
-                                                            sendX = send.optDouble("x", -1.0).toFloat()
-                                                            sendY = send.optDouble("y", -1.0).toFloat()
-                                                        } else {
-                                                            sendX = null
-                                                            sendY = null
-                                                        }
-                                                    } catch (e: Exception) {
-                                                        log("[Scanner Error] Ошибка парсинга JSON: ${e.message}")
-                                                    }
+                                        // ЭТАП 6: ПРИЕМ СООБЩЕНИЯ ИЗ Укрнета в Kotlin
+                                        @JavascriptInterface
+                                        fun onIncomingMessage(id: String, subject: String, body: String) {
+                                            runOnUiThread {
+                                                log("[Parser] Найдено письмо: $id. Извлечение payload...")
+                                                
+                                                // Ищем зашифрованный блок между маркерами ===[ и ]===
+                                                val match = Regex("===\\[(.*?)\\]===").find(body)
+                                                if (match != null) {
+                                                    val aesPayload = match.groupValues[1]
+                                                    log("[Parser] AES Payload извлечен. Передаем в ExteraGram UI.")
+                                                    
+                                                    // Формируем JSON, который ждет твой ExteraGram
+                                                    val jsonArray = JSONArray()
+                                                    val msgObj = JSONObject()
+                                                    msgObj.put("chatId", "chat_1") // Пока хардкодим один чат для теста
+                                                    msgObj.put("author", "Собеседник")
+                                                    msgObj.put("text", aesPayload)
+                                                    msgObj.put("ts", System.currentTimeMillis())
+                                                    jsonArray.put(msgObj)
+                                                    
+                                                    val jsonString = jsonArray.toString().replace("\"", "\\\"")
+                                                    
+                                                    // Передаем данные в твой index.html
+                                                    messengerWebView?.evaluateJavascript("if (window.ExteraGram && window.ExteraGram.onEmailReceived) { window.ExteraGram.onEmailReceived(\"$jsonString\"); }", null)
                                                 } else {
-                                                    // Пишем в лог раз в 10 секунд (5 тиков по 2 сек), подтверждая, что сканер жив
-                                                    nullLogCounter++
-                                                    if (nullLogCounter >= 5) {
-                                                        nullLogCounter = 0
-                                                        log("[Scanner API] Поиск... (пока пусто, ждем появления элементов)")
-                                                    }
+                                                    log("[Parser] ОШИБКА: Маркеры ===[...]=== не найдены в письме.")
                                                 }
                                             }
                                         }
@@ -426,57 +403,18 @@ class MainActivity : ComponentActivity() {
                                     webViewClient = object : WebViewClient() {
                                         override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                                             super.doUpdateVisitedHistory(view, url, isReload)
-                                            log("[UkrNet] Смена URL: $url")
-                                            
-                                            // ДЕТЕКЦИЯ ПО URL (Мгновенно при переходе на почту)
                                             if (url != null && url.contains("mail.ukr.net") && !url.contains("login") && !url.contains("accounts.ukr.net")) {
                                                 if (isBgServiceActive && !hasHandledLogin) {
                                                     hasHandledLogin = true
-                                                    log("[System] Успешный вход по URL: $url. Переключаем интерфейс.")
-                                                    loginStatusMsg = "Авторизация пройдена!"
                                                     isBgServiceActive = false
                                                     messengerWebView?.evaluateJavascript("if (window.onLoginSuccess) { window.onLoginSuccess(); }", null)
                                                 }
                                             }
                                         }
-
-                                        override fun onPageFinished(view: WebView?, url: String?) {
-                                            super.onPageFinished(view, url)
-                                            log("[UkrNet] Загрузка завершена: $url")
-                                        }
-
-                                        override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-                                            super.onReceivedError(view, request, error)
-                                            val url = request?.url.toString()
-                                            if (!url.contains("tracker") && 
-                                                !url.contains("ad") && 
-                                                !url.contains("fwdcdn") && 
-                                                !url.contains("criteo") && 
-                                                !url.contains("bidmatic") && 
-                                                !url.contains("mgaru") && 
-                                                !url.contains("doubleclick") && 
-                                                !url.contains("crwdcntrl") &&
-                                                !url.contains("google") &&
-                                                !url.contains("facebook")
-                                            ) {
-                                                log("[UkrNet ERROR] ${error?.description} (Код: ${error?.errorCode}) URL: $url")
-                                            }
-                                        }
-
-                                        override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
-                                            handler?.cancel()
-                                        }
+                                        override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) { handler?.cancel() }
                                     }
-                                    
                                     webChromeClient = object : WebChromeClient() {
-                                        override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                                            val msg = consoleMessage?.message() ?: ""
-                                            val level = consoleMessage?.messageLevel()?.name ?: "LOG"
-                                            if (!msg.contains("Unknown event type") && !msg.contains("Criteo")) {
-                                                log("[UkrNet JS Console] [$level] $msg")
-                                            }
-                                            return true
-                                        }
+                                        override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean { return true }
                                     }
                                     loadUrl("https://mail.ukr.net/desktop/login")
                                 }
@@ -495,9 +433,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                     addJavascriptInterface(object : Any() {
                                         @JavascriptInterface
-                                        fun setBgServiceActive(active: Boolean) {
-                                            runOnUiThread { isBgServiceActive = active }
-                                        }
+                                        fun setBgServiceActive(active: Boolean) { runOnUiThread { isBgServiceActive = active } }
                                         @JavascriptInterface
                                         fun postMessage(type: String, key: String, value: String) {}
                                     }, "Android")
@@ -625,8 +561,8 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
 
-                                        // ЭТАП 3 ТЕСТ: Кнопка нативного клика по "Написать"
-                                        if (composeX != null && composeY != null) {
+                                        // ЭТАП 6 ТЕСТ: Отправить тестовое письмо СЕБЕ ЖЕ с маркерами и шифром
+                                        if (toX != null && subjectX != null && bodyX != null && sendX != null) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -636,100 +572,44 @@ class MainActivity : ComponentActivity() {
                                                     .height(30.dp)
                                             ) {
                                                 Text(
-                                                    text = "Кнопка 'Написать' найдена",
-                                                    color = Color(0xFF81C784),
-                                                    fontSize = 11.sp
-                                                )
-                                                TextButton(
-                                                    onClick = {
-                                                        simulateTouch(ukrnetWebView, composeX!!, composeY!!)
-                                                    },
-                                                    modifier = Modifier.background(Color(0x334CAF50), shape = RoundedCornerShape(4.dp))
-                                                ) {
-                                                    Text(
-                                                        text = "🎯 Тап 'Написать'",
-                                                        color = Color(0xFF81C784),
-                                                        fontSize = 10.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        // ЭТАП 4 ТЕСТ: Кнопка автоматического заполнения полей ввода
-                                        if (toX != null && subjectX != null && bodyX != null) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                                                    .height(30.dp)
-                                            ) {
-                                                Text(
-                                                    text = "Поля ввода обнаружены",
+                                                    text = "Отправка + Парсер:",
                                                     color = Color(0xFF64B5F6),
                                                     fontSize = 11.sp
                                                 )
                                                 TextButton(
                                                     onClick = {
                                                         coroutineScope.launch {
-                                                            log("[Autofill] Запуск бесшумного стелс-заполнения...")
+                                                            log("[Test] Запуск отправки зашифрованного сообщения...")
                                                             
-                                                            // 1. Поле "Кому" (с имитацией тапа для фокуса и заполнением)
                                                             simulateTouch(ukrnetWebView, toX!!, toY!!)
                                                             delay(500)
                                                             simulateType(ukrnetWebView, ".sm-auto-complete__input", "270232@ukr.net", isAutocomplete = true)
                                                             delay(1200)
                                                             
-                                                            // 2. Поле "Тема"
                                                             simulateTouch(ukrnetWebView, subjectX!!, subjectY!!)
                                                             delay(500)
                                                             simulateType(ukrnetWebView, "#sendmsg__subject", "RE: Сверка остатков [Ref: #270232]")
                                                             delay(1200)
                                                             
-                                                            // 3. Поле "Тело сообщения"
+                                                            // Тестовый AES пакет. (Hello World зашифрованный тестовым ключом "test")
+                                                            // В реале это будет генерировать index.html
+                                                            val testEncryptedPayload = "U2FsdGVkX19qS7qjN8qjN8qjN8qjN8qjN8qjN8qjN8o="
+                                                            val fakeText = "Добрый день! Направляю актуальные данные по вашему запросу во вложении.<br><br>===[$testEncryptedPayload]===<br><br>С уважением."
+                                                            
                                                             simulateTouch(ukrnetWebView, bodyX!!, bodyY!!)
                                                             delay(500)
-                                                            simulateType(ukrnetWebView, ".sm-editor__area", "Добрый день! Направляю актуальные данные по вашему запросу во вложении. С уважением.")
+                                                            simulateType(ukrnetWebView, ".sm-editor__area", fakeText)
+                                                            delay(1200)
+                                                            
+                                                            simulateTouch(ukrnetWebView, sendX!!, sendY!!)
+                                                            log("[Test] Письмо отправлено! Ждем реакции Парсера (Уши)...")
                                                         }
                                                     },
                                                     modifier = Modifier.background(Color(0x332196F3), shape = RoundedCornerShape(4.dp))
                                                 ) {
                                                     Text(
-                                                        text = "✍️ Начать автозаполнение",
+                                                        text = "🚀 Отправить AES Тест",
                                                         color = Color(0xFF64B5F6),
-                                                        fontSize = 10.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        // ЭТАП 5 ТЕСТ: Кнопка нативной отправки письма
-                                        if (sendX != null && sendY != null) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                                                    .height(30.dp)
-                                            ) {
-                                                Text(
-                                                    text = "Кнопка 'Отправить' найдена",
-                                                    color = Color(0xFFE57373),
-                                                    fontSize = 11.sp
-                                                )
-                                                TextButton(
-                                                    onClick = {
-                                                        simulateTouch(ukrnetWebView, sendX!!, sendY!!)
-                                                    },
-                                                    modifier = Modifier.background(Color(0x33F44336), shape = RoundedCornerShape(4.dp))
-                                                ) {
-                                                    Text(
-                                                        text = "🚀 Нажать 'Отправить'",
-                                                        color = Color(0xFFE57373),
                                                         fontSize = 10.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
