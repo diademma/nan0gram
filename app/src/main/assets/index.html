@@ -52,6 +52,30 @@ const AES={
   }
 };
 
+// RuCipher: кодирует текст в «случайный набор русских букв»
+// А-Я (32) + а-я (32) = 64 char ↔ base64, ё = padding '='
+const RuCipher={
+  _B64:'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/',
+  _RU :'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюя',
+  _e:null,_d:null,
+  _init(){
+    if(this._e)return;
+    this._e={};this._d={};
+    for(let i=0;i<64;i++){this._e[this._B64[i]]=this._RU[i];this._d[this._RU[i]]=this._B64[i];}
+    this._e['=']='ё';this._d['ё']='=';
+  },
+  encode(text){
+    this._init();
+    try{return btoa(unescape(encodeURIComponent(text))).split('').map(c=>this._e[c]||c).join('');}
+    catch{return text;}
+  },
+  decode(ru){
+    this._init();
+    try{return decodeURIComponent(escape(atob(ru.split('').map(c=>this._d[c]||c).join(''))));}
+    catch{return ru;}
+  }
+};
+
 const Config={
   KEY:'extgram_email_cfg',
   defaults:{senderEmail:'',appPassword:'',receiverEmail:'',encryptionKey:'',subscriptionToken:'',pollIntervalMs:30000,smtpHost:'smtp.gmail.com',smtpPort:465,imapHost:'imap.gmail.com',imapPort:993,subjectPrefix:'[TG_DATA]'},
@@ -274,24 +298,35 @@ document.addEventListener('DOMContentLoaded',()=>{
   else{console.log('[ExteraGram] Not configured — call ExteraGram.openEmailSettings()')}
 });
 
-// ── AUTO-BRIDGE (nan0gram): перехват отправки + рендер входящих баблов ─────────
-// Стратегия перехвата: ПОЛЛИНГ поля ввода.
-// keydown/click ненадёжны в Android WebView (мягкая клавиатура не даёт keydown).
-// Поллинг 120ms: когда поле очищается после непустого состояния — сообщение отправлено.
+// ── AUTO-BRIDGE v3 (nan0gram) ────────────────────────────────────────────────
+// Новая архитектура:
+//   focus  → Android.openCompose()   — открыть черновик заранее
+//   input  → Android.setComposeBody() — обновлять тело на лету (RuCipher)
+//   send   → Android.submitCompose() — нажать отправить (почти мгновенно)
+//   blur   → Android.cancelCompose() — отменить черновик и вернуться в inbox
+// Клавиатура больше не мерцает — simulateTouch в Kotlin не берёт requestFocus.
 
 function _escHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Безопасный вызов метода Android — не крашится если метода нет
+function _droid(fn,...args){
+  try{if(typeof Android[fn]==='function')Android[fn](...args);}
+  catch(e){console.warn('[nan0gram] Android.'+fn+' недоступен:',e.message);}
 }
 
 const BridgeAuto={
   _sentTexts:new Set(),
   _lastInputText:'',
   _pollTimer:null,
+  _debTimer:null,
   _inputEl:null,
+  _composeOpen:false,   // черновик открыт в укрнет
+  _sendPending:false,   // отправка в процессе
 
-  // Ищем поле ввода — пробуем несколько стратегий
+  // Поле ввода мессенджера
   _findInput(){
-    // Пробуем кешированный элемент
     if(this._inputEl&&document.contains(this._inputEl))return this._inputEl;
     const el=
       document.querySelector('[contenteditable="true"]')||
@@ -301,7 +336,7 @@ const BridgeAuto={
     return el;
   },
 
-  // chatId из заголовка активного чата
+  // chatId из заголовка чата
   _getChatId(){
     const el=
       document.querySelector('[class*="peer-title"]')||
@@ -309,57 +344,72 @@ const BridgeAuto={
       document.querySelector('[class*="peer-name"]')||
       document.querySelector('[class*="header"] h1')||
       document.querySelector('[class*="header"] span');
-    const text=(el?.textContent||'').trim();
-    return text||'chat';
+    return(el?.textContent||'').trim()||'chat';
   },
 
-  // Отправляем в мост, дедупликация 5 сек
-  _sendOnce(text){
-    if(!text||text.length<1||this._sentTexts.has(text))return;
+  // Открыть черновик в укрнет (вызывается при тапе на строку ввода)
+  _openCompose(){
+    if(this._composeOpen)return;
+    const cfg=Config.get();
+    if(!cfg.receiverEmail){console.warn('[nan0gram] receiverEmail не настроен');return;}
+    const chatId=this._getChatId();
+    const subject='💬 [nan0gram] '+chatId;
+    _droid('openCompose',JSON.stringify({to:cfg.receiverEmail,subject}));
+    this._composeOpen=true;
+    console.log('[nan0gram] openCompose →',subject);
+  },
+
+  // Обновить тело письма (вызывается при каждом изменении текста, debounce 220ms)
+  _pushBody(text){
+    if(!this._composeOpen||!text)return;
+    const encoded=RuCipher.encode(text);
+    // Формат тела: легенда + RuCipher payload + подпись
+    const body='Добрый день! Направляю данные.\\n\\n===НАНО===\\n'+encoded+'\\n===НАНО===\\n\\nС уважением.';
+    _droid('setComposeBody',body);
+  },
+
+  // Отправить письмо
+  _submitCompose(text){
+    if(this._sentTexts.has(text))return;
     this._sentTexts.add(text);
     setTimeout(()=>this._sentTexts.delete(text),5000);
-    const chatId=this._getChatId();
-    console.log('[nan0gram] →ПЕРЕХВАТ текст="'+text.slice(0,40)+'" chat='+chatId);
-    Transport.send(chatId,text,'Я')
-      .then(ok=>console.log('[nan0gram] →email',ok?'✓ отправлено':'✗ в очередь'))
-      .catch(e=>console.error('[nan0gram] ошибка отправки:',e));
+    this._sendPending=true;
+    console.log('[nan0gram] submitCompose → "'+text.slice(0,40)+'"');
+    if(this._composeOpen){
+      _droid('submitCompose');
+      this._composeOpen=false;
+    }else{
+      // Fallback: полный цикл Transport.send если compose не был открыт
+      const chatId=this._getChatId();
+      Transport.send(chatId,text,'Я')
+        .then(ok=>console.log('[nan0gram] fallback send',ok?'✓':'queued'))
+        .catch(e=>console.error('[nan0gram] fallback error:',e));
+    }
+    setTimeout(()=>{this._sendPending=false;},1500);
   },
 
-  // ПОЛЛИНГ: читаем поле каждые 120ms
-  // Когда поле было непустым и стало пустым — пользователь отправил сообщение
-  _startPoller(){
-    if(this._pollTimer)return;
-    this._pollTimer=setInterval(()=>{
-      const el=this._findInput();
-      if(!el)return;
-      const current=(el.textContent||el.value||'').trim();
-      if(this._lastInputText&&!current){
-        // Поле очистилось → перехватываем последний текст
-        this._sendOnce(this._lastInputText);
-      }
-      this._lastInputText=current;
-    },120);
-    console.log('[nan0gram] поллинг поля ввода запущен (120ms)');
+  // Отменить черновик (потеря фокуса без отправки)
+  _cancelCompose(){
+    if(!this._composeOpen||this._sendPending)return;
+    _droid('cancelCompose');
+    this._composeOpen=false;
+    console.log('[nan0gram] cancelCompose');
   },
 
-  // Контейнер списка сообщений
+  // Контейнер списка сообщений в UI мессенджера
   _getMsgList(){
-    // Ищем прокручиваемый div с сообщениями — самый глубокий скроллируемый контейнер
     const byClass=
       document.querySelector('[class*="messages"]')||
       document.querySelector('[class*="msg-list"]')||
       document.querySelector('[class*="chat-body"]')||
       document.querySelector('[class*="bubbles"]');
     if(byClass)return byClass;
-    // Fallback: найти div внутри #root у которого overflow-y scroll/auto
     const root=document.getElementById('root');
     if(!root)return null;
     const divs=root.querySelectorAll('div');
     for(let i=divs.length-1;i>=0;i--){
       const s=window.getComputedStyle(divs[i]);
-      if(s.overflowY==='scroll'||s.overflowY==='auto'){
-        return divs[i];
-      }
+      if(s.overflowY==='scroll'||s.overflowY==='auto')return divs[i];
     }
     return root;
   },
@@ -368,49 +418,91 @@ const BridgeAuto={
   _renderBubble(msg){
     if(document.querySelector('[data-n0-id="'+msg.id+'"]'))return;
     const list=this._getMsgList();
-    if(!list){
-      console.warn('[nan0gram] контейнер сообщений не найден, повтор через 1с');
-      setTimeout(()=>this._renderBubble(msg),1000);
-      return;
-    }
+    if(!list){setTimeout(()=>this._renderBubble(msg),1000);return;}
     const time=new Date(msg.ts).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
     const wrap=document.createElement('div');
     wrap.setAttribute('data-n0-id',msg.id);
-    wrap.style.cssText=
-      'display:flex;justify-content:flex-start;padding:2px 12px 2px 8px;'+
-      'animation:n0FadeIn .22s ease';
+    wrap.style.cssText='display:flex;justify-content:flex-start;padding:2px 12px 2px 8px;animation:n0FadeIn .22s ease';
     wrap.innerHTML=
       '<div style="max-width:68%;background:var(--msg-in,rgba(46,29,60,.88));'+
       'border-radius:18px 18px 18px 4px;padding:8px 12px 6px;'+
       'backdrop-filter:blur(12px);box-shadow:0 1px 6px rgba(0,0,0,.35)">'+
-        '<div style="font-size:12px;font-weight:600;color:var(--name-cyan,#a773d1);'+
-        'margin-bottom:3px">'+_escHtml(msg.author)+'</div>'+
-        '<div style="font-size:15px;color:var(--text-main,#fff);line-height:1.45;'+
-        'white-space:pre-wrap">'+_escHtml(msg.text)+'</div>'+
-        '<div style="font-size:11px;color:var(--text-time,#746481);'+
-        'text-align:right;margin-top:4px">'+time+' ✓✓</div>'+
+        '<div style="font-size:12px;font-weight:600;color:var(--name-cyan,#a773d1);margin-bottom:3px">'+_escHtml(msg.author)+'</div>'+
+        '<div style="font-size:15px;color:var(--text-main,#fff);line-height:1.45;white-space:pre-wrap">'+_escHtml(msg.text)+'</div>'+
+        '<div style="font-size:11px;color:var(--text-time,#746481);text-align:right;margin-top:4px">'+time+' ✓✓</div>'+
       '</div>';
     list.appendChild(wrap);
     list.scrollTop=list.scrollHeight;
-    console.log('[nan0gram] ←бабл от '+msg.author+': "'+msg.text.slice(0,40)+'"');
+    console.log('[nan0gram] ←бабл от '+msg.author);
+  },
+
+  // Разбираем входящий RuCipher из тела письма
+  _decodeBody(raw){
+    const m=raw.match(/===НАНО===\s*([\s\S]+?)\s*===НАНО===/);
+    if(m)return RuCipher.decode(m[1].trim());
+    // Fallback: AES из старого формата ===[ ... ]===
+    const m2=raw.match(/===\[([\s\S]+?)\]===/);
+    return m2?m2[1]:'';
+  },
+
+  // Подключаем все слушатели событий
+  _wire(){
+    // 1. FOCUS → открыть черновик сразу
+    document.addEventListener('focusin',e=>{
+      const el=e.target;
+      const isInput=
+        el.getAttribute('contenteditable')==='true'||
+        el.tagName==='TEXTAREA'||
+        (el.tagName==='INPUT'&&el.type!=='hidden'&&el.type!=='submit');
+      if(!isInput)return;
+      this._inputEl=el;
+      this._lastInputText=(el.textContent||el.value||'').trim();
+      this._openCompose();
+    },true);
+
+    // 2. INPUT → обновлять тело письма (debounce 220ms)
+    document.addEventListener('input',e=>{
+      const el=e.target;
+      const isInput=
+        el.getAttribute('contenteditable')==='true'||
+        el.tagName==='TEXTAREA'||
+        el.tagName==='INPUT';
+      if(!isInput)return;
+      const text=(el.textContent||el.value||'').trim();
+      this._lastInputText=text;
+      clearTimeout(this._debTimer);
+      this._debTimer=setTimeout(()=>this._pushBody(text),220);
+    },true);
+
+    // 3. BLUR → отменить черновик если не было отправки
+    document.addEventListener('focusout',e=>{
+      if(e.target!==this._inputEl)return;
+      // Задержка 300ms: дать время сработать отправке через поллинг
+      setTimeout(()=>this._cancelCompose(),300);
+    },true);
+
+    // 4. POLL 80ms → детектировать очистку поля (= отправка)
+    this._pollTimer=setInterval(()=>{
+      const el=this._findInput();
+      if(!el)return;
+      const current=(el.textContent||el.value||'').trim();
+      if(this._lastInputText&&!current){
+        this._submitCompose(this._lastInputText);
+      }
+      this._lastInputText=current;
+    },80);
+
+    console.log('[nan0gram] ✓ автопроводка v3 активна');
   },
 
   init(){
-    // Входящие: Android → ExteraGram.onEmailReceived → Transport.receive → extgram:message → бабл
     W.addEventListener('extgram:message',e=>this._renderBubble(e.detail));
-
-    // Исходящие: поллинг поля ввода
-    const wire=()=>this._startPoller();
+    const wire=()=>this._wire();
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire);
     else wire();
-
-    // CSS-анимация входящих баблов
     const st=document.createElement('style');
-    st.textContent=
-      '@keyframes n0FadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}';
+    st.textContent='@keyframes n0FadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}';
     document.head.appendChild(st);
-
-    console.log('[nan0gram] ✓ автопроводка активна (поллинг 120ms)');
   }
 };
 
