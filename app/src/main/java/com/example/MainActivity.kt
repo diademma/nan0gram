@@ -5,8 +5,6 @@ import android.graphics.Bitmap
 import android.net.http.SslError
 import android.os.Bundle
 import android.os.SystemClock
-import android.view.KeyCharacterMap
-import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -84,7 +82,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Симуляция аппаратного клика по координатам
+    // Симуляция реального аппаратного тапа
     private fun simulateTouch(webView: WebView?, cssX: Float, cssY: Float) {
         if (webView == null) return
         
@@ -105,6 +103,8 @@ class MainActivity : ComponentActivity() {
         )
 
         webView.post {
+            webView.requestFocus()
+            webView.requestFocusFromTouch()
             webView.dispatchTouchEvent(downEvent)
             webView.dispatchTouchEvent(upEvent)
             downEvent.recycle()
@@ -113,28 +113,45 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ЭТАП 4: Симуляция нативного посимвольного ввода текста в сфокусированное поле
-    private fun simulateType(webView: WebView?, text: String) {
+    // ЭТАП 4 (Модифицированный): Бесшумный стелс-ввод через эмуляцию автозаполнения Google
+    private fun simulateType(webView: WebView?, selector: String, text: String, isAutocomplete: Boolean = false) {
         if (webView == null) return
         
-        // Создаем ивент ввода строки на уровне прерываний клавиатуры
-        val event = KeyEvent(
-            SystemClock.uptimeMillis(),
-            text,
-            KeyCharacterMap.VIRTUAL_KEYBOARD,
-            0
-        )
+        val js = """
+            (function() {
+                var el = document.querySelector('$selector');
+                if (!el) return 'not_found';
+                el.focus();
+                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                    // Для автокомплита Укрнета добавляем в конец запятую для автоматического триггера чипа
+                    el.value = '$text' + ( $isAutocomplete ? ',' : '' );
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    
+                    // Дополнительно симулируем нажатие клавиши Enter
+                    var enterDown = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13 });
+                    el.dispatchEvent(enterDown);
+                    var enterUp = new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13 });
+                    el.dispatchEvent(enterUp);
+                } else if (el.getAttribute('contenteditable') === 'true') {
+                    el.innerHTML = '$text';
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                return 'success';
+            })();
+        """.trimIndent()
         
         webView.post {
-            webView.dispatchKeyEvent(event)
-            log("[Autoclicker] Набран текст: \"$text\"")
+            webView.evaluateJavascript(js) { result ->
+                log("[Autofill] Заполнение поля ($selector): $result")
+            }
         }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация (ЭТАП 4: Посимвольный ввод)")
+        log("[System] Инициализация (ЭТАП 4: Стелс-ввод)")
         enableEdgeToEdge()
 
         setContent {
@@ -388,6 +405,7 @@ class MainActivity : ComponentActivity() {
                                                         log("[Scanner Error] Ошибка парсинга JSON: ${e.message}")
                                                     }
                                                 } else {
+                                                    // Пишем в лог раз в 10 секунд (5 тиков по 2 сек), подтверждая, что сканер жив
                                                     nullLogCounter++
                                                     if (nullLogCounter >= 5) {
                                                         nullLogCounter = 0
@@ -403,6 +421,7 @@ class MainActivity : ComponentActivity() {
                                             super.doUpdateVisitedHistory(view, url, isReload)
                                             log("[UkrNet] Смена URL: $url")
                                             
+                                            // ДЕТЕКЦИЯ ПО URL (Мгновенно при переходе на почту)
                                             if (url != null && url.contains("mail.ukr.net") && !url.contains("login") && !url.contains("accounts.ukr.net")) {
                                                 if (isBgServiceActive && !hasHandledLogin) {
                                                     hasHandledLogin = true
@@ -648,24 +667,24 @@ class MainActivity : ComponentActivity() {
                                                 TextButton(
                                                     onClick = {
                                                         coroutineScope.launch {
-                                                            log("[Autofill] Запуск цепочки ввода...")
+                                                            log("[Autofill] Запуск бесшумного стелс-заполнения...")
                                                             
-                                                            // 1. Поле "Кому"
+                                                            // 1. Поле "Кому" (с имитацией тапа для реализма и фокуса)
                                                             simulateTouch(ukrnetWebView, toX!!, toY!!)
-                                                            delay(600)
-                                                            simulateType(ukrnetWebView, "270232@ukr.net")
-                                                            delay(1200)
+                                                            delay(500)
+                                                            simulateType(ukrnetWebView, ".sm-auto-complete__input", "270232@ukr.net", isAutocomplete = true)
+                                                            delay(1000)
                                                             
                                                             // 2. Поле "Тема"
                                                             simulateTouch(ukrnetWebView, subjectX!!, subjectY!!)
-                                                            delay(600)
-                                                            simulateType(ukrnetWebView, "[nan0gram_v1] Тест автокликера")
-                                                            delay(1200)
+                                                            delay(500)
+                                                            simulateType(ukrnetWebView, "#sendmsg__subject", "[nan0gram_v1] Тест автокликера")
+                                                            delay(1000)
                                                             
                                                             // 3. Поле "Тело сообщения"
                                                             simulateTouch(ukrnetWebView, bodyX!!, bodyY!!)
-                                                            delay(600)
-                                                            simulateType(ukrnetWebView, "Привет! Это сообщение напечатано нативным методом ввода.")
+                                                            delay(500)
+                                                            simulateType(ukrnetWebView, ".sm-editor__area", "Привет! Это сообщение напечатано бесшумным нативным методом ввода.")
                                                         }
                                                     },
                                                     modifier = Modifier.background(Color(0x332196F3), shape = RoundedCornerShape(4.dp))
