@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.net.http.SslError
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.KeyCharacterMap
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -47,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -80,7 +84,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Симуляция реального аппаратного клика по координатам
+    // Симуляция аппаратного клика по координатам
     private fun simulateTouch(webView: WebView?, cssX: Float, cssY: Float) {
         if (webView == null) return
         
@@ -109,10 +113,28 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // ЭТАП 4: Симуляция нативного посимвольного ввода текста в сфокусированное поле
+    private fun simulateType(webView: WebView?, text: String) {
+        if (webView == null) return
+        
+        // Создаем ивент ввода строки на уровне прерываний клавиатуры
+        val event = KeyEvent(
+            SystemClock.uptimeMillis(),
+            text,
+            KeyCharacterMap.VIRTUAL_KEYBOARD,
+            0
+        )
+        
+        webView.post {
+            webView.dispatchKeyEvent(event)
+            log("[Autoclicker] Набран текст: \"$text\"")
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация (ЭТАП 3: Точные селекторы)")
+        log("[System] Инициализация (ЭТАП 4: Посимвольный ввод)")
         enableEdgeToEdge()
 
         setContent {
@@ -126,12 +148,21 @@ class MainActivity : ComponentActivity() {
             var isLogPanelExpanded by remember { mutableStateOf(false) }
             var uiAlpha by remember { mutableStateOf(0.95f) }
             
-            // Координаты кнопки "Написать" для симуляции клика
+            // Координаты элементов для автоматизации
             var composeX by remember { mutableStateOf<Float?>(null) }
             var composeY by remember { mutableStateOf<Float?>(null) }
+            var toX by remember { mutableStateOf<Float?>(null) }
+            var toY by remember { mutableStateOf<Float?>(null) }
+            var subjectX by remember { mutableStateOf<Float?>(null) }
+            var subjectY by remember { mutableStateOf<Float?>(null) }
+            var bodyX by remember { mutableStateOf<Float?>(null) }
+            var bodyY by remember { mutableStateOf<Float?>(null) }
+            var sendX by remember { mutableStateOf<Float?>(null) }
+            var sendY by remember { mutableStateOf<Float?>(null) }
             
             val clipboardManager = LocalClipboardManager.current
             val lazyListState = rememberLazyListState()
+            val coroutineScope = rememberCoroutineScope()
 
             LaunchedEffect(logList.size) {
                 if (logList.isNotEmpty() && isLogPanelExpanded) {
@@ -139,7 +170,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // ПЕРИОДИЧЕСКИЙ ИНЖЕКТОР АВТОРИЗАЦИИ (Работает до входа, проверяет DOM и URL)
+            // Периодический инжектор авторизации (до входа)
             LaunchedEffect(isBgServiceActive, ukrnetWebView) {
                 val monitoringJs = """
                     try {
@@ -169,14 +200,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // ЭТАП 2: УМНЫЙ DOM-сканер координат с точными селекторами сенсора Укрнета
+            // ЭТАП 2: DOM-сканер координат (активируется после входа)
             LaunchedEffect(isBgServiceActive, ukrnetWebView) {
                 val scanningJs = """
                     (function() {
                         function findCompose() {
-                            // 1. Попытка поиска по точным селекторам из DOM-анализа
                             var exact = [
-                                '.ml-header__compose', // Прямой класс зеленого пера в шапке списка
+                                '.ml-header__compose', 
                                 'a.sendmsg', '.sendmsg', 'a[href*="sendmsg"]', 
                                 '[aria-label="Написати"]', '[aria-label="Написать"]', 
                                 '[aria-label*="Написати"]', '[aria-label*="Написать"]',
@@ -191,7 +221,6 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             
-                            // 2. Умный каскадный поиск по ключевым словам в атрибутах (для отказоустойчивости)
                             var all = document.getElementsByTagName('*');
                             for (var i = 0; i < all.length; i++) {
                                 var el = all[i];
@@ -235,7 +264,6 @@ class MainActivity : ComponentActivity() {
                             };
                         }
 
-                        // Обновленные селекторы на основе точной DOM-структуры UkrNet Touch
                         var selectors = {
                             to: ['.sm-auto-complete__input', '#to', 'input#to', 'textarea#to', 'input[name="to"]', '[placeholder*="Кому"]', '[placeholder*="To"]', '.sendmsg__to input'],
                             subject: ['#sendmsg__subject', '.sendmsg__subject', '#subject', 'input#subject', 'input[name="subject"]', '[placeholder*="Тема"]', '[placeholder*="Subject"]', '.sendmsg__subject input'],
@@ -311,23 +339,55 @@ class MainActivity : ComponentActivity() {
                                                     
                                                     try {
                                                         val obj = JSONObject(json)
+                                                        
                                                         val compose = obj.optJSONObject("compose")
                                                         if (compose != null) {
                                                             composeX = compose.optDouble("x", -1.0).toFloat()
                                                             composeY = compose.optDouble("y", -1.0).toFloat()
-                                                            if (composeX == -1f || composeY == -1f) {
-                                                                composeX = null
-                                                                composeY = null
-                                                            }
                                                         } else {
                                                             composeX = null
                                                             composeY = null
+                                                        }
+
+                                                        val to = obj.optJSONObject("to")
+                                                        if (to != null) {
+                                                            toX = to.optDouble("x", -1.0).toFloat()
+                                                            toY = to.optDouble("y", -1.0).toFloat()
+                                                        } else {
+                                                            toX = null
+                                                            toY = null
+                                                        }
+
+                                                        val subject = obj.optJSONObject("subject")
+                                                        if (subject != null) {
+                                                            subjectX = subject.optDouble("x", -1.0).toFloat()
+                                                            subjectY = subject.optDouble("y", -1.0).toFloat()
+                                                        } else {
+                                                            subjectX = null
+                                                            subjectY = null
+                                                        }
+
+                                                        val body = obj.optJSONObject("body")
+                                                        if (body != null) {
+                                                            bodyX = body.optDouble("x", -1.0).toFloat()
+                                                            bodyY = body.optDouble("y", -1.0).toFloat()
+                                                        } else {
+                                                            bodyX = null
+                                                            bodyY = null
+                                                        }
+
+                                                        val send = obj.optJSONObject("send")
+                                                        if (send != null) {
+                                                            sendX = send.optDouble("x", -1.0).toFloat()
+                                                            sendY = send.optDouble("y", -1.0).toFloat()
+                                                        } else {
+                                                            sendX = null
+                                                            sendY = null
                                                         }
                                                     } catch (e: Exception) {
                                                         log("[Scanner Error] Ошибка парсинга JSON: ${e.message}")
                                                     }
                                                 } else {
-                                                    // Пишем в лог раз в 10 секунд (5 тиков по 2 сек), подтверждая, что сканер жив
                                                     nullLogCounter++
                                                     if (nullLogCounter >= 5) {
                                                         nullLogCounter = 0
@@ -343,7 +403,6 @@ class MainActivity : ComponentActivity() {
                                             super.doUpdateVisitedHistory(view, url, isReload)
                                             log("[UkrNet] Смена URL: $url")
                                             
-                                            // ДЕТЕКЦИЯ ПО URL (Мгновенно при переходе на почту)
                                             if (url != null && url.contains("mail.ukr.net") && !url.contains("login") && !url.contains("accounts.ukr.net")) {
                                                 if (isBgServiceActive && !hasHandledLogin) {
                                                     hasHandledLogin = true
@@ -540,7 +599,7 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
 
-                                        // Кнопка нативного клика
+                                        // ЭТАП 3 ТЕСТ: Кнопка нативного клика по "Написать"
                                         if (composeX != null && composeY != null) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
@@ -551,8 +610,8 @@ class MainActivity : ComponentActivity() {
                                                     .height(30.dp)
                                             ) {
                                                 Text(
-                                                    text = "Обнаружена кнопка 'Написать'",
-                                                    color = Color(0xFFE0C3FC),
+                                                    text = "Кнопка 'Написать' найдена",
+                                                    color = Color(0xFF81C784),
                                                     fontSize = 11.sp
                                                 )
                                                 TextButton(
@@ -562,8 +621,89 @@ class MainActivity : ComponentActivity() {
                                                     modifier = Modifier.background(Color(0x334CAF50), shape = RoundedCornerShape(4.dp))
                                                 ) {
                                                     Text(
-                                                        text = "🎯 Нажать 'Написать'",
+                                                        text = "🎯 Тап 'Написать'",
                                                         color = Color(0xFF81C784),
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // ЭТАП 4 ТЕСТ: Кнопка автоматического заполнения полей ввода
+                                        if (toX != null && subjectX != null && bodyX != null) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                    .height(30.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Поля ввода обнаружены",
+                                                    color = Color(0xFF64B5F6),
+                                                    fontSize = 11.sp
+                                                )
+                                                TextButton(
+                                                    onClick = {
+                                                        coroutineScope.launch {
+                                                            log("[Autofill] Запуск цепочки ввода...")
+                                                            
+                                                            // 1. Поле "Кому"
+                                                            simulateTouch(ukrnetWebView, toX!!, toY!!)
+                                                            delay(600)
+                                                            simulateType(ukrnetWebView, "270232@ukr.net")
+                                                            delay(1200)
+                                                            
+                                                            // 2. Поле "Тема"
+                                                            simulateTouch(ukrnetWebView, subjectX!!, subjectY!!)
+                                                            delay(600)
+                                                            simulateType(ukrnetWebView, "[nan0gram_v1] Тест автокликера")
+                                                            delay(1200)
+                                                            
+                                                            // 3. Поле "Тело сообщения"
+                                                            simulateTouch(ukrnetWebView, bodyX!!, bodyY!!)
+                                                            delay(600)
+                                                            simulateType(ukrnetWebView, "Привет! Это сообщение напечатано нативным методом ввода.")
+                                                        }
+                                                    },
+                                                    modifier = Modifier.background(Color(0x332196F3), shape = RoundedCornerShape(4.dp))
+                                                ) {
+                                                    Text(
+                                                        text = "✍️ Начать автозаполнение",
+                                                        color = Color(0xFF64B5F6),
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // ЭТАП 5 ТЕСТ: Кнопка нативной отправки письма
+                                        if (sendX != null && sendY != null) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                    .height(30.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Кнопка 'Отправить' найдена",
+                                                    color = Color(0xFFE57373),
+                                                    fontSize = 11.sp
+                                                )
+                                                TextButton(
+                                                    onClick = {
+                                                        simulateTouch(ukrnetWebView, sendX!!, sendY!!)
+                                                    },
+                                                    modifier = Modifier.background(Color(0x33F44336), shape = RoundedCornerShape(4.dp))
+                                                ) {
+                                                    Text(
+                                                        text = "🚀 Нажать 'Отправить'",
+                                                        color = Color(0xFFE57373),
                                                         fontSize = 10.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
