@@ -27,11 +27,9 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
+      # Используем глобальный gradle, так как gradlew отсутствует в репозитории
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon
 
       - name: Rename APK
         run: mv app/build/outputs/apk/debug/app-debug.apk nan0gram-latest.apk
