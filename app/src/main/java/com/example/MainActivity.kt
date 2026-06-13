@@ -5,8 +5,8 @@ import android.graphics.Bitmap
 import android.net.http.SslError
 import android.os.Bundle
 import android.os.SystemClock
-import android.view.KeyEvent
 import android.view.KeyCharacterMap
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -108,7 +108,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Стелс-ввод через эмуляцию автозаполнения
+    // Бесшумный стелс-ввод через эмуляцию автозаполнения
     private fun simulateType(webView: WebView?, selector: String, text: String, isAutocomplete: Boolean = false) {
         if (webView == null) return
         val js = """
@@ -143,7 +143,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация (ЭТАП 6: Полная сборка)")
+        log("[System] Инициализация (ЭТАП 7: Объединение моста)")
         enableEdgeToEdge()
 
         setContent {
@@ -158,6 +158,7 @@ class MainActivity : ComponentActivity() {
             var uiAlpha by remember { mutableStateOf(0.95f) }
             var isParserEnabled by remember { mutableStateOf(false) } // Управление радаром "Ушей"
             
+            // Координаты элементов для автоматизации
             var composeX by remember { mutableStateOf<Float?>(null) }
             var composeY by remember { mutableStateOf<Float?>(null) }
             var toX by remember { mutableStateOf<Float?>(null) }
@@ -357,12 +358,6 @@ class MainActivity : ComponentActivity() {
                                                         sendX = obj.optJSONObject("send")?.optDouble("x", -1.0)?.toFloat()?.takeIf { it != -1f }
                                                         sendY = obj.optJSONObject("send")?.optDouble("y", -1.0)?.toFloat()?.takeIf { it != -1f }
                                                     } catch (e: Exception) {}
-                                                } else {
-                                                    nullLogCounter++
-                                                    if (nullLogCounter >= 5) {
-                                                        nullLogCounter = 0
-                                                        log("[Scanner API] Поиск... (пока пусто, ждем появления элементов)")
-                                                    }
                                                 }
                                             }
                                         }
@@ -427,6 +422,65 @@ class MainActivity : ComponentActivity() {
                                     addJavascriptInterface(object : Any() {
                                         @JavascriptInterface
                                         fun setBgServiceActive(active: Boolean) { runOnUiThread { isBgServiceActive = active } }
+                                        
+                                        // ИСХОДЯЩИЙ МОСТ (Подключение отправки из ExteraGram UI в Укрнет)
+                                        @JavascriptInterface
+                                        fun sendEmail(payload: String) {
+                                            runOnUiThread {
+                                                log("[Bridge OUT] Исходящий пакет из мессенджера получен!")
+                                                coroutineScope.launch {
+                                                    if (composeX != null && composeY != null) {
+                                                        log("[Bridge OUT] Запуск фонового процесса отправки...")
+                                                        
+                                                        // 1. Открываем форму
+                                                        simulateTouch(ukrnetWebView, composeX!!, composeY!!)
+                                                        
+                                                        // Ждем появления полей ввода
+                                                        var attempts = 0
+                                                        while ((toX == null || subjectX == null || bodyX == null || sendX == null) && attempts < 10) {
+                                                            delay(500)
+                                                            attempts++
+                                                        }
+                                                        
+                                                        if (toX != null) {
+                                                            log("[Bridge OUT] Поля ввода найдены. Начинаем стелс-заполнение...")
+                                                            
+                                                            // 2. Вводим Кому
+                                                            simulateTouch(ukrnetWebView, toX!!, toY!!)
+                                                            delay(500)
+                                                            simulateType(ukrnetWebView, ".sm-auto-complete__input", "270232@ukr.net", isAutocomplete = true)
+                                                            delay(1200)
+                                                            
+                                                            // 3. Вводим Тему
+                                                            simulateTouch(ukrnetWebView, subjectX!!, subjectY!!)
+                                                            delay(500)
+                                                            simulateType(ukrnetWebView, "#sendmsg__subject", "RE: Сверка остатков [Ref: #270232]")
+                                                            delay(1200)
+                                                            
+                                                            // 4. Вводим Тело с маскировкой
+                                                            val fakeText = "Добрый день! Направляю актуальные данные по вашему запросу во вложении.<br><br>===[" + payload + "]===<br><br>С уважением."
+                                                            simulateTouch(ukrnetWebView, bodyX!!, bodyY!!)
+                                                            delay(500)
+                                                            simulateType(ukrnetWebView, ".sm-editor__area", fakeText)
+                                                            delay(1200)
+                                                            
+                                                            // 5. Отправляем!
+                                                            if (sendX != null && sendY != null) {
+                                                                log("[Bridge OUT] Отправка сообщения...")
+                                                                simulateTouch(ukrnetWebView, sendX!!, sendY!!)
+                                                            } else {
+                                                                log("[Bridge OUT ERROR] Кнопка 'Отправить' не найдена.")
+                                                            }
+                                                        } else {
+                                                            log("[Bridge OUT ERROR] Таймаут ожидания полей ввода.")
+                                                        }
+                                                    } else {
+                                                        log("[Bridge OUT ERROR] Координаты кнопки 'Написать' не определены.")
+                                                    }
+                                                }
+                                            }
+                                        }
+
                                         @JavascriptInterface
                                         fun postMessage(type: String, key: String, value: String) {}
                                     }, "Android")
@@ -501,7 +555,7 @@ class MainActivity : ComponentActivity() {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .fillMaxHeight(0.58f) // Немного увеличил высоту для размещения переключателей
+                                    .fillMaxHeight(0.55f)
                                     .align(Alignment.TopCenter)
                                     .background(Color(0xF90F0A15))
                                     .border(1.dp, Color(0xFFA773D1))
@@ -538,7 +592,7 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(horizontal = 8.dp)
-                                                .height(30.dp)
+                                                .height(36.dp)
                                         ) {
                                             Text(
                                                 text = "Видимость UI: ${(uiAlpha * 100).toInt()}%", 
@@ -615,8 +669,8 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
 
-                                        // ЭТАП 4 ТЕСТ: Кнопка автоматического заполнения полей ввода
-                                        if (toX != null && subjectX != null && bodyX != null) {
+                                        // ЭТАП 6 ТЕСТ: Кнопка отправки AES-теста самому себе
+                                        if (toX != null && subjectX != null && bodyX != null && sendX != null) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -626,15 +680,14 @@ class MainActivity : ComponentActivity() {
                                                     .height(30.dp)
                                             ) {
                                                 Text(
-                                                    text = "Поля ввода обнаружены",
+                                                    text = "Отправка + Парсер:",
                                                     color = Color(0xFF64B5F6),
                                                     fontSize = 11.sp
                                                 )
                                                 TextButton(
                                                     onClick = {
                                                         coroutineScope.launch {
-                                                            log("[Autofill] Запуск бесшумного стелс-заполнения...")
-                                                            
+                                                            log("[Test] Запуск отправки зашифрованного сообщения...")
                                                             simulateTouch(ukrnetWebView, toX!!, toY!!)
                                                             delay(500)
                                                             simulateType(ukrnetWebView, ".sm-auto-complete__input", "270232@ukr.net", isAutocomplete = true)
@@ -645,50 +698,24 @@ class MainActivity : ComponentActivity() {
                                                             simulateType(ukrnetWebView, "#sendmsg__subject", "RE: Сверка остатков [Ref: #270232]")
                                                             delay(1200)
                                                             
+                                                            // Тестовый AES пакет. (Строка Hello World, зашифрованная тестовым ключом "test")
                                                             val testEncryptedPayload = "U2FsdGVkX19qS7qjN8qjN8qjN8qjN8qjN8qjN8qjN8o="
                                                             val fakeText = "Добрый день! Направляю актуальные данные по вашему запросу во вложении.<br><br>===[$testEncryptedPayload]===<br><br>С уважением."
                                                             
                                                             simulateTouch(ukrnetWebView, bodyX!!, bodyY!!)
                                                             delay(500)
                                                             simulateType(ukrnetWebView, ".sm-editor__area", fakeText)
+                                                            delay(1200)
+                                                            
+                                                            simulateTouch(ukrnetWebView, sendX!!, sendY!!)
+                                                            log("[Test] Письмо отправлено! Ждем реакции Парсера (Уши)...")
                                                         }
                                                     },
                                                     modifier = Modifier.background(Color(0x332196F3), shape = RoundedCornerShape(4.dp))
                                                 ) {
                                                     Text(
-                                                        text = "✍️ Начать автозаполнение",
+                                                        text = "🚀 Отправить AES Тест",
                                                         color = Color(0xFF64B5F6),
-                                                        fontSize = 10.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        // ЭТАП 5 ТЕСТ: Кнопка нативной отправки письма
-                                        if (sendX != null && sendY != null) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                                                    .height(30.dp)
-                                            ) {
-                                                Text(
-                                                    text = "Кнопка 'Отправить' найдена",
-                                                    color = Color(0xFFE57373),
-                                                    fontSize = 11.sp
-                                                )
-                                                TextButton(
-                                                    onClick = {
-                                                        simulateTouch(ukrnetWebView, sendX!!, sendY!!)
-                                                    },
-                                                    modifier = Modifier.background(Color(0x33F44336), shape = RoundedCornerShape(4.dp))
-                                                ) {
-                                                    Text(
-                                                        text = "🚀 Нажать 'Отправить'",
-                                                        color = Color(0xFFE57373),
                                                         fontSize = 10.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
