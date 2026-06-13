@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.net.http.SslError
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.webkit.ConsoleMessage
@@ -58,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -76,10 +79,42 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // ЭТАП 3: Функция симуляции реального аппаратного клика по координатам
+    private fun simulateTouch(webView: WebView?, cssX: Float, cssY: Float) {
+        if (webView == null) return
+        
+        val downTime = SystemClock.uptimeMillis()
+        val eventTime = SystemClock.uptimeMillis()
+        
+        // Конвертируем CSS пиксели в физические пиксели экрана
+        val density = webView.resources.displayMetrics.density
+        val physicalX = cssX * density
+        val physicalY = cssY * density
+
+        // Создаем события Down и Up
+        val downEvent = MotionEvent.obtain(
+            downTime, eventTime,
+            MotionEvent.ACTION_DOWN, physicalX, physicalY, 0
+        )
+        val upEvent = MotionEvent.obtain(
+            downTime, eventTime + 100,
+            MotionEvent.ACTION_UP, physicalX, physicalY, 0
+        )
+
+        // Отправляем события в поток WebView
+        webView.post {
+            webView.dispatchTouchEvent(downEvent)
+            webView.dispatchTouchEvent(upEvent)
+            downEvent.recycle()
+            upEvent.recycle()
+            log("[Autoclicker] Нативный тап: X=${physicalX.toInt()}px (CSS ${cssX.toInt()}), Y=${physicalY.toInt()}px (CSS ${cssY.toInt()})")
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация (ЭТАП 2: Глаза / DOM-сканер)")
+        log("[System] Инициализация (ЭТАП 3: Пальцы / Кликер)")
         enableEdgeToEdge()
 
         setContent {
@@ -93,6 +128,10 @@ class MainActivity : ComponentActivity() {
             var isLogPanelExpanded by remember { mutableStateOf(false) }
             var uiAlpha by remember { mutableStateOf(0.95f) }
             
+            // Координаты кнопки "Написать" для симуляции клика
+            var composeX by remember { mutableStateOf<Float?>(null) }
+            var composeY by remember { mutableStateOf<Float?>(null) }
+            
             val clipboardManager = LocalClipboardManager.current
             val lazyListState = rememberLazyListState()
 
@@ -102,7 +141,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // ПЕРИОДИЧЕСКИЙ ИНЖЕКТОР АВТОРИЗАЦИИ (Работает до входа)
+            // Периодический инжектор авторизации (до входа)
             LaunchedEffect(isBgServiceActive, ukrnetWebView) {
                 val monitoringJs = """
                     try {
@@ -129,7 +168,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // ЭТАП 2: ГЛАЗА (DOM-сканер, активируется после входа)
+            // ЭТАП 2: DOM-сканер координат (активируется после входа)
             LaunchedEffect(isBgServiceActive, ukrnetWebView) {
                 val scanningJs = """
                     (function() {
@@ -178,7 +217,7 @@ class MainActivity : ComponentActivity() {
                 """.trimIndent()
 
                 while (!isBgServiceActive && ukrnetWebView != null) {
-                    delay(2000) // Сканируем страницу Укрнета каждые 2 секунды
+                    delay(2000)
                     ukrnetWebView?.evaluateJavascript(scanningJs, null)
                 }
             }
@@ -216,7 +255,6 @@ class MainActivity : ComponentActivity() {
                                                     if (!hasHandledLogin) {
                                                         hasHandledLogin = true
                                                         log("[UkrNet JS API] Успешный вход! Поднимаем ExteraGram поверх Укрнета.")
-                                                        loginStatusMsg = "Авторизация пройдена!"
                                                         isBgServiceActive = false
                                                         messengerWebView?.evaluateJavascript("if (window.onLoginSuccess) { window.onLoginSuccess(); }", null)
                                                     }
@@ -227,9 +265,27 @@ class MainActivity : ComponentActivity() {
                                         @JavascriptInterface
                                         fun postCoordinates(json: String) {
                                             runOnUiThread {
-                                                // Фильтруем пустые значения, чтобы избежать лишнего спама в логах
                                                 if (json != "{\"compose\":null,\"to\":null,\"subject\":null,\"body\":null,\"send\":null}") {
                                                     log("[Scanner API] Обнаружены элементы: $json")
+                                                    
+                                                    // Парсим координаты compose
+                                                    try {
+                                                        val obj = JSONObject(json)
+                                                        val compose = obj.optJSONObject("compose")
+                                                        if (compose != null) {
+                                                            composeX = compose.optDouble("x", -1.0).toFloat()
+                                                            composeY = compose.optDouble("y", -1.0).toFloat()
+                                                            if (composeX == -1f || composeY == -1f) {
+                                                                composeX = null
+                                                                composeY = null
+                                                            }
+                                                        } else {
+                                                            composeX = null
+                                                            composeY = null
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        log("[Scanner Error] Ошибка парсинга JSON: ${e.message}")
+                                                    }
                                                 }
                                             }
                                         }
@@ -249,7 +305,6 @@ class MainActivity : ComponentActivity() {
                                         override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                                             super.onReceivedError(view, request, error)
                                             val url = request?.url.toString()
-                                            // Фильтруем трекеры, рекламу и внешние ресурсы, оставляем только реальные сетевые ошибки
                                             if (!url.contains("tracker") && 
                                                 !url.contains("ad") && 
                                                 !url.contains("fwdcdn") && 
@@ -374,7 +429,7 @@ class MainActivity : ComponentActivity() {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .fillMaxHeight(0.5f)
+                                    .fillMaxHeight(0.55f) // Увеличил высоту для размещения кнопки теста
                                     .align(Alignment.TopCenter)
                                     .background(Color(0xF90F0A15))
                                     .border(1.dp, Color(0xFFA773D1))
@@ -406,12 +461,13 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     if (!isBgServiceActive) {
+                                        // Настройка видимости
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(horizontal = 8.dp)
-                                                .height(36.dp)
+                                                .height(30.dp)
                                         ) {
                                             Text(
                                                 text = "Видимость UI: ${(uiAlpha * 100).toInt()}%", 
@@ -425,6 +481,37 @@ class MainActivity : ComponentActivity() {
                                                 valueRange = 0f..1f,
                                                 modifier = Modifier.weight(1f)
                                             )
+                                        }
+
+                                        // ЭТАП 3 ТЕСТ: Кнопка нативного клика
+                                        if (composeX != null && composeY != null) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                    .height(30.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Обнаружена кнопка 'Написать'",
+                                                    color = Color(0xFFE0C3FC),
+                                                    fontSize = 11.sp
+                                                )
+                                                TextButton(
+                                                    onClick = {
+                                                        simulateTouch(ukrnetWebView, composeX!!, composeY!!)
+                                                    },
+                                                    modifier = Modifier.background(Color(0x334CAF50), shape = RoundedCornerShape(4.dp))
+                                                ) {
+                                                    Text(
+                                                        text = "🎯 Нажать 'Написать'",
+                                                        color = Color(0xFF81C784),
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
 
