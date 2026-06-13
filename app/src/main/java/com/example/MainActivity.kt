@@ -141,7 +141,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация (ЭТАП 6.1: Идеальная память)")
+        log("[System] Инициализация (ЭТАП 6.2: Фильтр по mli-view_unread)")
         enableEdgeToEdge()
 
         setContent {
@@ -234,7 +234,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // ЭТАП 6.1: УМНЫЙ РИДЕР С ЛОКАЛЬНОЙ ПАМЯТЬЮ
+            // ЭТАП 6.2: УМНЫЙ РИДЕР С ФИЛЬТРОМ НЕПРОЧИТАННЫХ
             LaunchedEffect(isBgServiceActive, ukrnetWebView, isParserEnabled) {
                 val readerJs = """
                     (function() {
@@ -252,6 +252,27 @@ class MainActivity : ComponentActivity() {
                                 try { localStorage.setItem('nan0gram_ids', JSON.stringify(Array.from(window.nProcessed))); } catch(e){}
                             }
 
+                            // Функция умной проверки: является ли письмо действительно непрочитанным
+                            function isMsgUnread(item) {
+                                // 1. Проверяем точный CSS класс mli-view_unread на основе твоего DOM анализа!
+                                var view = item.querySelector('.mli-view');
+                                if (view && (view.classList.contains('unread') || view.classList.contains('mli-view_unread'))) {
+                                    return true;
+                                }
+                                if (item.classList.contains('unread') || item.classList.contains('ml-item_unread') || item.classList.contains('ml-item--unread')) {
+                                    return true;
+                                }
+                                // 2. Умная сверка стилей: если заголовок выделен жирным, значит письмо не прочитано
+                                var titleEl = item.querySelector('.mli-view__title');
+                                if (titleEl) {
+                                    var weight = window.getComputedStyle(titleEl).fontWeight;
+                                    if (weight === 'bold' || parseInt(weight) >= 600) {
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            }
+
                             if (window.location.href.indexOf('login') !== -1) return;
 
                             if (window.nState === 'IDLE') {
@@ -264,13 +285,19 @@ class MainActivity : ComponentActivity() {
                                     var id = item.id;
                                     if (!id || window.nProcessed.has(id)) continue;
 
+                                    // Проверяем: совпадает ли тема AND письмо действительно непрочитанное
                                     var titleEl = item.querySelector('.mli-view__title');
                                     if (titleEl && titleEl.innerText.indexOf('[Ref: #270232]') !== -1) {
-                                        window.nState = 'READING';
-                                        window.nTargetId = id;
-                                        var link = item.querySelector('.mli-view__link') || item;
-                                        link.click(); 
-                                        return; 
+                                        if (isMsgUnread(item)) {
+                                            window.nState = 'READING';
+                                            window.nTargetId = id;
+                                            var link = item.querySelector('.mli-view__link') || item;
+                                            link.click(); 
+                                            return; 
+                                        } else {
+                                            // Если письмо уже прочитано ранее, просто помечаем его как обработанное
+                                            markProcessed(id);
+                                        }
                                     } else {
                                         markProcessed(id);
                                     }
@@ -307,7 +334,6 @@ class MainActivity : ComponentActivity() {
                     })();
                 """.trimIndent()
 
-                // Цикл контролируется Kotlin! Если isParserEnabled = false, скрипт засыпает.
                 while (!isBgServiceActive && ukrnetWebView != null && isParserEnabled) {
                     delay(1500)
                     ukrnetWebView?.evaluateJavascript(readerJs, null)
@@ -326,7 +352,7 @@ class MainActivity : ComponentActivity() {
                         factory = { context ->
                             FrameLayout(context).apply {
                                 
-                                // 1. УКРНЕТ WEBVIEW
+                                // 1. УКРНЕТ WEBVIEW (НИЖНИЙ СЛОЙ)
                                 val uWebView = WebView(context).apply {
                                     settings.apply {
                                         javaScriptEnabled = true
@@ -378,7 +404,7 @@ class MainActivity : ComponentActivity() {
                                         @JavascriptInterface
                                         fun onIncomingMessage(id: String, subject: String, body: String) {
                                             runOnUiThread {
-                                                log("[Parser] Новое письмо $id. Извлечение payload...")
+                                                log("[Parser] Найдено новое письмо: $id. Извлечение payload...")
                                                 val match = Regex("===\\[(.*?)\\]===").find(body)
                                                 if (match != null) {
                                                     val aesPayload = match.groupValues[1]
@@ -461,7 +487,6 @@ class MainActivity : ComponentActivity() {
                                                             simulateType(ukrnetWebView, "#sendmsg__subject", "RE: Сверка остатков [Ref: #270232]")
                                                             delay(1200)
                                                             
-                                                            // Достаем JSON и оборачиваем в мусор
                                                             val fakeText = "Добрый день! Направляю актуальные данные по вашему запросу во вложении.<br><br>===[" + payload + "]===<br><br>С уважением."
                                                             simulateTouch(ukrnetWebView, bodyX!!, bodyY!!)
                                                             delay(500)
@@ -586,10 +611,7 @@ class MainActivity : ComponentActivity() {
                                     if (!isBgServiceActive) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 8.dp)
-                                                .height(36.dp)
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(36.dp)
                                         ) {
                                             Text(
                                                 text = "Видимость UI: ${(uiAlpha * 100).toInt()}%", 
