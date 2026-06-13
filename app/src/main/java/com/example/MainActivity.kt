@@ -13,7 +13,6 @@ import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -58,15 +57,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
 
-    private var ukrnetWebView: WebView? = null
-    private var messengerWebView: WebView? = null
-    
     private val logList = mutableStateListOf<String>()
 
     private fun log(message: String) {
@@ -82,7 +79,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация (ЭТАП 1: Нативный FrameLayout)")
+        log("[System] Инициализация (ЭТАП 1: Бронебойный инжектор)")
         enableEdgeToEdge()
 
         setContent {
@@ -90,8 +87,11 @@ class MainActivity : ComponentActivity() {
             var loginStatusMsg by remember { mutableStateOf("Ожидание авторизации...") }
             var hasHandledLogin by remember { mutableStateOf(false) }
             
+            var ukrnetWebView by remember { mutableStateOf<WebView?>(null) }
+            var messengerWebView by remember { mutableStateOf<WebView?>(null) }
+            
             var isLogPanelExpanded by remember { mutableStateOf(false) }
-            var uiAlpha by remember { mutableStateOf(0.9f) } // Чуть прозрачный по умолчанию
+            var uiAlpha by remember { mutableStateOf(0.95f) }
             
             val clipboardManager = LocalClipboardManager.current
             val lazyListState = rememberLazyListState()
@@ -99,6 +99,34 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(logList.size) {
                 if (logList.isNotEmpty() && isLogPanelExpanded) {
                     lazyListState.animateScrollToItem(logList.size - 1)
+                }
+            }
+
+            // БРОНЕБОЙНЫЙ ИНЖЕКТОР (Работает независимо от того, зависла страница или нет)
+            LaunchedEffect(isBgServiceActive, ukrnetWebView) {
+                val monitoringJs = """
+                    try {
+                        if (!window.nan0gramBridgeInjected) {
+                            window.nan0gramBridgeInjected = true;
+                            console.log("nan0gram bridge injected into UkrNet (Periodic)");
+                            setInterval(function() {
+                                // Добавил селекторы для мобильной и десктопной версии почты
+                                var el = document.querySelector('div[role="main"], .app__content, .sendmsg, #msglist, .message-list, .layout, .screen__head, .mail-app, .xf-list');
+                                if (el && !window.nan0gramSuccessReported) {
+                                    window.nan0gramSuccessReported = true;
+                                    console.log("nan0gram detected success login view!");
+                                    if (window.Android && window.Android.postMessage) {
+                                        window.Android.postMessage("ui", "login_success", "true");
+                                    }
+                                }
+                            }, 1000);
+                        }
+                    } catch(e) {}
+                """.trimIndent()
+                
+                while(isBgServiceActive && ukrnetWebView != null) {
+                    delay(1500)
+                    ukrnetWebView?.evaluateJavascript(monitoringJs, null)
                 }
             }
 
@@ -110,13 +138,11 @@ class MainActivity : ComponentActivity() {
                         .background(Color(0xFF130E19))
                 ) {
                     
-                    // ЕДИНЫЙ ANDROID VIEW С NATIVE FRAMELAYOUT
                     AndroidView(
                         factory = { context ->
                             FrameLayout(context).apply {
                                 
-                                // 1. УКРНЕТ WEBVIEW (НИЖНИЙ СЛОЙ)
-                                ukrnetWebView = WebView(context).apply {
+                                val uWebView = WebView(context).apply {
                                     settings.apply {
                                         javaScriptEnabled = true
                                         domStorageEnabled = true
@@ -146,28 +172,14 @@ class MainActivity : ComponentActivity() {
                                     }, "Android")
 
                                     webViewClient = object : WebViewClient() {
+                                        override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                                            super.doUpdateVisitedHistory(view, url, isReload)
+                                            log("[UkrNet] Смена URL: $url")
+                                        }
+
                                         override fun onPageFinished(view: WebView?, url: String?) {
                                             super.onPageFinished(view, url)
                                             log("[UkrNet] Загрузка завершена: $url")
-                                            
-                                            val monitoringJs = """
-                                                (function() {
-                                                    if (window.nan0gramBridgeInjected) return;
-                                                    window.nan0gramBridgeInjected = true;
-                                                    console.log("nan0gram bridge injected into UkrNet");
-                                                    var checkInterval = setInterval(function() {
-                                                        var mainElement = document.querySelector('div[role="main"]') || document.querySelector('.app__content') || document.querySelector('.sendmsg');
-                                                        if (mainElement) {
-                                                            console.log("nan0gram detected success login view!");
-                                                            clearInterval(checkInterval);
-                                                            if (window.Android && window.Android.postMessage) {
-                                                                window.Android.postMessage("ui", "login_success", "true");
-                                                            }
-                                                        }
-                                                    }, 1500);
-                                                })();
-                                            """.trimIndent()
-                                            evaluateJavascript(monitoringJs, null)
                                         }
 
                                         override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -187,7 +199,6 @@ class MainActivity : ComponentActivity() {
                                         override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
                                             val msg = consoleMessage?.message() ?: ""
                                             val level = consoleMessage?.messageLevel()?.name ?: "LOG"
-                                            // Скрываем только совсем мусорные варнинги, всё остальное выводим!
                                             if (!msg.contains("Unknown event type")) {
                                                 log("[UkrNet JS Console] [$level] $msg")
                                             }
@@ -196,11 +207,11 @@ class MainActivity : ComponentActivity() {
                                     }
                                     loadUrl("https://mail.ukr.net/desktop/login")
                                 }
-                                addView(ukrnetWebView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+                                ukrnetWebView = uWebView
+                                addView(uWebView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
-                                // 2. ЛОКАЛЬНЫЙ MESSENGER WEBVIEW (ВЕРХНИЙ СЛОЙ)
-                                messengerWebView = WebView(context).apply {
-                                    setBackgroundColor(android.graphics.Color.TRANSPARENT) // Чтобы было видно, что под ним
+                                val mWebView = WebView(context).apply {
+                                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
                                     settings.apply {
                                         javaScriptEnabled = true
                                         domStorageEnabled = true
@@ -227,28 +238,25 @@ class MainActivity : ComponentActivity() {
                                     }
                                     loadUrl("file:///android_asset/index.html")
                                 }
-                                addView(messengerWebView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+                                messengerWebView = mWebView
+                                addView(mWebView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
                             }
                         },
                         update = { _ ->
-                            // Магия нативного управления:
                             if (isBgServiceActive) {
-                                // Этап авторизации: Мессенджера физически "нет", Укрнет принимает все клики
                                 messengerWebView?.visibility = View.GONE
                                 ukrnetWebView?.visibility = View.VISIBLE
                                 ukrnetWebView?.bringToFront()
                             } else {
-                                // Мессенджер работает: Укрнет остается видимым внизу, мессенджер ловит все клики поверх него
                                 ukrnetWebView?.visibility = View.VISIBLE 
                                 messengerWebView?.visibility = View.VISIBLE
-                                messengerWebView?.alpha = uiAlpha // Устанавливаем прозрачность
+                                messengerWebView?.alpha = uiAlpha
                                 messengerWebView?.bringToFront()
                             }
                         },
                         modifier = Modifier.fillMaxSize().zIndex(0f)
                     )
 
-                    // Индикатор при логине
                     if (isBgServiceActive) {
                         Box(
                             modifier = Modifier
@@ -267,9 +275,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // ==========================================
-                    // ПАНЕЛЬ ЛОГОВ (ВСЕГДА НА САМОМ ВЕРХУ)
-                    // ==========================================
                     Box(modifier = Modifier.fillMaxSize().zIndex(2f)) {
                         if (!isLogPanelExpanded) {
                             Box(
