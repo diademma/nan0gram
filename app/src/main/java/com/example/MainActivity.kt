@@ -85,6 +85,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Симуляция реального аппаратного тапа
     private fun simulateTouch(webView: WebView?, cssX: Float, cssY: Float) {
         if (webView == null) return
         val downTime = SystemClock.uptimeMillis()
@@ -107,6 +108,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Стелс-ввод через эмуляцию автозаполнения
     private fun simulateType(webView: WebView?, selector: String, text: String, isAutocomplete: Boolean = false) {
         if (webView == null) return
         val js = """
@@ -141,7 +143,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация (ЭТАП 6: Уши / Парсер входящих)")
+        log("[System] Инициализация (ЭТАП 6: Полная сборка)")
         enableEdgeToEdge()
 
         setContent {
@@ -154,6 +156,7 @@ class MainActivity : ComponentActivity() {
             
             var isLogPanelExpanded by remember { mutableStateOf(false) }
             var uiAlpha by remember { mutableStateOf(0.95f) }
+            var isParserEnabled by remember { mutableStateOf(false) } // Управление радаром "Ушей"
             
             var composeX by remember { mutableStateOf<Float?>(null) }
             var composeY by remember { mutableStateOf<Float?>(null) }
@@ -234,40 +237,33 @@ class MainActivity : ComponentActivity() {
             }
 
             // ЭТАП 6: РИДЕР ВХОДЯЩИХ (STATE MACHINE)
-            LaunchedEffect(isBgServiceActive, ukrnetWebView) {
+            LaunchedEffect(isBgServiceActive, ukrnetWebView, isParserEnabled) {
                 val readerJs = """
                     (function() {
                         if (window.nan0gramReaderInjected) return;
                         window.nan0gramReaderInjected = true;
-
                         var processedIds = new Set();
                         var currentState = 'IDLE'; 
                         var currentTargetId = null;
 
                         setInterval(function() {
                             if (window.location.href.indexOf('login') !== -1) return;
-
                             if (currentState === 'IDLE') {
                                 var listContainer = document.querySelector('.msglist');
                                 if (!listContainer) return; 
-
                                 var items = document.querySelectorAll('.ml-item');
-                                // Читаем снизу вверх (от старых к новым)
                                 for (var i = items.length - 1; i >= 0; i--) {
                                     var item = items[i];
                                     var id = item.id;
                                     if (!id || processedIds.has(id)) continue;
-
                                     var titleEl = item.querySelector('.mli-view__title');
-                                    // Ищем наш секретный маркер в теме
                                     if (titleEl && titleEl.innerText.indexOf('[Ref: #270232]') !== -1) {
                                         currentState = 'READING';
                                         currentTargetId = id;
                                         var link = item.querySelector('.mli-view__link') || item;
-                                        link.click(); // Открываем письмо
+                                        link.click(); 
                                         return; 
                                     } else {
-                                        // Помечаем чужие письма как обработанные, чтобы не спамить
                                         processedIds.add(id);
                                     }
                                 }
@@ -276,17 +272,14 @@ class MainActivity : ComponentActivity() {
                                 var bodyEl = document.querySelector('.rm-body__content');
                                 var subjectEl = document.querySelector('.readmsg__subject');
                                 var backBtn = document.querySelector('.rm-header__list') || document.querySelector('[aria-label="Повернутись"]');
-                                
                                 if (bodyEl && backBtn) {
                                     var bodyText = bodyEl.innerText || bodyEl.textContent;
                                     var subjectText = subjectEl ? (subjectEl.innerText || subjectEl.textContent) : "";
-                                    
                                     if (window.Android && window.Android.onIncomingMessage) {
                                         window.Android.onIncomingMessage(currentTargetId, subjectText, bodyText);
                                     }
-                                    
                                     processedIds.add(currentTargetId);
-                                    backBtn.click(); // Возвращаемся в список
+                                    backBtn.click(); 
                                     currentState = 'RETURNING';
                                 }
                             }
@@ -301,7 +294,7 @@ class MainActivity : ComponentActivity() {
                     })();
                 """.trimIndent()
 
-                while (!isBgServiceActive && ukrnetWebView != null) {
+                while (!isBgServiceActive && ukrnetWebView != null && isParserEnabled) {
                     delay(3000)
                     ukrnetWebView?.evaluateJavascript(readerJs, null)
                 }
@@ -364,37 +357,37 @@ class MainActivity : ComponentActivity() {
                                                         sendX = obj.optJSONObject("send")?.optDouble("x", -1.0)?.toFloat()?.takeIf { it != -1f }
                                                         sendY = obj.optJSONObject("send")?.optDouble("y", -1.0)?.toFloat()?.takeIf { it != -1f }
                                                     } catch (e: Exception) {}
+                                                } else {
+                                                    nullLogCounter++
+                                                    if (nullLogCounter >= 5) {
+                                                        nullLogCounter = 0
+                                                        log("[Scanner API] Поиск... (пока пусто, ждем появления элементов)")
+                                                    }
                                                 }
                                             }
                                         }
 
-                                        // ЭТАП 6: ПРИЕМ СООБЩЕНИЯ ИЗ Укрнета в Kotlin
                                         @JavascriptInterface
                                         fun onIncomingMessage(id: String, subject: String, body: String) {
                                             runOnUiThread {
-                                                log("[Parser] Найдено письмо: $id. Извлечение payload...")
-                                                
-                                                // Ищем зашифрованный блок между маркерами ===[ и ]===
+                                                log("[Parser] Найдено новое письмо: $id. Извлечение payload...")
                                                 val match = Regex("===\\[(.*?)\\]===").find(body)
                                                 if (match != null) {
                                                     val aesPayload = match.groupValues[1]
-                                                    log("[Parser] AES Payload извлечен. Передаем в ExteraGram UI.")
+                                                    log("[Parser] AES Payload извлечен! Передаем в ExteraGram UI.")
                                                     
-                                                    // Формируем JSON, который ждет твой ExteraGram
                                                     val jsonArray = JSONArray()
                                                     val msgObj = JSONObject()
-                                                    msgObj.put("chatId", "chat_1") // Пока хардкодим один чат для теста
+                                                    msgObj.put("chatId", "chat_1") 
                                                     msgObj.put("author", "Собеседник")
                                                     msgObj.put("text", aesPayload)
                                                     msgObj.put("ts", System.currentTimeMillis())
                                                     jsonArray.put(msgObj)
                                                     
                                                     val jsonString = jsonArray.toString().replace("\"", "\\\"")
-                                                    
-                                                    // Передаем данные в твой index.html
                                                     messengerWebView?.evaluateJavascript("if (window.ExteraGram && window.ExteraGram.onEmailReceived) { window.ExteraGram.onEmailReceived(\"$jsonString\"); }", null)
                                                 } else {
-                                                    log("[Parser] ОШИБКА: Маркеры ===[...]=== не найдены в письме.")
+                                                    log("[Parser] Предупреждение: Маркеры ===[...]=== не найдены в этом письме.")
                                                 }
                                             }
                                         }
@@ -508,7 +501,7 @@ class MainActivity : ComponentActivity() {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .fillMaxHeight(0.55f)
+                                    .fillMaxHeight(0.58f) // Немного увеличил высоту для размещения переключателей
                                     .align(Alignment.TopCenter)
                                     .background(Color(0xF90F0A15))
                                     .border(1.dp, Color(0xFFA773D1))
@@ -545,7 +538,7 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(horizontal = 8.dp)
-                                                .height(36.dp)
+                                                .height(30.dp)
                                         ) {
                                             Text(
                                                 text = "Видимость UI: ${(uiAlpha * 100).toInt()}%", 
@@ -561,8 +554,38 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
 
-                                        // ЭТАП 6 ТЕСТ: Отправить тестовое письмо СЕБЕ ЖЕ с маркерами и шифром
-                                        if (toX != null && subjectX != null && bodyX != null && sendX != null) {
+                                        // УПРАВЛЕНИЕ РАДАРОМ УШЕЙ (ЭТАП 6)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp)
+                                                .height(30.dp)
+                                        ) {
+                                            Text(
+                                                text = "Состояние радара входящих:",
+                                                color = Color(0xFFE0C3FC),
+                                                fontSize = 11.sp
+                                            )
+                                            TextButton(
+                                                onClick = { isParserEnabled = !isParserEnabled },
+                                                modifier = Modifier.background(
+                                                    if (isParserEnabled) Color(0x334CAF50) else Color(0x33F44336),
+                                                    shape = RoundedCornerShape(4.dp)
+                                                )
+                                            ) {
+                                                Text(
+                                                    text = if (isParserEnabled) "🎧 Радар: ВКЛ" else "🔇 Радар: ВЫКЛ",
+                                                    color = if (isParserEnabled) Color(0xFF81C784) else Color(0xFFE57373),
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+
+                                        // ЭТАП 3 ТЕСТ: Кнопка нативного клика по "Написать"
+                                        if (composeX != null && composeY != null) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -572,14 +595,45 @@ class MainActivity : ComponentActivity() {
                                                     .height(30.dp)
                                             ) {
                                                 Text(
-                                                    text = "Отправка + Парсер:",
+                                                    text = "Кнопка 'Написать' найдена",
+                                                    color = Color(0xFF81C784),
+                                                    fontSize = 11.sp
+                                                )
+                                                TextButton(
+                                                    onClick = {
+                                                        simulateTouch(ukrnetWebView, composeX!!, composeY!!)
+                                                    },
+                                                    modifier = Modifier.background(Color(0x334CAF50), shape = RoundedCornerShape(4.dp))
+                                                ) {
+                                                    Text(
+                                                        text = "🎯 Тап 'Написать'",
+                                                        color = Color(0xFF81C784),
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // ЭТАП 4 ТЕСТ: Кнопка автоматического заполнения полей ввода
+                                        if (toX != null && subjectX != null && bodyX != null) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                    .height(30.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Поля ввода обнаружены",
                                                     color = Color(0xFF64B5F6),
                                                     fontSize = 11.sp
                                                 )
                                                 TextButton(
                                                     onClick = {
                                                         coroutineScope.launch {
-                                                            log("[Test] Запуск отправки зашифрованного сообщения...")
+                                                            log("[Autofill] Запуск бесшумного стелс-заполнения...")
                                                             
                                                             simulateTouch(ukrnetWebView, toX!!, toY!!)
                                                             delay(500)
@@ -591,25 +645,50 @@ class MainActivity : ComponentActivity() {
                                                             simulateType(ukrnetWebView, "#sendmsg__subject", "RE: Сверка остатков [Ref: #270232]")
                                                             delay(1200)
                                                             
-                                                            // Тестовый AES пакет. (Hello World зашифрованный тестовым ключом "test")
-                                                            // В реале это будет генерировать index.html
                                                             val testEncryptedPayload = "U2FsdGVkX19qS7qjN8qjN8qjN8qjN8qjN8qjN8qjN8o="
                                                             val fakeText = "Добрый день! Направляю актуальные данные по вашему запросу во вложении.<br><br>===[$testEncryptedPayload]===<br><br>С уважением."
                                                             
                                                             simulateTouch(ukrnetWebView, bodyX!!, bodyY!!)
                                                             delay(500)
                                                             simulateType(ukrnetWebView, ".sm-editor__area", fakeText)
-                                                            delay(1200)
-                                                            
-                                                            simulateTouch(ukrnetWebView, sendX!!, sendY!!)
-                                                            log("[Test] Письмо отправлено! Ждем реакции Парсера (Уши)...")
                                                         }
                                                     },
                                                     modifier = Modifier.background(Color(0x332196F3), shape = RoundedCornerShape(4.dp))
                                                 ) {
                                                     Text(
-                                                        text = "🚀 Отправить AES Тест",
+                                                        text = "✍️ Начать автозаполнение",
                                                         color = Color(0xFF64B5F6),
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // ЭТАП 5 ТЕСТ: Кнопка нативной отправки письма
+                                        if (sendX != null && sendY != null) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                    .height(30.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Кнопка 'Отправить' найдена",
+                                                    color = Color(0xFFE57373),
+                                                    fontSize = 11.sp
+                                                )
+                                                TextButton(
+                                                    onClick = {
+                                                        simulateTouch(ukrnetWebView, sendX!!, sendY!!)
+                                                    },
+                                                    modifier = Modifier.background(Color(0x33F44336), shape = RoundedCornerShape(4.dp))
+                                                ) {
+                                                    Text(
+                                                        text = "🚀 Нажать 'Отправить'",
+                                                        color = Color(0xFFE57373),
                                                         fontSize = 10.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
