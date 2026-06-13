@@ -79,19 +79,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ЭТАП 3: Функция симуляции реального аппаратного клика по координатам
+    // Симуляция реального аппаратного клика по координатам
     private fun simulateTouch(webView: WebView?, cssX: Float, cssY: Float) {
         if (webView == null) return
         
         val downTime = SystemClock.uptimeMillis()
         val eventTime = SystemClock.uptimeMillis()
         
-        // Конвертируем CSS пиксели в физические пиксели экрана
         val density = webView.resources.displayMetrics.density
         val physicalX = cssX * density
         val physicalY = cssY * density
 
-        // Создаем события Down и Up
         val downEvent = MotionEvent.obtain(
             downTime, eventTime,
             MotionEvent.ACTION_DOWN, physicalX, physicalY, 0
@@ -101,20 +99,19 @@ class MainActivity : ComponentActivity() {
             MotionEvent.ACTION_UP, physicalX, physicalY, 0
         )
 
-        // Отправляем события в поток WebView
         webView.post {
             webView.dispatchTouchEvent(downEvent)
             webView.dispatchTouchEvent(upEvent)
             downEvent.recycle()
             upEvent.recycle()
-            log("[Autoclicker] Нативный тап: X=${physicalX.toInt()}px (CSS ${cssX.toInt()}), Y=${physicalY.toInt()}px (CSS ${cssY.toInt()})")
+            log("[Autoclicker] Имитация клика: X=${physicalX.toInt()}px (CSS ${cssX.toInt()}), Y=${physicalY.toInt()}px (CSS ${cssY.toInt()})")
         }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация (ЭТАП 3: Пальцы / Кликер)")
+        log("[System] Инициализация (ЭТАП 3: Исправление детектора)")
         enableEdgeToEdge()
 
         setContent {
@@ -141,7 +138,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Периодический инжектор авторизации (до входа)
+            // ПЕРИОДИЧЕСКИЙ ИНЖЕКТОР АВТОРИЗАЦИИ (Работает до входа, проверяет DOM и URL)
             LaunchedEffect(isBgServiceActive, ukrnetWebView) {
                 val monitoringJs = """
                     try {
@@ -149,12 +146,15 @@ class MainActivity : ComponentActivity() {
                             window.nan0gramBridgeInjected = true;
                             console.log("nan0gram bridge injected into UkrNet (Periodic)");
                             setInterval(function() {
+                                var isMailUrl = window.location.href.indexOf("mail.ukr.net") !== -1 && window.location.href.indexOf("login") === -1 && window.location.href.indexOf("accounts") === -1;
                                 var el = document.querySelector('div[role="main"], .app__content, .sendmsg, #msglist, .message-list, .layout, .screen__head, .mail-app, .xf-list');
-                                if (el && !window.nan0gramSuccessReported) {
-                                    window.nan0gramSuccessReported = true;
-                                    console.log("nan0gram detected success login view!");
-                                    if (window.Android && window.Android.postMessage) {
-                                        window.Android.postMessage("ui", "login_success", "true");
+                                if (isMailUrl || el) {
+                                    if (!window.nan0gramSuccessReported) {
+                                        window.nan0gramSuccessReported = true;
+                                        console.log("nan0gram detected success login view (JS)!");
+                                        if (window.Android && window.Android.postMessage) {
+                                            window.Android.postMessage("ui", "login_success", "true");
+                                        }
                                     }
                                 }
                             }, 1500);
@@ -268,7 +268,6 @@ class MainActivity : ComponentActivity() {
                                                 if (json != "{\"compose\":null,\"to\":null,\"subject\":null,\"body\":null,\"send\":null}") {
                                                     log("[Scanner API] Обнаружены элементы: $json")
                                                     
-                                                    // Парсим координаты compose
                                                     try {
                                                         val obj = JSONObject(json)
                                                         val compose = obj.optJSONObject("compose")
@@ -295,6 +294,17 @@ class MainActivity : ComponentActivity() {
                                         override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                                             super.doUpdateVisitedHistory(view, url, isReload)
                                             log("[UkrNet] Смена URL: $url")
+                                            
+                                            // ДЕТЕКЦИЯ ПО URL (Срабатывает мгновенно при переходе на почту)
+                                            if (url != null && url.contains("mail.ukr.net") && !url.contains("login") && !url.contains("accounts.ukr.net")) {
+                                                if (isBgServiceActive && !hasHandledLogin) {
+                                                    hasHandledLogin = true
+                                                    log("[System] Обнаружен успешный вход по URL: $url. Переключаем на мессенджер.")
+                                                    loginStatusMsg = "Авторизация пройдена!"
+                                                    isBgServiceActive = false
+                                                    messengerWebView?.evaluateJavascript("if (window.onLoginSuccess) { window.onLoginSuccess(); }", null)
+                                                }
+                                            }
                                         }
 
                                         override fun onPageFinished(view: WebView?, url: String?) {
@@ -429,7 +439,7 @@ class MainActivity : ComponentActivity() {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .fillMaxHeight(0.55f) // Увеличил высоту для размещения кнопки теста
+                                    .fillMaxHeight(0.55f)
                                     .align(Alignment.TopCenter)
                                     .background(Color(0xF90F0A15))
                                     .border(1.dp, Color(0xFFA773D1))
@@ -461,13 +471,12 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     if (!isBgServiceActive) {
-                                        // Настройка видимости
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(horizontal = 8.dp)
-                                                .height(30.dp)
+                                                .height(36.dp)
                                         ) {
                                             Text(
                                                 text = "Видимость UI: ${(uiAlpha * 100).toInt()}%", 
@@ -483,7 +492,7 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
 
-                                        // ЭТАП 3 ТЕСТ: Кнопка нативного клика
+                                        // Кнопка нативного клика
                                         if (composeX != null && composeY != null) {
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
