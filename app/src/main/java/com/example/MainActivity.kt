@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.net.http.SslError
 import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.JavascriptInterface
@@ -14,6 +16,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -46,7 +49,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -80,7 +82,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация приложения (ЭТАП 1: Полигон)")
+        log("[System] Инициализация (ЭТАП 1: Нативный FrameLayout)")
         enableEdgeToEdge()
 
         setContent {
@@ -89,7 +91,7 @@ class MainActivity : ComponentActivity() {
             var hasHandledLogin by remember { mutableStateOf(false) }
             
             var isLogPanelExpanded by remember { mutableStateOf(false) }
-            var uiAlpha by remember { mutableStateOf(1f) } // Прозрачность твоего UI поверх Укрнета
+            var uiAlpha by remember { mutableStateOf(0.9f) } // Чуть прозрачный по умолчанию
             
             val clipboardManager = LocalClipboardManager.current
             val lazyListState = rememberLazyListState()
@@ -108,142 +110,142 @@ class MainActivity : ComponentActivity() {
                         .background(Color(0xFF130E19))
                 ) {
                     
-                    // ==========================================
-                    // СЛОЙ 0/1: ЛОКАЛЬНЫЙ MESSENGER WEBVIEW
-                    // ==========================================
+                    // ЕДИНЫЙ ANDROID VIEW С NATIVE FRAMELAYOUT
                     AndroidView(
                         factory = { context ->
-                            WebView(context).apply {
-                                settings.apply {
-                                    javaScriptEnabled = true
-                                    domStorageEnabled = true
-                                    databaseEnabled = true
-                                    allowFileAccess = true
-                                }
-                                addJavascriptInterface(object : Any() {
-                                    @JavascriptInterface
-                                    fun setBgServiceActive(active: Boolean) {
-                                        runOnUiThread { isBgServiceActive = active }
+                            FrameLayout(context).apply {
+                                
+                                // 1. УКРНЕТ WEBVIEW (НИЖНИЙ СЛОЙ)
+                                ukrnetWebView = WebView(context).apply {
+                                    settings.apply {
+                                        javaScriptEnabled = true
+                                        domStorageEnabled = true
+                                        databaseEnabled = true
+                                        useWideViewPort = true
+                                        loadWithOverviewMode = true
+                                        userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                                     }
+                                    CookieManager.getInstance().setAcceptCookie(true)
+                                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
-                                    @JavascriptInterface
-                                    fun postMessage(type: String, key: String, value: String) {
-                                        runOnUiThread {
-                                            if (type == "ui" && key == "login_success" && value == "true") {
-                                                loginStatusMsg = "Авторизация пройдена!"
-                                                isBgServiceActive = false
-                                                hasHandledLogin = true
-                                                evaluateJavascript("if (window.onLoginSuccess) { window.onLoginSuccess(); }", null)
-                                            }
-                                        }
-                                    }
-                                }, "Android")
-
-                                webViewClient = object : WebViewClient() {}
-                                webChromeClient = object : WebChromeClient() {
-                                    override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                                        val level = consoleMessage?.messageLevel()?.name ?: "LOG"
-                                        log("[Local JS] [$level] ${consoleMessage?.message()} (${consoleMessage?.lineNumber()})")
-                                        return true
-                                    }
-                                }
-                                loadUrl("file:///android_asset/index.html")
-                                messengerWebView = this
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            // Прячем интерфейс до авторизации, затем применяем прозрачность из ползунка
-                            .alpha(if (isBgServiceActive) 0f else uiAlpha)
-                            // Если логинимся - он позади (0f). После входа - он впереди (1f) и принимает клики!
-                            .zIndex(if (isBgServiceActive) 0f else 1f) 
-                    )
-
-                    // ==========================================
-                    // СЛОЙ 1/0: ФОНОВЫЙ UKRNET WEBVIEW
-                    // ==========================================
-                    AndroidView(
-                        factory = { context ->
-                            WebView(context).apply {
-                                settings.apply {
-                                    javaScriptEnabled = true
-                                    domStorageEnabled = true
-                                    databaseEnabled = true
-                                    useWideViewPort = true
-                                    loadWithOverviewMode = true
-                                    userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-                                }
-
-                                CookieManager.getInstance().setAcceptCookie(true)
-                                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-
-                                addJavascriptInterface(object : Any() {
-                                    @JavascriptInterface
-                                    fun postMessage(type: String, key: String, value: String) {
-                                        runOnUiThread {
-                                            if (type == "ui" && key == "login_success" && value == "true") {
-                                                if (!hasHandledLogin) {
-                                                    hasHandledLogin = true
-                                                    log("[UkrNet JS API] Обнаружен успешный вход. Убираем Укрнет на задний план.")
-                                                    loginStatusMsg = "Авторизация пройдена!"
-                                                    isBgServiceActive = false
-                                                    messengerWebView?.evaluateJavascript("if (window.onLoginSuccess) { window.onLoginSuccess(); }", null)
+                                    addJavascriptInterface(object : Any() {
+                                        @JavascriptInterface
+                                        fun postMessage(type: String, key: String, value: String) {
+                                            runOnUiThread {
+                                                if (type == "ui" && key == "login_success" && value == "true") {
+                                                    if (!hasHandledLogin) {
+                                                        hasHandledLogin = true
+                                                        log("[UkrNet JS API] Успешный вход! Поднимаем ExteraGram поверх Укрнета.")
+                                                        loginStatusMsg = "Авторизация пройдена!"
+                                                        isBgServiceActive = false
+                                                        messengerWebView?.evaluateJavascript("if (window.onLoginSuccess) { window.onLoginSuccess(); }", null)
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
-                                }, "Android")
+                                    }, "Android")
 
-                                webViewClient = object : WebViewClient() {
-                                    override fun onPageFinished(view: WebView?, url: String?) {
-                                        super.onPageFinished(view, url)
-                                        log("[UkrNet] Загрузка завершена: $url")
-                                        
-                                        val monitoringJs = """
-                                            (function() {
-                                                if (window.nan0gramBridgeInjected) return;
-                                                window.nan0gramBridgeInjected = true;
-                                                var checkInterval = setInterval(function() {
-                                                    var mainElement = document.querySelector('div[role="main"]') || document.querySelector('.app__content') || document.querySelector('.sendmsg');
-                                                    if (mainElement) {
-                                                        clearInterval(checkInterval);
-                                                        if (window.Android && window.Android.postMessage) {
-                                                            window.Android.postMessage("ui", "login_success", "true");
+                                    webViewClient = object : WebViewClient() {
+                                        override fun onPageFinished(view: WebView?, url: String?) {
+                                            super.onPageFinished(view, url)
+                                            log("[UkrNet] Загрузка завершена: $url")
+                                            
+                                            val monitoringJs = """
+                                                (function() {
+                                                    if (window.nan0gramBridgeInjected) return;
+                                                    window.nan0gramBridgeInjected = true;
+                                                    console.log("nan0gram bridge injected into UkrNet");
+                                                    var checkInterval = setInterval(function() {
+                                                        var mainElement = document.querySelector('div[role="main"]') || document.querySelector('.app__content') || document.querySelector('.sendmsg');
+                                                        if (mainElement) {
+                                                            console.log("nan0gram detected success login view!");
+                                                            clearInterval(checkInterval);
+                                                            if (window.Android && window.Android.postMessage) {
+                                                                window.Android.postMessage("ui", "login_success", "true");
+                                                            }
                                                         }
-                                                    }
-                                                }, 1500);
-                                            })();
-                                        """.trimIndent()
-                                        evaluateJavascript(monitoringJs, null)
-                                    }
+                                                    }, 1500);
+                                                })();
+                                            """.trimIndent()
+                                            evaluateJavascript(monitoringJs, null)
+                                        }
 
-                                    override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-                                        super.onReceivedError(view, request, error)
-                                        val url = request?.url.toString()
-                                        if (!url.contains("tracker") && !url.contains("ad")) {
-                                            log("[UkrNet ERROR] ${error?.description} URL: $url")
+                                        override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                                            super.onReceivedError(view, request, error)
+                                            val url = request?.url.toString()
+                                            if (!url.contains("tracker") && !url.contains("ad")) {
+                                                log("[UkrNet ERROR] ${error?.description} URL: $url")
+                                            }
+                                        }
+
+                                        override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                                            handler?.cancel()
                                         }
                                     }
+                                    
+                                    webChromeClient = object : WebChromeClient() {
+                                        override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                                            val msg = consoleMessage?.message() ?: ""
+                                            val level = consoleMessage?.messageLevel()?.name ?: "LOG"
+                                            // Скрываем только совсем мусорные варнинги, всё остальное выводим!
+                                            if (!msg.contains("Unknown event type")) {
+                                                log("[UkrNet JS Console] [$level] $msg")
+                                            }
+                                            return true
+                                        }
+                                    }
+                                    loadUrl("https://mail.ukr.net/desktop/login")
+                                }
+                                addView(ukrnetWebView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
-                                    override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
-                                        handler?.cancel()
+                                // 2. ЛОКАЛЬНЫЙ MESSENGER WEBVIEW (ВЕРХНИЙ СЛОЙ)
+                                messengerWebView = WebView(context).apply {
+                                    setBackgroundColor(android.graphics.Color.TRANSPARENT) // Чтобы было видно, что под ним
+                                    settings.apply {
+                                        javaScriptEnabled = true
+                                        domStorageEnabled = true
+                                        databaseEnabled = true
+                                        allowFileAccess = true
+                                        allowContentAccess = true
                                     }
-                                }
-                                
-                                webChromeClient = object : WebChromeClient() {
-                                    override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                                        return true // Скрываем спам консоли Укрнета, чтобы не мешал
+                                    addJavascriptInterface(object : Any() {
+                                        @JavascriptInterface
+                                        fun setBgServiceActive(active: Boolean) {
+                                            runOnUiThread { isBgServiceActive = active }
+                                        }
+                                        @JavascriptInterface
+                                        fun postMessage(type: String, key: String, value: String) {}
+                                    }, "Android")
+
+                                    webViewClient = WebViewClient()
+                                    webChromeClient = object : WebChromeClient() {
+                                        override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                                            val level = consoleMessage?.messageLevel()?.name ?: "LOG"
+                                            log("[Local JS] [$level] ${consoleMessage?.message()} (${consoleMessage?.lineNumber()})")
+                                            return true
+                                        }
                                     }
+                                    loadUrl("file:///android_asset/index.html")
                                 }
-                                
-                                loadUrl("https://mail.ukr.net/desktop/login")
-                                ukrnetWebView = this
+                                addView(messengerWebView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
                             }
                         },
-                        modifier = Modifier
-                            .fillMaxSize() // ТЕПЕРЬ ВСЕГДА 100% ЭКРАНА!
-                            // На этапе логина - он спереди (1f), после входа - позади (0f)
-                            .zIndex(if (isBgServiceActive) 1f else 0f)
+                        update = { _ ->
+                            // Магия нативного управления:
+                            if (isBgServiceActive) {
+                                // Этап авторизации: Мессенджера физически "нет", Укрнет принимает все клики
+                                messengerWebView?.visibility = View.GONE
+                                ukrnetWebView?.visibility = View.VISIBLE
+                                ukrnetWebView?.bringToFront()
+                            } else {
+                                // Мессенджер работает: Укрнет остается видимым внизу, мессенджер ловит все клики поверх него
+                                ukrnetWebView?.visibility = View.VISIBLE 
+                                messengerWebView?.visibility = View.VISIBLE
+                                messengerWebView?.alpha = uiAlpha // Устанавливаем прозрачность
+                                messengerWebView?.bringToFront()
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize().zIndex(0f)
                     )
 
                     // Индикатор при логине
@@ -254,7 +256,7 @@ class MainActivity : ComponentActivity() {
                                 .background(Color(0xE01C1524))
                                 .padding(12.dp)
                                 .align(Alignment.BottomCenter)
-                                .zIndex(2f)
+                                .zIndex(1f)
                         ) {
                             Text(
                                 text = "nan0gram: $loginStatusMsg",
@@ -266,9 +268,9 @@ class MainActivity : ComponentActivity() {
                     }
 
                     // ==========================================
-                    // ПАНЕЛЬ ЛОГОВ И ОТЛАДКИ (ВСЕГДА НА САМОМ ВЕРХУ)
+                    // ПАНЕЛЬ ЛОГОВ (ВСЕГДА НА САМОМ ВЕРХУ)
                     // ==========================================
-                    Box(modifier = Modifier.fillMaxSize().zIndex(3f)) {
+                    Box(modifier = Modifier.fillMaxSize().zIndex(2f)) {
                         if (!isLogPanelExpanded) {
                             Box(
                                 modifier = Modifier
@@ -290,14 +292,13 @@ class MainActivity : ComponentActivity() {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .fillMaxHeight(0.5f) // Занимает половину экрана
+                                    .fillMaxHeight(0.5f)
                                     .align(Alignment.TopCenter)
                                     .background(Color(0xF90F0A15))
                                     .border(1.dp, Color(0xFFA773D1))
                                     .padding(6.dp)
                             ) {
                                 Column(modifier = Modifier.fillMaxSize()) {
-                                    // Управляющие кнопки
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -322,7 +323,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
 
-                                    // ПОЛЗУНОК ПРОЗРАЧНОСТИ (ПОЯВЛЯЕТСЯ ТОЛЬКО ПОСЛЕ ЛОГИНА)
                                     if (!isBgServiceActive) {
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
@@ -346,7 +346,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
 
-                                    // Список логов
                                     LazyColumn(
                                         state = lazyListState,
                                         modifier = Modifier
