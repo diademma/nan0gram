@@ -1,0 +1,49 @@
+name: Build and Release APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  # Позволяет запускать сборку вручную из вкладки Actions
+  workflow_dispatch: 
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    # Выдаем права токену на создание релизов
+    permissions:
+      contents: write 
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: mv app/build/outputs/apk/debug/app-debug.apk nan0gram-latest.apk
+
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Сборка nan0gram #${{ github.run_number }}"
+          body: "Автоматическая сборка APK из последнего коммита. Нажмите на `nan0gram-latest.apk` ниже, чтобы скачать напрямую."
+          draft: false
+          prerelease: false
+          files: nan0gram-latest.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
