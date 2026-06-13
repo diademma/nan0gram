@@ -68,6 +68,7 @@ import java.util.Locale
 class MainActivity : ComponentActivity() {
 
     private val logList = mutableStateListOf<String>()
+    private var nullLogCounter = 0 // Счетчик для неспамящего лога сканера
 
     private fun log(message: String) {
         runOnUiThread {
@@ -111,7 +112,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация (ЭТАП 3: Исправление детектора)")
+        log("[System] Инициализация (ЭТАП 3: Точные селекторы)")
         enableEdgeToEdge()
 
         setContent {
@@ -168,10 +169,50 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // ЭТАП 2: DOM-сканер координат (активируется после входа)
+            // ЭТАП 2: УМНЫЙ DOM-сканер координат с точными селекторами сенсора Укрнета
             LaunchedEffect(isBgServiceActive, ukrnetWebView) {
                 val scanningJs = """
                     (function() {
+                        function findCompose() {
+                            // 1. Попытка поиска по точным селекторам из DOM-анализа
+                            var exact = [
+                                '.ml-header__compose', // Прямой класс зеленого пера в шапке списка
+                                'a.sendmsg', '.sendmsg', 'a[href*="sendmsg"]', 
+                                '[aria-label="Написати"]', '[aria-label="Написать"]', 
+                                '[aria-label*="Написати"]', '[aria-label*="Написать"]',
+                                '.screen__head-btn_write', '.header__btn_write',
+                                '.write-btn', '.compose-btn', '.btn-write', '.icon-write'
+                            ];
+                            for (var i = 0; i < exact.length; i++) {
+                                var el = document.querySelector(exact[i]);
+                                if (el) {
+                                    var r = el.getBoundingClientRect();
+                                    if (r.width > 0 && r.height > 0) return el;
+                                }
+                            }
+                            
+                            // 2. Умный каскадный поиск по ключевым словам в атрибутах (для отказоустойчивости)
+                            var all = document.getElementsByTagName('*');
+                            for (var i = 0; i < all.length; i++) {
+                                var el = all[i];
+                                var r = el.getBoundingClientRect();
+                                if (r.width > 0 && r.height > 0) {
+                                    var aria = (el.getAttribute('aria-label') || '').toLowerCase();
+                                    if (aria.indexOf('написа') !== -1 || aria.indexOf('створи') !== -1 || aria.indexOf('compose') !== -1 || aria.indexOf('write') !== -1) {
+                                        return el;
+                                    }
+                                    var cls = el.className;
+                                    if (typeof cls === 'string') {
+                                        cls = cls.toLowerCase();
+                                        if ((cls.indexOf('write') !== -1 || cls.indexOf('compose') !== -1 || cls.indexOf('sendmsg') !== -1) && (cls.indexOf('btn') !== -1 || cls.indexOf('icon') !== -1)) {
+                                            return el;
+                                        }
+                                    }
+                                }
+                            }
+                            return null;
+                        }
+
                         function findElement(selectors) {
                             for (var i = 0; i < selectors.length; i++) {
                                 var el = document.querySelector(selectors[i]);
@@ -194,16 +235,16 @@ class MainActivity : ComponentActivity() {
                             };
                         }
 
+                        // Обновленные селекторы на основе точной DOM-структуры UkrNet Touch
                         var selectors = {
-                            compose: ['a.sendmsg', '.sendmsg', 'a[href*="sendmsg"]', '[aria-label="Написати"]', '[aria-label="Написать"]', '.screen__head-btn_write'],
-                            to: ['#to', 'input#to', 'textarea#to', 'input[name="to"]', '[placeholder*="Кому"]', '[placeholder*="To"]', '.sendmsg__to input'],
-                            subject: ['#subject', 'input#subject', 'input[name="subject"]', '[placeholder*="Тема"]', '[placeholder*="Subject"]', '.sendmsg__subject input'],
-                            body: ['#body', 'textarea#body', 'textarea[name="body"]', 'div[contenteditable="true"]', '.sendmsg__text', '.editor', '.sendmsg__body'],
-                            send: ['#send', 'button#send', '.sendmsg__send', '[aria-label="Відправити"]', '[aria-label="Отправить"]', '.btn-send']
+                            to: ['.sm-auto-complete__input', '#to', 'input#to', 'textarea#to', 'input[name="to"]', '[placeholder*="Кому"]', '[placeholder*="To"]', '.sendmsg__to input'],
+                            subject: ['#sendmsg__subject', '.sendmsg__subject', '#subject', 'input#subject', 'input[name="subject"]', '[placeholder*="Тема"]', '[placeholder*="Subject"]', '.sendmsg__subject input'],
+                            body: ['.sm-editor__area', '#body', 'textarea#body', 'textarea[name="body"]', 'div[contenteditable="true"]', '.sendmsg__text', '.editor', '.sendmsg__body'],
+                            send: ['.sm-header__send', '#send', 'button#send', '.sendmsg__send', '[aria-label="Відправити"]', '[aria-label="Отправить"]', '.btn-send']
                         };
 
                         var result = {
-                            compose: getCoords(findElement(selectors.compose)),
+                            compose: getCoords(findCompose()),
                             to: getCoords(findElement(selectors.to)),
                             subject: getCoords(findElement(selectors.subject)),
                             body: getCoords(findElement(selectors.body)),
@@ -285,6 +326,13 @@ class MainActivity : ComponentActivity() {
                                                     } catch (e: Exception) {
                                                         log("[Scanner Error] Ошибка парсинга JSON: ${e.message}")
                                                     }
+                                                } else {
+                                                    // Пишем в лог раз в 10 секунд (5 тиков по 2 сек), подтверждая, что сканер жив
+                                                    nullLogCounter++
+                                                    if (nullLogCounter >= 5) {
+                                                        nullLogCounter = 0
+                                                        log("[Scanner API] Поиск... (пока пусто, ждем появления элементов)")
+                                                    }
                                                 }
                                             }
                                         }
@@ -295,11 +343,11 @@ class MainActivity : ComponentActivity() {
                                             super.doUpdateVisitedHistory(view, url, isReload)
                                             log("[UkrNet] Смена URL: $url")
                                             
-                                            // ДЕТЕКЦИЯ ПО URL (Срабатывает мгновенно при переходе на почту)
+                                            // ДЕТЕКЦИЯ ПО URL (Мгновенно при переходе на почту)
                                             if (url != null && url.contains("mail.ukr.net") && !url.contains("login") && !url.contains("accounts.ukr.net")) {
                                                 if (isBgServiceActive && !hasHandledLogin) {
                                                     hasHandledLogin = true
-                                                    log("[System] Обнаружен успешный вход по URL: $url. Переключаем на мессенджер.")
+                                                    log("[System] Успешный вход по URL: $url. Переключаем интерфейс.")
                                                     loginStatusMsg = "Авторизация пройдена!"
                                                     isBgServiceActive = false
                                                     messengerWebView?.evaluateJavascript("if (window.onLoginSuccess) { window.onLoginSuccess(); }", null)
