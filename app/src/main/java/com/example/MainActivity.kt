@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.net.http.SslError
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.KeyCharacterMap
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -113,7 +115,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ЭТАП 4 (Модифицированный): Бесшумный стелс-ввод через эмуляцию автозаполнения Google
+    // Бесшумный стелс-ввод через эмуляцию автозаполнения
     private fun simulateType(webView: WebView?, selector: String, text: String, isAutocomplete: Boolean = false) {
         if (webView == null) return
         
@@ -123,16 +125,21 @@ class MainActivity : ComponentActivity() {
                 if (!el) return 'not_found';
                 el.focus();
                 if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                    // Для автокомплита Укрнета добавляем в конец запятую для автоматического триггера чипа
-                    el.value = '$text' + ( $isAutocomplete ? ',' : '' );
+                    // Записываем чистый адрес без запятой
+                    el.value = '$text';
                     el.dispatchEvent(new Event('input', { bubbles: true }));
                     el.dispatchEvent(new Event('change', { bubbles: true }));
                     
-                    // Дополнительно симулируем нажатие клавиши Enter
-                    var enterDown = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13 });
-                    el.dispatchEvent(enterDown);
-                    var enterUp = new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13 });
-                    el.dispatchEvent(enterUp);
+                    if ($isAutocomplete) {
+                        // Симулируем нажатие клавиши Enter
+                        var enterDown = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13 });
+                        el.dispatchEvent(enterDown);
+                        var enterUp = new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13 });
+                        el.dispatchEvent(enterUp);
+                        
+                        // Принудительно убираем фокус (blur) для автокомплита Укрнета
+                        el.dispatchEvent(new Event('blur', { bubbles: true }));
+                    }
                 } else if (el.getAttribute('contenteditable') === 'true') {
                     el.innerHTML = '$text';
                     el.dispatchEvent(new Event('input', { bubbles: true }));
@@ -151,7 +158,7 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] Инициализация (ЭТАП 4: Стелс-ввод)")
+        log("[System] Инициализация (ЭТАП 4: Стелс-маскировка)")
         enableEdgeToEdge()
 
         setContent {
@@ -669,22 +676,22 @@ class MainActivity : ComponentActivity() {
                                                         coroutineScope.launch {
                                                             log("[Autofill] Запуск бесшумного стелс-заполнения...")
                                                             
-                                                            // 1. Поле "Кому" (с имитацией тапа для реализма и фокуса)
+                                                            // 1. Поле "Кому" (с имитацией тапа для фокуса и заполнением)
                                                             simulateTouch(ukrnetWebView, toX!!, toY!!)
                                                             delay(500)
                                                             simulateType(ukrnetWebView, ".sm-auto-complete__input", "270232@ukr.net", isAutocomplete = true)
-                                                            delay(1000)
+                                                            delay(1200)
                                                             
                                                             // 2. Поле "Тема"
                                                             simulateTouch(ukrnetWebView, subjectX!!, subjectY!!)
                                                             delay(500)
-                                                            simulateType(ukrnetWebView, "#sendmsg__subject", "[nan0gram_v1] Тест автокликера")
-                                                            delay(1000)
+                                                            simulateType(ukrnetWebView, "#sendmsg__subject", "RE: Сверка остатков [Ref: #270232]")
+                                                            delay(1200)
                                                             
                                                             // 3. Поле "Тело сообщения"
                                                             simulateTouch(ukrnetWebView, bodyX!!, bodyY!!)
                                                             delay(500)
-                                                            simulateType(ukrnetWebView, ".sm-editor__area", "Привет! Это сообщение напечатано бесшумным нативным методом ввода.")
+                                                            simulateType(ukrnetWebView, ".sm-editor__area", "Добрый день! Направляю актуальные данные по вашему запросу во вложении. С уважением.")
                                                         }
                                                     },
                                                     modifier = Modifier.background(Color(0x332196F3), shape = RoundedCornerShape(4.dp))
