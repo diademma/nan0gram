@@ -27,7 +27,12 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # Используем глобальный gradle, так как gradlew отсутствует в репозитории
+      # Генерируем временный debug.keystore прямо на сервере GitHub, чтобы Gradle не ругался
+      - name: Generate Debug Keystore
+        run: |
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
+      # Собираем APK
       - name: Build Debug APK
         run: gradle assembleDebug --no-daemon
 
