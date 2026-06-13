@@ -105,18 +105,37 @@ const Queue={
   _flush(){localStorage.setItem(this.KEY,JSON.stringify(this._q))}
 };
 
+// Emoji detector — используется для маркировки темы исходящих и фильтрации входящих
+// ukr.net: тема читается из .readmsg__subject, тело из .rm-body__content, отправитель из .rm-details__from
+const _hasEmoji=/\p{Emoji_Presentation}|\p{Extended_Pictographic}/u;
+
 const Transport={
   async send(chatId,text,author){
     const cfg=Config.get();
-    const payload=JSON.stringify({v:1,chatId,author,text:await AES.encrypt(text,cfg.encryptionKey),ts:Date.now(),tok:cfg.subscriptionToken});
+    const ts=Date.now();
+    // subject: эмодзи-маркер + chatId — Android заполняет поле .sendmsg__subject (#sendmsg__subject)
+    // to:      Android заполняет поле .sm-auto-complete__input
+    // body:    Android вставляет в .sm-editor__area (contenteditable="true")
+    const subject='💬 [EXTGRAM] '+chatId;
+    const payload=JSON.stringify({
+      v:1,
+      chatId,
+      author,
+      text:await AES.encrypt(text,cfg.encryptionKey),
+      ts,
+      tok:cfg.subscriptionToken,
+      subject,                      // → .sendmsg__subject
+      to:cfg.receiverEmail          // → .sm-auto-complete__input
+    });
     try{
       Android.sendEmail(payload);
-      await Store.save({id:'out_'+Date.now()+'_'+Math.random().toString(36).slice(2),chatId,author,text,ts:Date.now(),dir:'out',status:'sent'});
+      await Store.save({id:'out_'+ts+'_'+Math.random().toString(36).slice(2),chatId,author,text,ts,dir:'out',status:'sent'});
       W.dispatchEvent(new CustomEvent('extgram:sent',{detail:{chatId,text,author}}));
+      console.log('[Transport] →send chatId='+chatId+' subject="'+subject+'"');
       return true;
     }catch(e){
       console.error('[Transport] send failed:',e);
-      Queue.push({chatId,text,author,ts:Date.now()});
+      Queue.push({chatId,text,author,ts});
       return false;
     }
   },
@@ -125,10 +144,39 @@ const Transport={
     try{
       const items=JSON.parse(rawJson);
       for(const item of items){
-        const text=await AES.decrypt(item.text,cfg.encryptionKey);
-        const msg={id:'in_'+item.ts+'_'+Math.random().toString(36).slice(2),chatId:item.chatId,author:item.author,text,ts:item.ts,dir:'in',status:'new'};
+        // Фильтр: принимаем только письма с эмодзи в теме (маркер чат-сообщения)
+        // Android парсит тему из .readmsg__subject, тело из .rm-body__content,
+        // отправителя из .rm-details__from, ID письма из id="message_..."
+        if(item.subject&&!_hasEmoji.test(item.subject)){
+          console.log('[Transport] skip non-chat email, subject:',item.subject);
+          continue;
+        }
+        let text;
+        try{
+          // Тело письма содержит зашифрованный JSON-пейлоад
+          text=await AES.decrypt(item.text,cfg.encryptionKey);
+        }catch{
+          // Fallback: тело не зашифровано — берём как есть (plain текст из .rm-body__content)
+          text=item.text||'';
+          console.warn('[Transport] receive: fallback to plain text for msg',item.msgId);
+        }
+        // author: из item.author (если есть) или из поля .rm-details__from
+        const author=item.author||item.from||'Unknown';
+        const chatId=item.chatId||item.from||'inbox';
+        const msg={
+          id:'in_'+(item.ts||Date.now())+'_'+Math.random().toString(36).slice(2),
+          chatId,
+          author,
+          text,
+          ts:item.ts||Date.now(),
+          dir:'in',
+          status:'new',
+          subject:item.subject||'',
+          msgId:item.msgId||''   // message_XXXXXXXXXX — уникальный ID из ukr.net DOM
+        };
         await Store.save(msg);
         W.dispatchEvent(new CustomEvent('extgram:message',{detail:msg}));
+        console.log('[Transport] ←recv chatId='+chatId+' author='+author);
       }
     }catch(e){console.error('[Transport] receive error:',e)}
   }
@@ -225,6 +273,137 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(Config.isReady()){Poller.start();console.log('[ExteraGram] Email transport active')}
   else{console.log('[ExteraGram] Not configured — call ExteraGram.openEmailSettings()')}
 });
+
+// ── AUTO-BRIDGE: перехват отправки + рендер входящих баблов ──────────────────
+
+function _escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+const BridgeAuto={
+  _sentTexts:new Set(),
+
+  // Определяем chatId из заголовка активного чата
+  _getChatId(){
+    return(
+      document.querySelector('[class*="peer-title"]')||
+      document.querySelector('[class*="chat-title"]')||
+      document.querySelector('[class*="peer-name"]')||
+      document.querySelector('[class*="header-name"]')
+    )?.textContent?.trim()||'chat';
+  },
+
+  // Читаем текст из активного поля ввода
+  _captureInput(){
+    const el=
+      document.querySelector('[contenteditable="true"]')||
+      document.querySelector('textarea[class*="input"]')||
+      document.querySelector('input[class*="msg"]');
+    if(!el)return'';
+    return(el.textContent||el.value||'').trim();
+  },
+
+  // Отправляем через Transport.send, дедупликация по тексту 2 сек
+  _sendOnce(text){
+    if(!text||this._sentTexts.has(text))return;
+    this._sentTexts.add(text);
+    setTimeout(()=>this._sentTexts.delete(text),2000);
+    const chatId=this._getChatId();
+    Transport.send(chatId,text,'Я')
+      .then(ok=>console.log('[BridgeAuto] →email',ok?'✓':'queued'))
+      .catch(e=>console.error('[BridgeAuto] send error',e));
+  },
+
+  // Перехватываем нажатие Enter в поле ввода
+  _hookEnter(){
+    document.addEventListener('keydown',e=>{
+      if(e.key!=='Enter'||e.shiftKey)return;
+      const active=document.activeElement;
+      if(!active)return;
+      const isInput=
+        active.getAttribute('contenteditable')==='true'||
+        active.tagName==='TEXTAREA'||
+        (active.tagName==='INPUT'&&active.type==='text');
+      if(!isInput)return;
+      const text=this._captureInput();
+      if(text)this._sendOnce(text);
+    },true);
+  },
+
+  // Перехватываем клик на кнопку отправки
+  _hookSendBtn(){
+    document.addEventListener('click',e=>{
+      const btn=e.target.closest(
+        '[class*="send-btn"],[class*="btn-send"],[class*="msg-send"],'+
+        '[data-role="send"],[aria-label="Send"],[aria-label="Отправить"]'
+      );
+      if(!btn)return;
+      const text=this._captureInput();
+      if(text)this._sendOnce(text);
+    },true);
+  },
+
+  // Находим контейнер со списком сообщений
+  _getMsgList(){
+    return(
+      document.querySelector('[class*="msg-list"]')||
+      document.querySelector('[class*="messages-list"]')||
+      document.querySelector('[class*="chat-messages"]')||
+      document.querySelector('[class*="msglist"]')||
+      document.querySelector('[class*="bubbles"]')
+    );
+  },
+
+  // Рисуем входящий бабл в UI
+  _renderBubble(msg){
+    const list=this._getMsgList();
+    if(!list){
+      console.warn('[BridgeAuto] список сообщений не найден, повтор через 1с');
+      setTimeout(()=>this._renderBubble(msg),1000);
+      return;
+    }
+    if(document.querySelector('[data-bridge-id="'+msg.id+'"]'))return; // дедупликация
+    const time=new Date(msg.ts).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    const wrap=document.createElement('div');
+    wrap.setAttribute('data-bridge-id',msg.id);
+    wrap.style.cssText=
+      'display:flex;justify-content:flex-start;padding:2px 12px 2px 8px;'+
+      'animation:bridgeFadeIn .22s ease';
+    wrap.innerHTML=
+      '<div style="max-width:68%;background:var(--msg-in,rgba(46,29,60,.88));'+
+      'border-radius:18px 18px 18px 4px;padding:8px 12px 6px;'+
+      'backdrop-filter:blur(12px);box-shadow:0 1px 6px rgba(0,0,0,.35)">'+
+        '<div style="font-size:12px;font-weight:600;color:var(--name-cyan,#a773d1);'+
+        'margin-bottom:3px">'+_escHtml(msg.author)+'</div>'+
+        '<div style="font-size:15px;color:var(--text-main,#fff);line-height:1.45;'+
+        'white-space:pre-wrap">'+_escHtml(msg.text)+'</div>'+
+        '<div style="font-size:11px;color:var(--text-time,#746481);'+
+        'text-align:right;margin-top:4px">'+time+' ✓✓</div>'+
+      '</div>';
+    list.appendChild(wrap);
+    list.scrollTop=list.scrollHeight;
+    console.log('[BridgeAuto] ←бабл',msg.id,'от',msg.author);
+  },
+
+  init(){
+    // Входящие письма → бабл
+    W.addEventListener('extgram:message',e=>this._renderBubble(e.detail));
+
+    // Исходящие → Transport.send
+    this._hookEnter();
+    this._hookSendBtn();
+
+    // CSS-анимация появления бабла
+    const st=document.createElement('style');
+    st.textContent=
+      '@keyframes bridgeFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}';
+    document.head.appendChild(st);
+
+    console.log('[BridgeAuto] ✓ автопроводка активна');
+  }
+};
+
+BridgeAuto.init();
 
 })(window);
 </script>
