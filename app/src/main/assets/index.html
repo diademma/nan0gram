@@ -324,6 +324,7 @@ const BridgeAuto={
   _inputEl:null,
   _composeOpen:false,   // черновик открыт в укрнет
   _sendPending:false,   // отправка в процессе
+  _lastChatId:'',       // для детекции смены чата
 
   // Поле ввода мессенджера
   _findInput(){
@@ -447,7 +448,9 @@ const BridgeAuto={
 
   // Подключаем все слушатели событий
   _wire(){
-    // 1. FOCUS → открыть черновик сразу
+    // 1. FOCUS → открыть черновик для текущего чата
+    // НЕ отменяем по blur — ukrnet auto-focus ворует фокус сразу же после открытия
+    // compose, вызывая ложный focusout. Отмена происходит только при смене чата.
     document.addEventListener('focusin',e=>{
       const el=e.target;
       const isInput=
@@ -457,6 +460,13 @@ const BridgeAuto={
       if(!isInput)return;
       this._inputEl=el;
       this._lastInputText=(el.textContent||el.value||'').trim();
+      // Если сменился чат — отменяем старый черновик, открываем новый
+      const chatId=this._getChatId();
+      if(this._composeOpen&&this._lastChatId&&this._lastChatId!==chatId){
+        _droid('cancelCompose');
+        this._composeOpen=false;
+      }
+      this._lastChatId=chatId;
       this._openCompose();
     },true);
 
@@ -474,12 +484,8 @@ const BridgeAuto={
       this._debTimer=setTimeout(()=>this._pushBody(text),220);
     },true);
 
-    // 3. BLUR → отменить черновик если не было отправки
-    document.addEventListener('focusout',e=>{
-      if(e.target!==this._inputEl)return;
-      // Задержка 300ms: дать время сработать отправке через поллинг
-      setTimeout(()=>this._cancelCompose(),300);
-    },true);
+    // 3. BLUR — НЕ отменяем compose, ukrnet ворует фокус при открытии формы.
+    // Compose живёт пока не будет отправлен или не сменится чат.
 
     // 4. POLL 80ms → детектировать очистку поля (= отправка)
     this._pollTimer=setInterval(()=>{
