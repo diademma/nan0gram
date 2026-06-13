@@ -445,60 +445,55 @@ class MainActivity : ComponentActivity() {
                                         }
 
                                         // ── СТАРЫЙ метод: полный цикл (fallback) ──────
+                                        // Теперь тоже по CSS-селекторам — не зависит от координат формы
                                         @JavascriptInterface
                                         fun sendEmail(payload: String) {
                                             runOnUiThread {
                                                 log("[Bridge OUT] sendEmail (legacy)")
                                                 coroutineScope.launch {
-                                                    if (composeX != null && composeY != null) {
-                                                        simulateTouch(ukrnetWebView, composeX!!, composeY!!)
-                                                        var attempts = 0
-                                                        while ((toX == null || bodyX == null || sendX == null) && attempts < 12) {
-                                                            delay(400); attempts++
-                                                        }
-                                                        if (toX != null) {
-                                                            simulateType(ukrnetWebView, ".sm-auto-complete__input", "270232@ukr.net", isAutocomplete = true)
-                                                            delay(1000)
-                                                            simulateType(ukrnetWebView, "#sendmsg__subject", "RE: Сверка остатков [Ref: #270232]")
-                                                            delay(600)
-                                                            val body = "Добрый день! Направляю данные.<br><br>===[${payload}]===<br><br>С уважением."
-                                                            simulateType(ukrnetWebView, ".sm-editor__area", body)
-                                                            delay(800)
-                                                            if (sendX != null) simulateTouch(ukrnetWebView, sendX!!, sendY!!)
-                                                            log("[Bridge OUT] legacy отправлено")
-                                                        }
+                                                    if (composeX == null || composeY == null) {
+                                                        log("[Bridge OUT] sendEmail: composeX/Y недоступны"); return@launch
                                                     }
+                                                    simulateTouch(ukrnetWebView, composeX!!, composeY!!, stealFocus = false)
+                                                    delay(1400)
+                                                    simulateType(ukrnetWebView, ".sm-auto-complete__input", "270232@ukr.net", isAutocomplete = true)
+                                                    delay(900)
+                                                    simulateType(ukrnetWebView, "#sendmsg__subject", "RE: Сверка остатков [Ref: #270232]")
+                                                    delay(500)
+                                                    val body = "Добрый день! Направляю данные.\\n\\n===НАНО===\\n${payload}\\n===НАНО===\\n\\nС уважением."
+                                                    simulateType(ukrnetWebView, ".sm-editor__area", body)
+                                                    delay(600)
+                                                    // Клик «Отправить» по CSS-селектору
+                                                    val sendJs = "(function(){ var b=document.querySelector('.sm-header__send')||document.querySelector('[aria-label=\"Відправити\"]')||document.querySelector('[aria-label=\"Отправить\"]'); if(b){b.click();return 'ok';}return 'no_btn'; })();"
+                                                    ukrnetWebView?.evaluateJavascript(sendJs) { r -> log("[Bridge OUT] legacy → ${r?.trim('"')}") }
                                                 }
                                             }
                                         }
 
                                         // ── НОВЫЙ метод: открыть черновик заранее ─────
+                                        // Не ждём координаты формы — заполняем по CSS-селекторам сразу
                                         @JavascriptInterface
                                         fun openCompose(configJson: String) {
                                             runOnUiThread {
                                                 log("[Bridge] openCompose...")
                                                 coroutineScope.launch {
                                                     if (composeX == null || composeY == null) {
-                                                        log("[Bridge] openCompose: координаты compose недоступны"); return@launch
+                                                        log("[Bridge] openCompose: composeX/Y недоступны"); return@launch
                                                     }
-                                                    // Открываем форму создания письма (stealFocus=false!)
+                                                    // 1. Кликаем кнопку «Написать» (не воруем фокус!)
                                                     simulateTouch(ukrnetWebView, composeX!!, composeY!!, stealFocus = false)
-                                                    // Ждём пока появятся поля формы
-                                                    var attempts = 0
-                                                    while ((toX == null || subjectX == null) && attempts < 20) {
-                                                        delay(300); attempts++
-                                                    }
-                                                    if (toX == null) { log("[Bridge] openCompose: поля формы не найдены"); return@launch }
+                                                    // 2. Ждём появления формы (фиксированная пауза, без опроса координат)
+                                                    delay(1400)
                                                     try {
                                                         val cfg = JSONObject(configJson)
                                                         val to      = cfg.optString("to", "270232@ukr.net")
                                                         val subject = cfg.optString("subject", "💬 [nan0gram] chat")
-                                                        // Заполняем Кому
+                                                        // 3. Заполняем Кому по CSS-селектору
                                                         simulateType(ukrnetWebView, ".sm-auto-complete__input", to, isAutocomplete = true)
-                                                        delay(900)
-                                                        // Заполняем Тему
+                                                        delay(850)
+                                                        // 4. Заполняем Тему по CSS-селектору
                                                         simulateType(ukrnetWebView, "#sendmsg__subject", subject)
-                                                        delay(400)
+                                                        delay(300)
                                                         log("[Bridge] openCompose готов ✓")
                                                     } catch (e: Exception) {
                                                         log("[Bridge] openCompose error: ${e.message}")
@@ -508,26 +503,32 @@ class MainActivity : ComponentActivity() {
                                         }
 
                                         // ── НОВЫЙ метод: обновить тело на лету ───────
+                                        // Работает только по CSS-селектору — координаты не нужны
                                         @JavascriptInterface
                                         fun setComposeBody(encodedText: String) {
                                             runOnUiThread {
-                                                if (bodyX == null) return@runOnUiThread
                                                 val body = "Добрый день! Направляю данные.\\n\\n===НАНО===\\n${encodedText}\\n===НАНО===\\n\\nС уважением."
                                                 simulateType(ukrnetWebView, ".sm-editor__area", body)
                                             }
                                         }
 
-                                        // ── НОВЫЙ метод: нажать отправить ────────────
+                                        // ── НОВЫЙ метод: нажать отправить ─────────────
+                                        // Использует JS-клик по CSS-селектору — не нужны координаты sendX/Y
                                         @JavascriptInterface
                                         fun submitCompose() {
                                             runOnUiThread {
-                                                coroutineScope.launch {
-                                                    if (sendX != null && sendY != null) {
-                                                        simulateTouch(ukrnetWebView, sendX!!, sendY!!, stealFocus = false)
-                                                        log("[Bridge OUT] submitCompose — отправлено ✓")
-                                                    } else {
-                                                        log("[Bridge OUT] submitCompose: sendX/Y недоступны")
-                                                    }
+                                                val clickSendJs = """
+                                                    (function(){
+                                                        var btn = document.querySelector('.sm-header__send')
+                                                               || document.querySelector('[data-id="send"]')
+                                                               || document.querySelector('[aria-label="Відправити"]')
+                                                               || document.querySelector('[aria-label="Отправить"]');
+                                                        if (btn) { btn.click(); return 'sent'; }
+                                                        return 'no_btn';
+                                                    })();
+                                                """.trimIndent()
+                                                ukrnetWebView?.evaluateJavascript(clickSendJs) { result ->
+                                                    log("[Bridge OUT] submitCompose → ${result?.trim('"')}")
                                                 }
                                             }
                                         }
