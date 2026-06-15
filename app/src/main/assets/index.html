@@ -57,7 +57,7 @@ Error generating stack: `+e.message+`
   const STD64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
   const EMOJI_RE = /^(?:\p{Extended_Pictographic}|\uFE0F|\u200D)+$/u;
-  const TOKEN_RE = /(\r?\n|\s+|[^\s]+)/gu;
+  const TOKEN_RE = /(\r?\n|\s+|(?:[\p{Extended_Pictographic}\uFE0F\u200D]+)|[^\s\p{Extended_Pictographic}]+)/gu;
 
   const ui = (fn) => {
     try {
