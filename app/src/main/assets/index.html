@@ -265,9 +265,10 @@ Error generating stack: `+e.message+`
 
   function chaosJoin(tokens) {
     if (!tokens.length) return "";
-    const breaks = shouldBreak(tokens.length);
-    const positions = new Set();
     const maxPos = Math.max(0, tokens.length - 2);
+    // Защита: переносов не может быть больше, чем физически доступных мест между словами
+    const breaks = Math.min(shouldBreak(tokens.length), maxPos + 1);
+    const positions = new Set();
     while (positions.size < breaks && maxPos >= 0) {
       positions.add(randInt(0, maxPos));
     }
