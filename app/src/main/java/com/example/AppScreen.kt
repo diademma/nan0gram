@@ -1,6 +1,7 @@
 package com.example
 
 import android.annotation.SuppressLint
+import android.net.Uri
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.webkit.ConsoleMessage
@@ -11,6 +12,8 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -56,16 +59,9 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-// ═══════════════════════════════════════════════════════════════════════════
-// APP SCREEN  — весь UI: WebView-слой + панель логов + дебаг-контролы
-// Добавляй новые экраны, панели, второй ukrnet WebView — сюда.
-// Никакой бизнес-логики. Никаких JS-инъекций. Только рендер.
-// ═══════════════════════════════════════════════════════════════════════════
-
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun AppScreen(
-    // Состояние
     isBgServiceActive: Boolean,
     isLogPanelExpanded: Boolean,
     uiAlpha: Float,
@@ -73,7 +69,6 @@ fun AppScreen(
     logList: List<String>,
     logListState: LazyListState,
     coords: DomCoords,
-    // Колбэки
     onLogPanelToggle: (Boolean) -> Unit,
     onUiAlphaChange: (Float) -> Unit,
     onParserToggle: () -> Unit,
@@ -82,7 +77,6 @@ fun AppScreen(
     onMessengerViewReady: (WebView) -> Unit,
     onUkrnetReload: () -> Unit,
     onMessengerReload: () -> Unit,
-    // Зависимости
     ukrnetInterface: UkrnetJsInterface,
     messengerInterface: MessengerJsInterface,
     coroutineScope: CoroutineScope,
@@ -126,8 +120,6 @@ fun AppScreen(
     }
 }
 
-// ─── WebView слой ──────────────────────────────────────────────────────────
-
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 private fun WebViewLayer(
@@ -139,11 +131,28 @@ private fun WebViewLayer(
     onMessengerViewReady: (WebView) -> Unit,
     log: (String) -> Unit
 ) {
+    // Системный мост для открытия файлов (Wallpaper, Фото, Видео)
+    var filePathCallback by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
+    val fileChooserLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data?.data
+        val dataClip = result.data?.clipData
+        val uris = mutableListOf<Uri>()
+        if (data != null) {
+            uris.add(data)
+        } else if (dataClip != null) {
+            for (i in 0 until dataClip.itemCount) {
+                uris.add(dataClip.getItemAt(i).uri)
+            }
+        }
+        filePathCallback?.onReceiveValue(if (uris.isNotEmpty()) uris.toTypedArray() else null)
+        filePathCallback = null
+    }
+
     AndroidView(
         factory = { context ->
             FrameLayout(context).apply {
-
-                // ── UKRNET WEBVIEW ──────────────────────────────────────────
                 val uWebView = WebView(context).apply {
                     tag = "ukrnet"
                     settings.apply {
@@ -152,7 +161,7 @@ private fun WebViewLayer(
                         databaseEnabled      = true
                         useWideViewPort      = true
                         loadWithOverviewMode = true
-                        userAgentString      = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+                        userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                     }
                     CookieManager.getInstance().setAcceptCookie(true)
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
@@ -174,7 +183,6 @@ private fun WebViewLayer(
                 onUkrnetViewReady(uWebView)
                 addView(uWebView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
-                // ── MESSENGER WEBVIEW ───────────────────────────────────────
                 val mWebView = WebView(context).apply {
                     tag = "messenger"
                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
@@ -191,6 +199,30 @@ private fun WebViewLayer(
                         override fun onConsoleMessage(m: ConsoleMessage?): Boolean {
                             val level = m?.messageLevel()?.name ?: "LOG"
                             log("[Local JS] [$level] ${m?.message()} (${m?.lineNumber()})")
+                            return true
+                        }
+
+                        // Разрешаем веб-мосту захватывать микрофон
+                        override fun onPermissionRequest(request: android.webkit.PermissionRequest?) {
+                            request?.grant(request.resources)
+                        }
+
+                        // Открываем нативный Android-проводник при клике на выбор файлов
+                        override fun onShowFileChooser(
+                            webView: WebView?,
+                            filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?,
+                            fileChooserParams: FileChooserParams?
+                        ): Boolean {
+                            filePathCallback?.onReceiveValue(null)
+                            filePathCallback = filePathCallbackParams
+                            try {
+                                val intent = fileChooserParams?.createIntent()
+                                fileChooserLauncher.launch(intent)
+                            } catch (e: Exception) {
+                                filePathCallback?.onReceiveValue(null)
+                                filePathCallback = null
+                                return false
+                            }
                             return true
                         }
                     }
@@ -218,8 +250,6 @@ private fun WebViewLayer(
     )
 }
 
-// ─── Панель логов ──────────────────────────────────────────────────────────
-
 @Composable
 private fun LogPanel(
     isExpanded: Boolean,
@@ -239,14 +269,11 @@ private fun LogPanel(
     log: (String) -> Unit
 ) {
     val clipboardManager = LocalClipboardManager.current
-
-    // Позиция кнопки — зажми и тащи куда удобно
     var dragX by remember { mutableStateOf(0f) }
     var dragY by remember { mutableStateOf(0f) }
 
     Box(modifier = Modifier.fillMaxSize().zIndex(2f)) {
         if (!isExpanded) {
-            // Свёрнутый бейдж — перетаскивается долгим нажатием
             Box(
                 modifier = Modifier
                     .padding(16.dp)
@@ -262,11 +289,10 @@ private fun LogPanel(
                     }
                     .clickable { onToggle(true) }
                     .padding(horizontal = 12.dp, vertical = 8.dp)
-            ) {
+                ) {
                 Text("🐞 Логи (${logList.size})", color = Color(0xFFD0BCFF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         } else {
-            // Развёрнутая панель
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -277,8 +303,6 @@ private fun LogPanel(
                     .padding(6.dp)
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-
-                    // Тулбар
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -301,7 +325,6 @@ private fun LogPanel(
                         }
                     }
 
-                    // Дебаг-контролы (только в режиме мессенджера)
                     if (!isBgServiceActive) {
                         DebugControls(
                             uiAlpha = uiAlpha,
@@ -314,7 +337,6 @@ private fun LogPanel(
                         )
                     }
 
-                    // Список логов
                     LazyColumn(
                         state = logListState,
                         modifier = Modifier
@@ -341,8 +363,6 @@ private fun LogPanel(
     }
 }
 
-// ─── Дебаг-контролы ────────────────────────────────────────────────────────
-
 @Composable
 private fun DebugControls(
     uiAlpha: Float,
@@ -353,7 +373,6 @@ private fun DebugControls(
     coroutineScope: CoroutineScope,
     log: (String) -> Unit
 ) {
-    // Слайдер прозрачности мессенджера
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(36.dp)
@@ -366,7 +385,6 @@ private fun DebugControls(
         Slider(value = uiAlpha, onValueChange = onUiAlphaChange, valueRange = 0f..1f, modifier = Modifier.weight(1f))
     }
 
-    // Кнопка «Радар входящих»
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -388,7 +406,6 @@ private fun DebugControls(
         }
     }
 
-    // Статус: кнопка «Написать» найдена
     if (coords.composeX != null) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
