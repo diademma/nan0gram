@@ -33,7 +33,6 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] nan0gram старт, сборка #${BuildConfig.VERSION_CODE}")
         enableEdgeToEdge()
 
         setContent {
