@@ -17,9 +17,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import com.example.updater.UpdateChecker
-import com.example.updater.UpdateDialog
-import com.example.updater.UpdateInfo
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN ACTIVITY  — тонкий оркестратор
@@ -29,7 +26,6 @@ import com.example.updater.UpdateInfo
 
 class MainActivity : ComponentActivity() {
 
-    // Лог живёт здесь чтобы пережить рекомпозиции
     private val logList = mutableStateListOf<String>()
 
     fun log(message: String) {
@@ -67,34 +63,28 @@ class MainActivity : ComponentActivity() {
             var uiAlpha            by remember { mutableStateOf(0.95f) }
             var isParserEnabled    by remember { mutableStateOf(false) }
 
-            // WebView-ссылки (устанавливаются из AppScreen через колбэки)
             var ukrnetWebView    by remember { mutableStateOf<WebView?>(null) }
             var messengerWebView by remember { mutableStateOf<WebView?>(null) }
 
-            // Координаты DOM ukr.net (обновляются через UkrnetJsInterface)
             var coords by remember { mutableStateOf(DomCoords()) }
 
             val coroutineScope = rememberCoroutineScope()
             val logListState   = rememberLazyListState()
 
-            // Авто-скролл логов вниз при добавлении новой строки
             LaunchedEffect(logList.size) {
                 if (logList.isNotEmpty() && isLogPanelExpanded)
                     logListState.animateScrollToItem(logList.size - 1)
             }
 
-            // ── JS-интерфейсы ──────────────────────────────────────────────
-            // Создаются один раз — remember гарантирует стабильность ссылок.
-
             val ukrnetInterface = remember {
                 UkrnetJsInterface(
-                    log                = ::log,
-                    onLoginSuccess     = { hasHandledLogin = true; isBgServiceActive = false },
-                    onCoordsUpdate     = { coords = it },
-                    onFirstCoordsLogged = { /* координаты уже залогированы внутри интерфейса */ },
+                    log                 = ::log,
+                    onLoginSuccess      = { hasHandledLogin = true; isBgServiceActive = false },
+                    onCoordsUpdate      = { coords = it },
+                    onFirstCoordsLogged = { },
                     getMessengerWebView = { messengerWebView },
-                    isLoginHandled     = { hasHandledLogin },
-                    getCurrentCoords   = { coords }
+                    isLoginHandled      = { hasHandledLogin },
+                    getCurrentCoords    = { coords }
                 )
             }
 
@@ -107,7 +97,6 @@ class MainActivity : ComponentActivity() {
                 ).also { it.scope = coroutineScope }
             }
 
-            // ── Фоновые JS-циклы (auth monitor, scanner, reader) ──────────
             BridgeEffects(
                 isBgServiceActive = isBgServiceActive,
                 isParserEnabled   = isParserEnabled,
@@ -115,17 +104,14 @@ class MainActivity : ComponentActivity() {
                 coords            = coords
             )
 
-            // ── Главный UI ─────────────────────────────────────────────────
             AppScreen(
-                // State
-                isBgServiceActive  = isBgServiceActive,
-                isLogPanelExpanded = isLogPanelExpanded,
-                uiAlpha            = uiAlpha,
-                isParserEnabled    = isParserEnabled,
-                logList            = logList,
-                logListState       = logListState,
-                coords             = coords,
-                // Колбэки
+                isBgServiceActive    = isBgServiceActive,
+                isLogPanelExpanded   = isLogPanelExpanded,
+                uiAlpha              = uiAlpha,
+                isParserEnabled      = isParserEnabled,
+                logList              = logList,
+                logListState         = logListState,
+                coords               = coords,
                 onLogPanelToggle     = { isLogPanelExpanded = it },
                 onUiAlphaChange      = { uiAlpha = it },
                 onParserToggle       = { isParserEnabled = !isParserEnabled },
@@ -134,11 +120,10 @@ class MainActivity : ComponentActivity() {
                 onMessengerViewReady = { messengerWebView = it },
                 onUkrnetReload       = { ukrnetWebView?.reload() },
                 onMessengerReload    = { messengerWebView?.reload() },
-                // Зависимости
-                ukrnetInterface    = ukrnetInterface,
-                messengerInterface = messengerInterface,
-                coroutineScope     = coroutineScope,
-                log                = ::log
+                ukrnetInterface      = ukrnetInterface,
+                messengerInterface   = messengerInterface,
+                coroutineScope       = coroutineScope,
+                log                  = ::log
             )
         }
     }

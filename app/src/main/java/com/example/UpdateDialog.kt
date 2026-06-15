@@ -1,4 +1,4 @@
-package com.example.updater
+package com.example
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
