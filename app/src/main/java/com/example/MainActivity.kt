@@ -18,12 +18,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// ═══════════════════════════════════════════════════════════════════════════
-// MAIN ACTIVITY  — тонкий оркестратор
-// Только: верхнеуровневый state, создание интерфейсов, вызов BridgeEffects и AppScreen.
-// Новые экраны/фичи → AppScreen.kt.  Новые JS-операции → BridgeEngine.kt.
-// ═══════════════════════════════════════════════════════════════════════════
-
 class MainActivity : ComponentActivity() {
 
     private val logList = mutableStateListOf<String>()
@@ -39,15 +33,16 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        log("[System] nan0gram v3 инициализация")
+        log("[System] nan0gram старт, сборка #${BuildConfig.VERSION_CODE}")
         enableEdgeToEdge()
 
         setContent {
 
             // ── Проверка обновлений ────────────────────────────────────────
+            // Сравниваем номер сборки (build-42 → 42) с текущим VERSION_CODE
             var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
             LaunchedEffect(Unit) {
-                val info = UpdateChecker.checkForUpdate(BuildConfig.VERSION_NAME)
+                val info = UpdateChecker.checkForUpdate(BuildConfig.VERSION_CODE)
                 if (info != null && info.isUpdateAvailable) {
                     updateInfo = info
                 }

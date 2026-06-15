@@ -23,7 +23,7 @@ object UpdateChecker {
 
     private val client = OkHttpClient()
 
-    suspend fun checkForUpdate(currentVersionName: String): UpdateInfo? =
+    suspend fun checkForUpdate(currentVersionCode: Int): UpdateInfo? =
         withContext(Dispatchers.IO) {
             try {
                 val request = Request.Builder()
@@ -37,9 +37,14 @@ object UpdateChecker {
                 val body = response.body?.string() ?: return@withContext null
                 val json = JSONObject(body)
 
-                val latestTag = json.getString("tag_name").removePrefix("v")
+                val tag = json.getString("tag_name")
                 val releaseNotes = json.optString("body", "")
 
+                // Из тега типа "build-42" или "v1.2" вытаскиваем число
+                val tagNumber = Regex("\\d+").findAll(tag).lastOrNull()
+                    ?.value?.toIntOrNull() ?: 0
+
+                // Ищем APK в assets релиза
                 val assets = json.getJSONArray("assets")
                 var apkUrl = ""
                 for (i in 0 until assets.length()) {
@@ -52,10 +57,10 @@ object UpdateChecker {
                 if (apkUrl.isEmpty()) apkUrl = json.getString("html_url")
 
                 UpdateInfo(
-                    latestVersion = latestTag,
+                    latestVersion = tag,
                     downloadUrl = apkUrl,
                     releaseNotes = releaseNotes,
-                    isUpdateAvailable = isNewerVersion(latestTag, currentVersionName)
+                    isUpdateAvailable = tagNumber > currentVersionCode
                 )
             } catch (e: Exception) {
                 null
@@ -64,19 +69,5 @@ object UpdateChecker {
 
     fun openDownloadPage(context: Context, url: String) {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-    }
-
-    private fun isNewerVersion(latest: String, current: String): Boolean {
-        return try {
-            val l = latest.split(".").map { it.toIntOrNull() ?: 0 }
-            val c = current.split(".").map { it.toIntOrNull() ?: 0 }
-            for (i in 0 until maxOf(l.size, c.size)) {
-                val lv = l.getOrElse(i) { 0 }
-                val cv = c.getOrElse(i) { 0 }
-                if (lv > cv) return true
-                if (lv < cv) return false
-            }
-            false
-        } catch (e: Exception) { false }
     }
 }
