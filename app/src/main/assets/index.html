@@ -257,11 +257,11 @@ Error generating stack: `+e.message+`
   }
 
   function shouldBreak(totalTokens) {
-      if (totalTokens <= 2) return 0;
-      if (totalTokens <= 6) return randInt(1, 3);
-      if (totalTokens <= 12) return randInt(3, 6);
-      return randInt(5, 10);
-    }
+    if (totalTokens <= 2) return 0;
+    if (totalTokens <= 6) return randInt(1, 3);
+    if (totalTokens <= 12) return randInt(3, 6);
+    return randInt(5, 10);
+  }
 
   function chaosJoin(tokens) {
     if (!tokens.length) return "";
@@ -275,10 +275,7 @@ Error generating stack: `+e.message+`
     for (let i = 0; i < tokens.length; i++) {
       out.push(tokens[i]);
       if (i < tokens.length - 1) {
-        out.push(positions.has(i) ? (Math.random() < 0.25 ? "
-
-" : "
-") : " ");
+        out.push(positions.has(i) ? (Math.random() < 0.25 ? "\n\n" : "\n") : " ");
       }
     }
     return out.join("");
