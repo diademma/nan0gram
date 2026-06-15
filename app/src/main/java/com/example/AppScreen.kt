@@ -5,7 +5,7 @@ import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
-import android.webkit.SslError
+import android.net.http.SslError
 import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebView
