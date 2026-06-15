@@ -58,6 +58,16 @@ class MainActivity : ComponentActivity() {
 
         setContent {
 
+            // Запрашиваем доступ к микрофону при старте
+            val micPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                log(if (isGranted) "[System] Доступ к микрофону разрешен ✓" else "[System] Доступ к микрофону отклонен ❌")
+            }
+            LaunchedEffect(Unit) {
+                micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+            }
+
             var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
             LaunchedEffect(Unit) {
                 val info = UpdateChecker.checkForUpdate(BuildConfig.VERSION_CODE)
