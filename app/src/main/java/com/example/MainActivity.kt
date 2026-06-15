@@ -17,6 +17,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.updater.UpdateChecker
+import com.example.updater.UpdateDialog
+import com.example.updater.UpdateInfo
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN ACTIVITY  — тонкий оркестратор
@@ -44,6 +47,18 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
+
+            // ── Проверка обновлений ────────────────────────────────────────
+            var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+            LaunchedEffect(Unit) {
+                val info = UpdateChecker.checkForUpdate(BuildConfig.VERSION_NAME)
+                if (info != null && info.isUpdateAvailable) {
+                    updateInfo = info
+                }
+            }
+            updateInfo?.let { info ->
+                UpdateDialog(updateInfo = info, onDismiss = { updateInfo = null })
+            }
 
             // ── Верхнеуровневый state ──────────────────────────────────────
             var isBgServiceActive  by remember { mutableStateOf(true) }
