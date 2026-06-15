@@ -12,7 +12,7 @@ import org.json.JSONObject
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UkrnetJsInterface  — события из ukrnetWebView в Kotlin
-// Использует механизм CustomEvent для безопасной передачи данных в React.
+// Передает события в React-мессенджер через механизм CustomEvent
 // ═══════════════════════════════════════════════════════════════════════════
 
 class UkrnetJsInterface(
@@ -77,8 +77,8 @@ class UkrnetJsInterface(
     fun onIncomingMessage(id: String, subject: String, body: String) {
         ui.post {
             log("[Parser] Входящее письмо: $id")
-            val ruMatch  = Regex("===НАНО===\s*([\s\S]+?)\s*===НАНО===").find(body)
-            val aesMatch = Regex("===\[([\s\S]+?)\]===").find(body)
+            val ruMatch  = Regex("===НАНО===\\s*([\\s\\S]+?)\\s*===НАНО===").find(body)
+            val aesMatch = Regex("===\\[([\\s\\S]+?)\\]===").find(body)
             val payload  = ruMatch?.groupValues?.get(1)?.trim()
                         ?: aesMatch?.groupValues?.get(1)?.trim()
             if (payload != null) {
@@ -118,4 +118,117 @@ class UkrnetJsInterface(
             }
         }
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MessengerJsInterface  — команды из messengerWebView (React) в Kotlin
+// ═══════════════════════════════════════════════════════════════════════════
+
+class MessengerJsInterface(
+    private val log: (String) -> Unit,
+    private val onBgServiceChange: (Boolean) -> Unit,
+    private val getUkrnetWebView: () -> WebView?,
+    private val getCoords: () -> DomCoords
+) {
+    lateinit var scope: CoroutineScope
+    private val ui = Handler(Looper.getMainLooper())
+
+    // Открыть compose (фокус-патч предотвращает скрытие клавиатуры мессенджера)
+    @JavascriptInterface
+    fun openCompose(configJson: String) {
+        ui.post {
+            log("[Bridge] openCompose...")
+            scope.launch {
+                val c = getCoords()
+                if (c.composeX == null || c.composeY == null) {
+                    log("[Bridge] openCompose: composeX/Y недоступны"); return@launch
+                }
+                val cfg     = try { JSONObject(configJson) } catch (e: Exception) { JSONObject() }
+                val to      = cfg.optString("to",      "270232@ukr.net").replace("'", "\\'")
+                val subject = cfg.optString("subject", "💬 [nan0gram] chat").replace("'", "\\'")
+
+                getUkrnetWebView()?.evaluateJavascript(FOCUS_PATCH_JS, null)
+                delay(60)
+                simulateTouch(getUkrnetWebView(), c.composeX, c.composeY, log = log)
+                val fillJs = COMPOSE_FILL_JS
+                    .replace("%TO%",      to)
+                    .replace("%SUBJECT%", subject)
+                getUkrnetWebView()?.evaluateJavascript(fillJs, null)
+            }
+        }
+    }
+
+    // Обновление тела письма (выполняется плавно, в фоновом режиме)
+    @JavascriptInterface
+    fun setComposeBody(encodedText: String) {
+        ui.post {
+            val esc = encodedText
+                .replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+            val bodyText = "Добрый день! Направляю данные.\\n\\n===НАНО===\\n${esc}\\n===НАНО===\\n\\nС уважением."
+            val js = """
+                (function(text) {
+                    var el = document.querySelector('.sm-editor__area');
+                    if (!el) return;
+                    if (el.getAttribute('contenteditable') === 'true') {
+                        el.textContent = text;
+                    } else {
+                        try {
+                            var ns = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;
+                            ns.call(el, text);
+                        } catch(e) { el.value = text; }
+                    }
+                    el.dispatchEvent(new Event('input',{bubbles:true}));
+                })('$bodyText');
+            """.trimIndent()
+            getUkrnetWebView()?.evaluateJavascript(js, null)
+        }
+    }
+
+    // Отправка письма (нажатие на нативную кнопку "Отправить" в UkrNet)
+    @JavascriptInterface
+    fun submitCompose() {
+        ui.post {
+            val js = """
+                (function(){
+                    var btn = document.querySelector('.sm-header__send')
+                           || document.querySelector('[data-id="send"]')
+                           || document.querySelector('[aria-label="Відправити"]')
+                           || document.querySelector('[aria-label="Отправить"]');
+                    if (btn) { btn.click(); return 'sent'; }
+                    return 'no_btn';
+                })();
+            """.trimIndent()
+            getUkrnetWebView()?.evaluateJavascript(js) { r ->
+                log("[Bridge OUT] submitCompose → ${r?.trim('"')}")
+            }
+        }
+    }
+
+    // Отмена черновика
+    @JavascriptInterface
+    fun cancelCompose() {
+        ui.post {
+            scope.launch {
+                val js = """
+                    (function(){
+                        var btn = document.querySelector('.sm-header__cancel')
+                               || document.querySelector('[aria-label="Відмінити"]')
+                               || document.querySelector('[aria-label="Отменить"]');
+                        if (btn) { btn.click(); return 'ok'; }
+                        history.back(); return 'fallback';
+                    })();
+                """.trimIndent()
+                getUkrnetWebView()?.evaluateJavascript(js, null)
+                log("[Bridge] cancelCompose → inbox")
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun setBgServiceActive(active: Boolean) {
+        ui.post { onBgServiceChange(active) }
+    }
+
+    @JavascriptInterface
+    fun postMessage(type: String, key: String, value: String) {}
 }
