@@ -668,9 +668,18 @@ Error generating stack: `+e.message+`
       var input = document.querySelector('.msg-input');
       if (input && input.value.trim() && window.nan0gram && window.nan0gram.submitCompose) {
         window.nan0gram.submitCompose(input.value.trim());
+        input.blur(); // Снимаем фокус и прячем клавиатуру!
       }
     }
   }, {capture: true});
+
+  // Автоматически возвращаем фокус в мессенджер после создания черновика
+  window.addEventListener('nan0gram:compose-ready', function() {
+    var input = document.querySelector('.msg-input');
+    if (input) {
+      input.focus(); // Возвращаем курсор!
+    }
+  });
 
 })(window);
 </script>
