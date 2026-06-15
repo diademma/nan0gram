@@ -81,7 +81,7 @@ class UkrnetJsInterface(
             val aesMatch = Regex("===\\[([\\s\\S]+?)\\]===").find(body)
             val payload  = ruMatch?.groupValues?.get(1)?.trim()
                         ?: aesMatch?.groupValues?.get(1)?.trim()
-            if (payload != null) {
+            if (payload.isNotEmpty()) {
                 log("[Parser] Payload извлечен, отправляем в мессенджер")
                 val msg = JSONObject().apply {
                     put("chatId", Regex("\\[nan0gram\\]\\s*(.+)")
