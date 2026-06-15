@@ -76,7 +76,6 @@ class UkrnetJsInterface(
                     put("subject", subject)
                     put("msgId",   id)
                 }
-                // ДВОЙНОЕ ЭКРАНИРОВАНИЕ: защищаем переносы строк (\n) от поломки JS-парсера
                 val escaped = JSONArray().apply { put(msg) }.toString()
                     .replace("\\", "\\\\")
                     .replace("\"", "\\\"")
@@ -143,6 +142,7 @@ class MessengerJsInterface(
                         } catch(e) { el.value = text; }
                     }
                     el.dispatchEvent(new Event('input',{bubbles:true}));
+                    el.dispatchEvent(new Event('change',{bubbles:true}));
                 })('$esc');
             """.trimIndent()
             getUkrnetWebView()?.evaluateJavascript(js, null)
@@ -152,8 +152,37 @@ class MessengerJsInterface(
     @JavascriptInterface
     fun submitCompose() {
         ui.post {
-            val js = "(function(){ var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id=\"send\"]') || document.querySelector('[aria-label=\"Відправити\"]') || document.querySelector('[aria-label=\"Отправить\"]); if (btn) { btn.click(); return 'sent'; } return 'no_btn'; })();"
-            getUkrnetWebView()?.evaluateJavascript(js, null)
+            val js = """
+                (function(){
+                    var btn = document.querySelector('.sm-header__send') 
+                           || document.querySelector('[data-id="send"]') 
+                           || document.querySelector('[aria-label="Відправити"]') 
+                           || document.querySelector('[aria-label="Отправить"]')
+                           || document.querySelector('.sendmsg__bottom-controls .button')
+                           || document.querySelector('.header__action-btn--send')
+                           || document.querySelector('button.send');
+                    if (btn) { btn.click(); return 'sent_selector'; }
+                    
+                    var buttons = document.querySelectorAll('button');
+                    for (var i = 0; i < buttons.length; i++) {
+                        var txt = buttons[i].innerText.toLowerCase();
+                        if (txt.indexOf('отправить') !== -1 || txt.indexOf('відправити') !== -1) {
+                            buttons[i].click(); return 'sent_text';
+                        }
+                    }
+                    var svgs = document.querySelectorAll('svg');
+                    for (var j = 0; j < svgs.length; j++) {
+                        var parent = svgs[j].closest('button');
+                        if (parent && parent.className && parent.className.indexOf('send') !== -1) {
+                            parent.click(); return 'sent_svg';
+                        }
+                    }
+                    return 'no_btn';
+                })();
+            """.trimIndent()
+            getUkrnetWebView()?.evaluateJavascript(js) { r ->
+                log("[Bridge OUT] submitCompose → ${r?.trim('"')}")
+            }
         }
     }
 
