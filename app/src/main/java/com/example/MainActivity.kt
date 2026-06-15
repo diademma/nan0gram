@@ -2,6 +2,7 @@ package com.example
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.os.StrictMode
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -32,6 +33,26 @@ class MainActivity : ComponentActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
+
+        // ── StrictMode: ловим медленные операции на главном потоке ──────
+        // Все нарушения видны в логах (тег StrictMode) — не влияет на работу
+        if (BuildConfig.DEBUG) {
+            StrictMode.setThreadPolicy(
+                StrictMode.ThreadPolicy.Builder()
+                    .detectAll()       // диск, сеть, медленные вызовы
+                    .penaltyLog()      // пишем в лог, не крашим
+                    .build()
+            )
+            StrictMode.setVmPolicy(
+                StrictMode.VmPolicy.Builder()
+                    .detectLeakedSqlLiteObjects()
+                    .detectLeakedClosableObjects()
+                    .detectActivityLeaks()
+                    .penaltyLog()
+                    .build()
+            )
+        }
+
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
