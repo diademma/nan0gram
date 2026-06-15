@@ -14,8 +14,10 @@ android {
     applicationId = "com.aistudio.nan0gram.ukrnet"
     minSdk = 24
     targetSdk = 36
-    versionCode = 2
-    versionName = "1.1"
+    // Номер сборки берётся автоматически из GitHub Actions
+    // Локально = 1, в Actions = реальный номер сборки (build-42 → 42)
+    versionCode = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
+    versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
