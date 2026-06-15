@@ -164,7 +164,7 @@ class MessengerJsInterface(
         ui.post {
             val esc = encodedText
                 .replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
-            val bodyText = "Добрый день! Направляю данные.\\n\\n===НАНО===\\n${esc}\\n===НАНО===\\n\\nС уважением."
+            val bodyText = esc
             val js = """
                 (function(text) {
                     var el = document.querySelector('.sm-editor__area');
