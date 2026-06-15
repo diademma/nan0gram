@@ -5,14 +5,12 @@ on:
     branches:
       - main
       - master
-  # Позволяет запускать сборку вручную из вкладки Actions
   workflow_dispatch: 
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
     
-    # Выдаем права токену на создание релизов
     permissions:
       contents: write 
 
@@ -27,12 +25,6 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      # Генерируем временный debug.keystore прямо на сервере GitHub, чтобы Gradle не ругался
-      - name: Generate Debug Keystore
-        run: |
-          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-
-      # Собираем APK
       - name: Build Debug APK
         run: gradle assembleDebug --no-daemon
 
