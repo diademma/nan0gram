@@ -217,7 +217,13 @@ private fun WebViewLayer(
                             filePathCallback = filePathCallbackParams
                             try {
                                 val intent = fileChooserParams?.createIntent()
-                                fileChooserLauncher.launch(intent)
+                                if (intent != null) {
+                                    fileChooserLauncher.launch(intent)
+                                } else {
+                                    filePathCallback?.onReceiveValue(null)
+                                    filePathCallback = null
+                                    return false
+                                }
                             } catch (e: Exception) {
                                 filePathCallback?.onReceiveValue(null)
                                 filePathCallback = null
