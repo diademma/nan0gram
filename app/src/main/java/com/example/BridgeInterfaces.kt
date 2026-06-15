@@ -36,6 +36,7 @@ class UkrnetJsInterface(
     fun onComposeReady() {
         ui.post {
             log("[Bridge] openCompose готов ✓ (focus-patch снят)")
+            getMessengerWebView()?.requestFocus() // <-- ВОЗВРАЩАЕМ ФОКУС ВЕРХНЕМУ ОКНУ
             getMessengerWebView()?.evaluateJavascript("window.dispatchEvent(new CustomEvent('nan0gram:compose-ready'));", null)
         }
     }
