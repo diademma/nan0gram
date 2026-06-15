@@ -77,10 +77,8 @@ class UkrnetJsInterface(
     fun onIncomingMessage(id: String, subject: String, body: String) {
         ui.post {
             log("[Parser] Входящее письмо: $id")
-            val ruMatch  = Regex("===НАНО===\\s*([\\s\\S]+?)\\s*===НАНО===").find(body)
-            val aesMatch = Regex("===\\[([\\s\\S]+?)\\]===").find(body)
-            val payload  = ruMatch?.groupValues?.get(1)?.trim()
-                        ?: aesMatch?.groupValues?.get(1)?.trim()
+            // Читаем все тело письма целиком как чистый зашифрованный блок без внешних маркеров
+            val payload = body.trim()
             if (payload.isNotEmpty()) {
                 log("[Parser] Payload извлечен, отправляем в мессенджер")
                 val msg = JSONObject().apply {
@@ -158,7 +156,7 @@ class MessengerJsInterface(
         }
     }
 
-    // Обновление тела письма (выполняется плавно, в фоновом режиме)
+    // Обновление тела письма (записывает строго чистый шифр без фраз-заглушек и ===НАНО===)
     @JavascriptInterface
     fun setComposeBody(encodedText: String) {
         ui.post {
