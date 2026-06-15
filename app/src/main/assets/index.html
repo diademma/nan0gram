@@ -675,10 +675,13 @@ Error generating stack: `+e.message+`
 
   // Автоматически возвращаем фокус в мессенджер после создания черновика
   window.addEventListener('nan0gram:compose-ready', function() {
-    var input = document.querySelector('.msg-input');
-    if (input) {
-      input.focus(); // Возвращаем курсор!
-    }
+    setTimeout(function() {
+      var input = document.querySelector('.msg-input');
+      if (input) {
+        input.focus();
+        try { input.setSelectionRange(input.value.length, input.value.length); } catch(e){}
+      }
+    }, 50);
   });
 
 })(window);
