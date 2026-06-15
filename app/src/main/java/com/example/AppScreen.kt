@@ -137,6 +137,7 @@ private fun WebViewLayer(
 
                 // ── UKRNET WEBVIEW ──────────────────────────────────────────
                 val uWebView = WebView(context).apply {
+                    tag = "ukrnet"
                     settings.apply {
                         javaScriptEnabled    = true
                         domStorageEnabled    = true
@@ -167,6 +168,7 @@ private fun WebViewLayer(
 
                 // ── MESSENGER WEBVIEW ───────────────────────────────────────
                 val mWebView = WebView(context).apply {
+                    tag = "messenger"
                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
                     settings.apply {
                         javaScriptEnabled  = true
@@ -191,8 +193,10 @@ private fun WebViewLayer(
             }
         },
         update = { frameLayout ->
-            val ukrV  = frameLayout.getChildAt(0) as? WebView
-            val messV = frameLayout.getChildAt(1) as? WebView
+            // findViewWithTag стабилен — bringToFront() меняет порядок getChildAt(),
+            // но тег остаётся прикреплён к конкретному View навсегда.
+            val ukrV  = frameLayout.findViewWithTag<WebView>("ukrnet")
+            val messV = frameLayout.findViewWithTag<WebView>("messenger")
             if (isBgServiceActive) {
                 messV?.visibility = View.GONE
                 ukrV?.visibility  = View.VISIBLE
