@@ -38,8 +38,6 @@ class MainActivity : ComponentActivity() {
 
         setContent {
 
-            // ── Проверка обновлений ────────────────────────────────────────
-            // Сравниваем номер сборки (build-42 → 42) с текущим VERSION_CODE
             var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
             LaunchedEffect(Unit) {
                 val info = UpdateChecker.checkForUpdate(BuildConfig.VERSION_CODE)
@@ -51,7 +49,6 @@ class MainActivity : ComponentActivity() {
                 UpdateDialog(updateInfo = info, onDismiss = { updateInfo = null })
             }
 
-            // ── Верхнеуровневый state ──────────────────────────────────────
             var isBgServiceActive  by remember { mutableStateOf(true) }
             var hasHandledLogin    by remember { mutableStateOf(false) }
             var isLogPanelExpanded by remember { mutableStateOf(false) }
