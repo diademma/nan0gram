@@ -611,18 +611,33 @@ Error generating stack: `+e.message+`
       // Генератор 12-значного стелс-идентификатора по нашему алфавиту
       function getFormattedDeviceId(rawId) {
         if (!rawId) return "4f0Q67gPe86N";
-        const hashed = hash32(rawId);
-        const stream = makeStream(hashed, "device", 0, 8);
-        const b64 = bytesToBase64(stream);
-        return std64ToCustom(b64).substring(0, 12);
-      }
-
-      function getFormattedDeviceId(rawId) {
-        if (!rawId) return "4f0Q67gPe86N";
-        const hashed = hash32(rawId);
-        const stream = makeStream(hashed, "device", 0, 8);
-        const b64 = bytesToBase64(stream);
-        return std64ToCustom(b64).substring(0, 12);
+        const seed = hash32(rawId);
+        const nextVal = xorshift32(seed);
+        
+        // Генерируем ровно 6 случайных цифр (0-9)
+        const digits = [];
+        for (let i = 0; i < 6; i++) {
+          digits.push((nextVal() % 10).toString());
+        }
+        
+        // Генерируем ровно 6 случайных латинских букв разного регистра (A-Z, a-z)
+        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        const letters = [];
+        for (let i = 0; i < 6; i++) {
+          letters.push(alphabet[nextVal() % 52]);
+        }
+        
+        // Объединяем в общий пул из 12 символов
+        const pool = digits.concat(letters);
+        
+        // Детерминированное перемешивание пула по алгоритму Фишера-Йетса
+        for (let i = pool.length - 1; i > 0; i--) {
+          const j = nextVal() % (i + 1);
+          const temp = pool[i];
+          pool[i] = pool[j];
+          pool[j] = temp;
+        }
+        return pool.join("");
       }
 
       W.nan0gram = {
