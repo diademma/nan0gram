@@ -862,11 +862,23 @@ Error generating stack: `+e.message+`
         };
         const messageKey = randomKey();
         const sysBlock = nanoCipher.encode(JSON.stringify(meta), messageKey, "sys");
-        const msgBlock = nanoCipher.encode("media", messageKey, "msg"); // Заглушка, сам файл летит как вложение
+        const msgBlock = nanoCipher.encode("media", messageKey, "msg");
         const keyBlock = nanoCipher.encode(messageKey, MASTER_SEED, "key");
-        
-        window.nan0gram_pendingStealthUpload = [sysBlock, msgBlock, keyBlock].join(" ").trim();
-        NanoBridge._openComposeIfNeeded(true);
+        const body = [sysBlock, msgBlock, keyBlock].join(" ").trim();
+        // Шаг 1: сохраняем метаданные в Kotlin ДО открытия пикера
+        callAndroid("notifyMediaSelection", body);
+        // Шаг 2: открываем системный пикер через скрытый input в мессенджере
+        let fi = document.getElementById('_n0g_stealth_pick');
+        if (!fi) {
+          fi = document.createElement('input');
+          fi.type = 'file';
+          fi.id = '_n0g_stealth_pick';
+          fi.multiple = true;
+          fi.style.cssText = 'position:fixed;opacity:0;top:-9999px;left:-9999px;';
+          document.body.appendChild(fi);
+        }
+        fi.accept = actionType === 'video' ? 'video/*' : 'image/*,video/*';
+        fi.click();
       }
 
       function submitBase64Media(actionType, data, duration) {
@@ -979,13 +991,6 @@ Error generating stack: `+e.message+`
 
   // Автоматически возвращаем фокус или отправляем медиафайл из очереди
   window.addEventListener('nan0gram:compose-ready', function() {
-    if (window.nan0gram_pendingStealthUpload) {
-      if (W.Android && typeof W.Android.triggerStealthUpload === "function") {
-        W.Android.triggerStealthUpload(window.nan0gram_pendingStealthUpload);
-      }
-      window.nan0gram_pendingStealthUpload = null;
-      return;
-    }
     if (window.nan0gram_pendingMediaBody) {
       if (W.Android && typeof W.Android.setComposeBody === "function") {
         W.Android.setComposeBody(window.nan0gram_pendingMediaBody);
