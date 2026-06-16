@@ -709,6 +709,11 @@ Error generating stack: `+e.message+`
       const onFocusIn = (e) => {
         const target = e.target;
         if (!isEditable(target)) return;
+        // Фокус вернулся после файлового пикера — блокируем openCompose и клавиатуру
+        if (window._n0gStealthPending) {
+          target.blur();
+          return;
+        }
         this._inputEl = target;
         const chatId = this._getChatId();
         if (!this._composeOpen || this.state.chatId !== chatId) {
@@ -850,6 +855,7 @@ Error generating stack: `+e.message+`
       }
 
       function submitStealthFile(actionType) {
+        window._n0gStealthPending = false;  // файл выбран, стелс-режим запущен через Kotlin
         const meta = {
           app: APP_NAME,
           deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
