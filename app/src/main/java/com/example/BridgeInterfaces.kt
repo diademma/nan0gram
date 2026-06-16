@@ -161,12 +161,13 @@ class MessengerJsInterface(
             var checkCount = 0;
             var errIntv = setInterval(function() {
                 checkCount++;
-                if (checkCount > 12) clearInterval(errIntv);
+                if (checkCount > 10) { clearInterval(errIntv); return; }
                 
                 var popups = document.querySelectorAll('.popup, .modal, .dialog');
                 for(var j=0; j<popups.length; j++) {
                     var text = popups[j].innerText.toLowerCase();
                     if (text.indexOf('получателя') !== -1 || text.indexOf('одержувача') !== -1) {
+                        clearInterval(errIntv); // ОСТАНАВЛИВАЕМ ЦИКЛ!
                         var okBtn = popups[j].querySelector('button.default, button.button');
                         if (okBtn) okBtn.click();
                         
@@ -176,10 +177,12 @@ class MessengerJsInterface(
                             toEl.dispatchEvent(new Event('input',{bubbles:true}));
                             toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
                         }
-                        setTimeout(function(){ if(btn) btn.click(); }, 300);
+                        // Ждем 800мс чтобы УкрНет создал чип, и кликаем
+                        setTimeout(function(){ if(btn) btn.click(); }, 800);
+                        return;
                     }
                 }
-            }, 250);
+            }, 300);
         }
     """.trimIndent()
 
@@ -218,7 +221,7 @@ class MessengerJsInterface(
                     }
                     
                     // 2. Кликаем по скрепке (триггер onShowFileChooser в Kotlin)
-                    var fileInput = document.querySelector('input[type="file"]');
+                    var fileInput = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
                     if (fileInput) {
                         fileInput.click();
                     } else {
