@@ -107,7 +107,6 @@ class MessengerJsInterface(
 
     @JavascriptInterface
     fun notifyMediaSelection(sysBlock: String) {
-        uploadSequenceActive = false  // сбрасываем для нового upload
         StealthCache.pendingSysBlock = sysBlock
         log("[Stealth] Файлы выбраны, метаданные сохранены.")
         if (StealthCache.pendingUris != null) {
