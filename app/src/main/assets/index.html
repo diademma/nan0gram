@@ -591,9 +591,11 @@ Error generating stack: `+e.message+`
     _buildMeta() {
       return {
         app: APP_NAME,
+        deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
+        senderName: localStorage.getItem("nan0gram_username") || "Я",
         to: this.state.recipient,
         chatId: this.state.chatId,
-        kind: "message",
+        action: 1, // Код 1 = текстовое сообщение
         subjectX: this.state.subjectX,
         ts: Date.now()
       };
