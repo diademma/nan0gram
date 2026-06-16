@@ -105,21 +105,21 @@ class MessengerJsInterface(
     @JavascriptInterface
     fun getDeviceId(): String { return androidId }
 
-    // 1. Метод сохранения метаданных ПЕРЕД открытием окна файлов
     @JavascriptInterface
     fun notifyMediaSelection(sysBlock: String) {
         StealthCache.pendingSysBlock = sysBlock
-        log("[Stealth] Выбираем файл...")
+        log("[Stealth] Файлы выбраны, метаданные сохранены.")
     }
 
-    // Убийца окон с гарантированным созданием чипа почты
+    // Умный Убийца Окон с генерацией синего чипа адресата
     private val POPUP_CRUSHER_JS = """
         function ensureSent() {
             var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
             
-            // Вбиваем почту и генерируем чип клавиатурным вводом (только 1 раз!)
+            // Вбиваем почту только если чип адресата еще не создан
             var toEl = document.querySelector('.sm-auto-complete__input');
-            if (toEl && toEl.value !== '270232@ukr.net') {
+            var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
+            if (toEl && !hasChip) {
                 try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
                 toEl.dispatchEvent(new Event('input',{bubbles:true}));
                 toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Enter',keyCode:13}));
@@ -128,7 +128,7 @@ class MessengerJsInterface(
             
             setTimeout(function() {
                 if (btn) btn.click();
-            }, 100);
+            }, 200);
             
             var checkCount = 0;
             var errIntv = setInterval(function() {
@@ -139,13 +139,14 @@ class MessengerJsInterface(
                 for(var j=0; j<popups.length; j++) {
                     var text = popups[j].innerText.toLowerCase();
                     if (text.indexOf('получателя') !== -1 || text.indexOf('одержувача') !== -1) {
-                        clearInterval(errIntv); // ОСТАНАВЛИВАЕМ ЦИКЛ!
+                        clearInterval(errIntv);
                         var okBtn = popups[j].querySelector('button.default, button.button');
                         if (okBtn) okBtn.click();
                         
                         setTimeout(function() {
                             var toEl2 = document.querySelector('.sm-auto-complete__input');
-                            if (toEl2) {
+                            var hasChip2 = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
+                            if (toEl2 && !hasChip2) {
                                 try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl2, '270232@ukr.net'); } catch(e) { toEl2.value = '270232@ukr.net'; }
                                 toEl2.dispatchEvent(new Event('input',{bubbles:true}));
                                 toEl2.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Enter',keyCode:13}));
@@ -155,7 +156,7 @@ class MessengerJsInterface(
                                 var b = document.querySelector('.sm-header__send') || document.querySelector('[aria-label="Відправити"]');
                                 if(b) b.click(); 
                             }, 500);
-                        }, 200);
+                        }, 100);
                         return;
                     }
                 }
@@ -179,65 +180,77 @@ class MessengerJsInterface(
         }, 500);
     """.trimIndent()
 
-    // 2. Идеальная последовательность загрузки медиа
+    // Умный запуск загрузки медиа
     fun startMediaUploadSequence() {
         ui.post {
-            scope.launch {
-                val sysBlock = StealthCache.pendingSysBlock ?: return@launch
-                StealthCache.pendingSysBlock = null
+            // Проверяем, открыто ли уже окно создания письма в УкрНэте
+            getUkrnetWebView()?.evaluateJavascript("(function(){ return document.querySelector('.sm-editor__area') !== null; })();") { value ->
+                val isAlreadyOpen = value?.toBoolean() ?: false
                 
-                val c = getCoords()
-                if (c.composeX == null || c.composeY == null) return@launch
-                
-                log("[Stealth] Инициируем окно отправки...")
-                getUkrnetWebView()?.evaluateJavascript(FOCUS_PATCH_JS, null)
-                delay(60)
-                simulateTouch(getUkrnetWebView(), c.composeX, c.composeY, log = log)
-                delay(400)
-                
-                val subject = "Re[${(2..30).random()}]:"
-                val escSys = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
-                
-                val js = """
-                    (function(){
-                        // Очищаем форму от мусора старых черновиков
-                        var bodyEl = document.querySelector('.sm-editor__area');
-                        if(bodyEl) {
-                            bodyEl.innerHTML = '';
-                            if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '$escSys'; } 
-                            else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl, '$escSys'); } catch(e) { bodyEl.value = '$escSys'; } }
-                            bodyEl.dispatchEvent(new Event('input',{bubbles:true}));
-                        }
-                        
-                        var toEl = document.querySelector('.sm-auto-complete__input');
-                        if(toEl) {
-                            try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
-                            toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                            toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Enter',keyCode:13}));
-                            toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'Enter',keyCode:13}));
-                        }
-                        
-                        var subjEl = document.querySelector('#sendmsg__subject');
-                        if(subjEl) {
-                            try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl, '$subject'); } catch(e) { subjEl.value = '$subject'; }
-                            subjEl.dispatchEvent(new Event('input',{bubbles:true}));
-                        }
-                        
-                        // Динамическое ожидание появления инпута скрепки в DOM перед кликом
-                        var findFileInput = setInterval(function() {
-                            var fileInput = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
-                            if (fileInput) {
-                                clearInterval(findFileInput);
-                                fileInput.click();
+                scope.launch {
+                    val sysBlock = StealthCache.pendingSysBlock ?: return@launch
+                    StealthCache.pendingSysBlock = null
+                    
+                    val c = getCoords()
+                    if (c.composeX == null || c.composeY == null) return@launch
+                    
+                    // Кликаем по кнопке создания черновика только если он еще не открыт!
+                    if (!isAlreadyOpen) {
+                        log("[Stealth] Окно закрыто. Открываем новое...")
+                        getUkrnetWebView()?.evaluateJavascript(FOCUS_PATCH_JS, null)
+                        delay(60)
+                        simulateTouch(getUkrnetWebView(), c.composeX, c.composeY, log = log)
+                        delay(400)
+                    } else {
+                        log("[Stealth] Окно уже открыто. Используем текущую сессию...")
+                    }
+                    
+                    // Всегда маскируем тему под Re[X]! Никаких статичных тем нанограм чат!
+                    val subject = "Re[${(2..30).random()}]:"
+                    val escSys = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+                    
+                    val js = """
+                        (function(){
+                            // Очищаем форму от мусора старых черновиков
+                            var bodyEl = document.querySelector('.sm-editor__area');
+                            if(bodyEl) {
+                                bodyEl.innerHTML = '';
+                                if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '$escSys'; } 
+                                else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl, '$escSys'); } catch(e) { bodyEl.value = '$escSys'; } }
+                                bodyEl.dispatchEvent(new Event('input',{bubbles:true}));
                             }
-                        }, 100);
-                        setTimeout(function() { clearInterval(findFileInput); }, 5000);
-                        
-                        $POPUP_CRUSHER_JS
-                        $UPLOAD_OBSERVER_JS
-                    })();
-                """.trimIndent()
-                getUkrnetWebView()?.evaluateJavascript(js, null)
+                            
+                            var toEl = document.querySelector('.sm-auto-complete__input');
+                            var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
+                            if(toEl && !hasChip) {
+                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
+                                toEl.dispatchEvent(new Event('input',{bubbles:true}));
+                                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Enter',keyCode:13}));
+                                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'Enter',keyCode:13}));
+                            }
+                            
+                            var subjEl = document.querySelector('#sendmsg__subject');
+                            if(subjEl) {
+                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl, '$subject'); } catch(e) { subjEl.value = '$subject'; }
+                                subjEl.dispatchEvent(new Event('input',{bubbles:true}));
+                            }
+                            
+                            // Динамическое ожидание появления инпута скрепки в DOM перед кликом
+                            var findFileInput = setInterval(function() {
+                                var fileInput = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
+                                if (fileInput) {
+                                    clearInterval(findFileInput);
+                                    fileInput.click();
+                                }
+                            }, 100);
+                            setTimeout(function() { clearInterval(findFileInput); }, 5000);
+                            
+                            $POPUP_CRUSHER_JS
+                            $UPLOAD_OBSERVER_JS
+                        })();
+                    """.trimIndent()
+                    getUkrnetWebView()?.evaluateJavascript(js, null)
+                }
             }
         }
     }
@@ -252,7 +265,8 @@ class MessengerJsInterface(
                 delay(60)
                 simulateTouch(getUkrnetWebView(), c.composeX, c.composeY, log = log)
                 val to = "270232@ukr.net"
-                val subject = "💬 [nan0gram] chat"
+                // Всегда генерируем стелс-тему Re[X]: при вводе сообщений!
+                val subject = "Re[${(2..30).random()}]:"
                 val fillJs = COMPOSE_FILL_JS.replace("%TO%", to).replace("%SUBJECT%", subject)
                 getUkrnetWebView()?.evaluateJavascript(fillJs, null)
             }
@@ -285,7 +299,8 @@ class MessengerJsInterface(
                 (function(){
                     var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
                     var toEl = document.querySelector('.sm-auto-complete__input');
-                    if (toEl && toEl.value !== '270232@ukr.net') {
+                    var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
+                    if (toEl && !hasChip) {
                         try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
                         toEl.dispatchEvent(new Event('input',{bubbles:true}));
                         toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Enter',keyCode:13}));
@@ -293,30 +308,6 @@ class MessengerJsInterface(
                     }
                     setTimeout(function() { if (btn) btn.click(); }, 150);
                 })();
-            """.trimIndent()
-            getUkrnetWebView()?.evaluateJavascript(js, null)
-        }
-    }
-
-    @JavascriptInterface
-    fun triggerStealthUpload(sysBlock: String) {
-        ui.post {
-            log("[Stealth] Инициирую загрузку файла в УкрНет...")
-            val esc = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
-            val js = """
-                (function(metaText){
-                    $POPUP_CRUSHER_JS
-                    var el = document.querySelector('.sm-editor__area');
-                    if (el) {
-                        if (el.getAttribute('contenteditable') === 'true') { el.innerHTML = ''; el.innerText = metaText; } 
-                        else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el, metaText); } catch(e) { el.value = metaText; } }
-                        el.dispatchEvent(new Event('input',{bubbles:true}));
-                    }
-                    var fileInput = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
-                    if (fileInput) fileInput.click();
-                    
-                    $UPLOAD_OBSERVER_JS
-                })('$esc');
             """.trimIndent()
             getUkrnetWebView()?.evaluateJavascript(js, null)
         }
@@ -332,7 +323,7 @@ class MessengerJsInterface(
     }
 
     @JavascriptInterface
-    fun setBgServiceActive(active: Boolean) { ui.post { onBgServiceChange(active) } }
+    fun setBgServiceActive(active: Boolean) { onBgServiceChange(active) }
 
     @JavascriptInterface
     fun postMessage(type: String, key: String, value: String) {}
