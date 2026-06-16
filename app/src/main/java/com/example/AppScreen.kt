@@ -255,7 +255,26 @@ private fun WebViewLayer(
                         allowContentAccess = true
                     }
                     addJavascriptInterface(messengerInterface, "Android")
-                    webViewClient = WebViewClient()
+                    webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            // Перехватываем клик на любой input[type=file]:
+                            // ставим _n0gStealthPending ДО открытия системного пикера,
+                            // чтобы onFocusIn не вызвал _openComposeIfNeeded при возврате фокуса
+                            view?.evaluateJavascript("""
+                                (function(){
+                                    if(window._n0gPickerPatch)return;
+                                    window._n0gPickerPatch=true;
+                                    document.addEventListener('click',function(e){
+                                        var t=e.target;
+                                        if(t&&t.tagName==='INPUT'&&t.type==='file'){
+                                            window._n0gStealthPending=true;
+                                        }
+                                    },true);
+                                })();
+                            """.trimIndent(), null)
+                        }
+                    }
                     webChromeClient = object : WebChromeClient() {
                         override fun onConsoleMessage(m: ConsoleMessage?): Boolean {
                             val level = m?.messageLevel()?.name ?: "LOG"
