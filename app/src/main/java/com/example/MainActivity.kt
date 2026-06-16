@@ -110,12 +110,22 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
+            // Считываем системный ANDROID_ID (SSAID) для уникального отпечатка
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val androidId = remember {
+                android.provider.Settings.Secure.getString(
+                    context.contentResolver,
+                    android.provider.Settings.Secure.ANDROID_ID
+                ) ?: "unknown_device"
+            }
+
             val messengerInterface = remember {
                 MessengerJsInterface(
                     log               = ::log,
                     onBgServiceChange = { isBgServiceActive = it },
                     getUkrnetWebView  = { ukrnetWebView },
-                    getCoords         = { coords }
+                    getCoords         = { coords },
+                    androidId         = androidId  // Передаем ID в мост
                 ).also { it.scope = coroutineScope }
             }
 
