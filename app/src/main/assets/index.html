@@ -842,8 +842,11 @@ Error generating stack: `+e.message+`
         
         const body = [sysBlock, msgBlock, keyBlock].join(" ").trim();
         
-        callAndroid("setComposeBody", body);
-        callAndroid("submitCompose");
+        // Откладываем отправку во временную глобальную переменную
+        window.nan0gram_pendingMediaBody = body;
+        
+        // Открываем форму создания письма для заполнения служебных полей
+        NanoBridge._openComposeIfNeeded(true);
       }
 
       W.nan0gram = {
@@ -932,8 +935,21 @@ Error generating stack: `+e.message+`
     }
   }, {capture: true});
 
-  // Автоматически возвращаем фокус в мессенджер после создания черновика
+  // Автоматически возвращаем фокус или отправляем медиафайл из очереди
   window.addEventListener('nan0gram:compose-ready', function() {
+    if (window.nan0gram_pendingMediaBody) {
+      if (W.Android && typeof W.Android.setComposeBody === "function") {
+        W.Android.setComposeBody(window.nan0gram_pendingMediaBody);
+      }
+      if (W.Android && typeof W.Android.submitCompose === "function") {
+        W.Android.submitCompose();
+      }
+      window.nan0gram_pendingMediaBody = null;
+      var input = document.querySelector('.msg-input');
+      if (input) input.blur();
+      return;
+    }
+
     setTimeout(function() {
       var input = document.querySelector('.msg-input');
       if (input) {
