@@ -40,6 +40,18 @@ class UkrnetJsInterface(
     }
 
     @JavascriptInterface
+    fun onMediaSent() {
+        // Медиа отправлено — сбрасываем _composeOpen в NanoBridge мессенджера.
+        // Без этого следующий тап на textarea увидит _composeOpen=true и пропустит
+        // _openComposeIfNeeded, хотя реального compose-окна уже нет.
+        ui.post {
+            getMessengerWebView()?.evaluateJavascript(
+                "if(window.nan0gram) window.nan0gram._composeOpen = false;", null
+            )
+        }
+    }
+
+    @JavascriptInterface
     fun postCoordinates(json: String) {
         ui.post {
             try {
@@ -127,7 +139,11 @@ class MessengerJsInterface(
             function doSend() {
                 var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
                 if (btn) btn.click();
-                setTimeout(function() { window._n0gSending = false; window._n0gStealthUpload = false; }, 8000);
+                // Немедленный сброс — COMPOSE_FILL_JS снова работает для текстовых сессий
+                window._n0gStealthUpload = false;
+                setTimeout(function() { window._n0gSending = false; }, 8000);
+                // Уведомляем мессенджер: _composeOpen = false (даже если завис)
+                try { if(window.Android && window.Android.onMediaSent) window.Android.onMediaSent(); } catch(e){}
             }
 
             function waitClearThenSend(inputEl) {
@@ -194,6 +210,7 @@ class MessengerJsInterface(
                 val isAlreadyOpen = value?.toBoolean() ?: false
                 
                 scope.launch {
+                    try {
                     val sysBlock = StealthCache.pendingSysBlock ?: return@launch
                     StealthCache.pendingSysBlock = null
                     
@@ -252,10 +269,14 @@ class MessengerJsInterface(
                             
                             $POPUP_CRUSHER_JS
                             $UPLOAD_OBSERVER_JS
+                            // Issue #3: если doSend() не сработает — сброс через 30 сек
+                            setTimeout(function() { window._n0gStealthUpload = false; }, 30000);
                         })();
                     """.trimIndent()
                     getUkrnetWebView()?.evaluateJavascript(js, null)
-                    uploadSequenceActive = false
+                    } finally {
+                        uploadSequenceActive = false
+                    }
                 }
             }
         }
