@@ -127,7 +127,7 @@ class MessengerJsInterface(
             function doSend() {
                 var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
                 if (btn) btn.click();
-                setTimeout(function() { window._n0gSending = false; }, 8000);
+                setTimeout(function() { window._n0gSending = false; window._n0gStealthUpload = false; }, 8000);
             }
 
             function waitClearThenSend(inputEl) {
@@ -203,12 +203,15 @@ class MessengerJsInterface(
                     // Кликаем по кнопке создания черновика только если он еще не открыт!
                     if (!isAlreadyOpen) {
                         log("[Stealth] Окно закрыто. Открываем новое...")
+                        // Флаг ДО открытия: убивает любой lingering COMPOSE_FILL_JS
+                        getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
                         getUkrnetWebView()?.evaluateJavascript(FOCUS_PATCH_JS, null)
                         delay(60)
                         simulateTouch(getUkrnetWebView(), c.composeX, c.composeY, log = log)
                         delay(400)
                     } else {
                         log("[Stealth] Окно уже открыто. Используем текущую сессию...")
+                        getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
                     }
                     
                     // Всегда маскируем тему под Re[X]! Никаких статичных тем нанограм чат!
@@ -217,6 +220,11 @@ class MessengerJsInterface(
                     
                     val js = """
                         (function(){
+                            // Стелс-режим: подтверждаем флаг, снимаем фокус (блокируем клавиатуру ukrnet)
+                            window._n0gStealthUpload = true;
+                            if (document.activeElement && document.activeElement.tagName !== 'BODY') {
+                                document.activeElement.blur();
+                            }
                             // Очищаем форму от мусора старых черновиков
                             var bodyEl = document.querySelector('.sm-editor__area');
                             if(bodyEl) {
