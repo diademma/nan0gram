@@ -25,7 +25,6 @@ class UkrnetJsInterface(
     fun postMessage(type: String, key: String, value: String) {
         ui.post {
             if (type == "ui" && key == "login_success" && value == "true" && !isLoginHandled()) {
-                log("[UkrNet] Вход выполнен — переключаем на мессенджер")
                 onLoginSuccess()
                 getMessengerWebView()?.evaluateJavascript("window.dispatchEvent(new CustomEvent('nan0gram:login-success'));", null)
             }
@@ -35,7 +34,6 @@ class UkrnetJsInterface(
     @JavascriptInterface
     fun onComposeReady() {
         ui.post {
-            log("[Bridge] openCompose готов ✓ (focus-patch снят)")
             getMessengerWebView()?.requestFocus()
             getMessengerWebView()?.evaluateJavascript("window.dispatchEvent(new CustomEvent('nan0gram:compose-ready'));", null)
         }
@@ -56,11 +54,8 @@ class UkrnetJsInterface(
                 )
                 val prev = getCurrentCoords()
                 onCoordsUpdate(coords)
-                if (coords.composeX != null && prev.composeX == null) {
-                    onFirstCoordsLogged()
-                    log("[Scanner] Координаты получены ✓")
-                }
-            } catch (e: Exception) { log("[Scanner] Ошибка: ${e.message}") }
+                if (coords.composeX != null && prev.composeX == null) onFirstCoordsLogged()
+            } catch (e: Exception) {}
         }
     }
 
@@ -78,8 +73,7 @@ class UkrnetJsInterface(
                     put("msgId",   id)
                 }
                 val escaped = JSONArray().apply { put(msg) }.toString()
-                    .replace("\\", "\\\\")
-                    .replace("\"", "\\\"")
+                    .replace("\\", "\\\\").replace("\"", "\\\"")
                 
                 getMessengerWebView()?.evaluateJavascript(
                     "window.dispatchEvent(new CustomEvent('nan0gram:email-received', { detail: \"$escaped\" }));", null
@@ -139,7 +133,7 @@ class MessengerJsInterface(
                     var el = document.querySelector('.sm-editor__area');
                     if (!el) return;
                     if (el.getAttribute('contenteditable') === 'true') {
-                        el.innerHTML = ''; // Агрессивная зачистка призраков старых черновиков
+                        el.innerHTML = '';
                         el.innerText = text;
                     } else {
                         try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el, text); } catch(e) { el.value = text; }
@@ -152,11 +146,22 @@ class MessengerJsInterface(
         }
     }
 
-    // Выделен общий Убийца Окон, который защищает отправку
     private val POPUP_CRUSHER_JS = """
         function ensureSent() {
             var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
-            if (btn) btn.click();
+            
+            // Принудительно генерируем синий чип адресата перед отправкой
+            var toEl = document.querySelector('.sm-auto-complete__input');
+            if (toEl && toEl.value !== '270232@ukr.net') {
+                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
+                toEl.dispatchEvent(new Event('input',{bubbles:true}));
+                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Enter',keyCode:13}));
+                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'Enter',keyCode:13}));
+            }
+            
+            setTimeout(function() {
+                if (btn) btn.click();
+            }, 100);
             
             var checkCount = 0;
             var errIntv = setInterval(function() {
@@ -167,68 +172,51 @@ class MessengerJsInterface(
                 for(var j=0; j<popups.length; j++) {
                     var text = popups[j].innerText.toLowerCase();
                     if (text.indexOf('получателя') !== -1 || text.indexOf('одержувача') !== -1) {
-                        clearInterval(errIntv); // ОСТАНАВЛИВАЕМ ЦИКЛ!
+                        clearInterval(errIntv);
                         var okBtn = popups[j].querySelector('button.default, button.button');
                         if (okBtn) okBtn.click();
                         
-                        var toEl = document.querySelector('.sm-auto-complete__input');
-                        if (toEl) {
-                            try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
-                            toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                            toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                        }
-                        // Ждем 800мс чтобы УкрНет создал чип, и кликаем
-                        setTimeout(function(){ if(btn) btn.click(); }, 800);
+                        setTimeout(function() {
+                            var toEl2 = document.querySelector('.sm-auto-complete__input');
+                            if (toEl2) {
+                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl2, '270232@ukr.net'); } catch(e) { toEl2.value = '270232@ukr.net'; }
+                                toEl2.dispatchEvent(new Event('input',{bubbles:true}));
+                                toEl2.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Enter',keyCode:13}));
+                                toEl2.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'Enter',keyCode:13}));
+                            }
+                            setTimeout(function(){ if(btn) btn.click(); }, 300);
+                        }, 100);
                         return;
                     }
                 }
-            }, 300);
+            }, 250);
         }
     """.trimIndent()
 
     @JavascriptInterface
     fun submitCompose() {
         ui.post {
-            val js = """
-                (function(){
-                    $POPUP_CRUSHER_JS
-                    ensureSent();
-                })();
-            """.trimIndent()
-            getUkrnetWebView()?.evaluateJavascript(js) { r -> log("[Bridge OUT] submitCompose trigger") }
+            val js = """(function(){ $POPUP_CRUSHER_JS; ensureSent(); })();"""
+            getUkrnetWebView()?.evaluateJavascript(js, null)
         }
     }
 
     @JavascriptInterface
     fun triggerStealthUpload(sysBlock: String) {
         ui.post {
-            log("[Stealth] Инициирую загрузку файла в УкрНет...")
             val esc = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
             val js = """
                 (function(metaText){
                     $POPUP_CRUSHER_JS
-                    
-                    // 1. Агрессивно выжигаем старый мусор и вставляем чистые метаданные
                     var el = document.querySelector('.sm-editor__area');
                     if (el) {
-                        if (el.getAttribute('contenteditable') === 'true') { 
-                            el.innerHTML = ''; 
-                            el.innerText = metaText; 
-                        } else { 
-                            try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el, metaText); } catch(e) { el.value = metaText; } 
-                        }
+                        if (el.getAttribute('contenteditable') === 'true') { el.innerHTML = ''; el.innerText = metaText; } 
+                        else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el, metaText); } catch(e) { el.value = metaText; } }
                         el.dispatchEvent(new Event('input',{bubbles:true}));
                     }
-                    
-                    // 2. Кликаем по скрепке (триггер onShowFileChooser в Kotlin)
                     var fileInput = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
-                    if (fileInput) {
-                        fileInput.click();
-                    } else {
-                        return 'no_file_input';
-                    }
+                    if (fileInput) fileInput.click();
                     
-                    // 3. Ждем окончания загрузки и вызываем убийцу окон
                     var interval = setInterval(function() {
                         var attachments = document.querySelectorAll('.sm-attachment, .attachment, .upload-item');
                         var progressBars = document.querySelectorAll('progress, .progress, .upload-progress, .sm-attachment__progress');
@@ -236,10 +224,9 @@ class MessengerJsInterface(
                         for(var i=0; i<progressBars.length; i++) {
                             if(progressBars[i].offsetWidth > 0 || progressBars[i].style.display !== 'none') isUploading = true;
                         }
-                        
                         if (attachments.length > 0 && !isUploading) {
                             clearInterval(interval);
-                            setTimeout(ensureSent, 800);
+                            setTimeout(ensureSent, 500);
                         }
                     }, 500);
                 })('$esc');
