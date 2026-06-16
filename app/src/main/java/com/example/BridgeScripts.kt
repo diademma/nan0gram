@@ -159,6 +159,8 @@ internal val COMPOSE_FILL_JS = """
         var attempts = 0;
         var t = setInterval(function() {
             attempts++;
+            // Kill-switch: стелс-режим активен — не заполняем и не вызываем onComposeReady
+            if (window._n0gStealthUpload) { clearInterval(t); return; }
             var toEl   = document.querySelector('.sm-auto-complete__input');
             var subjEl = document.querySelector('#sendmsg__subject');
             if (attempts > 40 || (toEl && subjEl)) {
