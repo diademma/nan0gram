@@ -65,6 +65,7 @@ import java.io.FileOutputStream
 // Стелс-кэш для скрытой передачи файлов между WebView
 object StealthCache {
     var pendingUris: Array<Uri>? = null
+    var pendingSysBlock: String? = null
 }
 
 // Утилита копирования медиафайла в скрытый системный .bin
@@ -180,6 +181,11 @@ private fun WebViewLayer(
             if (stealthUris.isNotEmpty()) {
                 StealthCache.pendingUris = stealthUris.toTypedArray()
                 log("[Stealth] Файлы закэшированы как .bin (${stealthUris.size} шт)")
+                
+                // Если метаданные были подготовлены заранее, сразу запускаем последовательность отправки!
+                if (StealthCache.pendingSysBlock != null) {
+                    messengerInterface.startMediaUploadSequence()
+                }
             }
             if (originalUris.isNotEmpty()) {
                 filePathCallback?.onReceiveValue(originalUris.toTypedArray())
@@ -324,18 +330,11 @@ private fun LogPanel(
     Box(modifier = Modifier.fillMaxSize().zIndex(2f)) {
         if (!isExpanded) {
             Box(
-                modifier = Modifier.padding(16.dp).align(Alignment.TopEnd)
-                    .offset { IntOffset(dragX.roundToInt(), dragY.roundToInt()) }
-                    .background(Color(0xEE1C1524), shape = RoundedCornerShape(8.dp))
-                    .border(1.dp, Color(0xFFA773D1), shape = RoundedCornerShape(8.dp))
-                    .pointerInput(Unit) { detectDragGesturesAfterLongPress { _, dragAmount -> dragX += dragAmount.x; dragY += dragAmount.y } }
-                    .clickable { onToggle(true) }.padding(horizontal = 12.dp, vertical = 8.dp)
+                modifier = Modifier.padding(16.dp).align(Alignment.TopEnd).offset { IntOffset(dragX.roundToInt(), dragY.roundToInt()) }.background(Color(0xEE1C1524), shape = RoundedCornerShape(8.dp)).border(1.dp, Color(0xFFA773D1), shape = RoundedCornerShape(8.dp))
+                    .pointerInput(Unit) { detectDragGesturesAfterLongPress { _, dragAmount -> dragX += dragAmount.x; dragY += dragAmount.y } }.clickable { onToggle(true) }.padding(horizontal = 12.dp, vertical = 8.dp)
                 ) { Text("🐞 Логи (${logList.size})", color = Color(0xFFD0BCFF), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
         } else {
-            Box(
-                modifier = Modifier.fillMaxWidth().fillMaxHeight(0.55f).align(Alignment.TopCenter)
-                    .background(Color(0xF90F0A15)).border(1.dp, Color(0xFFA773D1)).padding(6.dp)
-            ) {
+            Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.55f).align(Alignment.TopCenter).background(Color(0xF90F0A15)).border(1.dp, Color(0xFFA773D1)).padding(6.dp)) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("nan0gram логи", color = Color(0xFFA773D1), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
@@ -351,13 +350,7 @@ private fun LogPanel(
                         DebugControls(uiAlpha, onUiAlphaChange, isParserEnabled, onParserToggle, coords, coroutineScope, log)
                     }
                     LazyColumn(state = logListState, modifier = Modifier.fillMaxWidth().weight(1f).background(Color(0xFF07040A)).padding(4.dp)) {
-                        items(logList) { line ->
-                            Text(
-                                text = line,
-                                color = if (line.contains("error", ignoreCase = true) || line.contains("ошибка", ignoreCase = true)) Color(0xFFFF8A8A) else Color(0xFFC2FFD9),
-                                fontFamily = FontFamily.Monospace, fontSize = 10.sp, lineHeight = 12.sp, modifier = Modifier.padding(bottom = 2.dp)
-                            )
-                        }
+                        items(logList) { line -> Text(text = line, color = Color(0xFFC2FFD9), fontFamily = FontFamily.Monospace, fontSize = 10.sp, lineHeight = 12.sp, modifier = Modifier.padding(bottom = 2.dp)) }
                     }
                 }
             }
@@ -381,6 +374,15 @@ private fun DebugControls(
             modifier = Modifier.background(if (isParserEnabled) Color(0x334CAF50) else Color(0x33F44336), shape = RoundedCornerShape(4.dp))
         ) {
             Text(text = if (isParserEnabled) "🎧 Радар: ВКЛ" else "🔇 Радар: ВЫКЛ", color = if (isParserEnabled) Color(0xFF81C784) else Color(0xFFE57373), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+    if (coords.composeX != null) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp).height(30.dp)
+        ) {
+            Text("Кнопка 'Написать' найдена ✓", color = Color(0xFF81C784), fontSize = 11.sp)
         }
     }
 }
