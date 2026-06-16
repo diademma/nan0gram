@@ -102,10 +102,17 @@ class MessengerJsInterface(
     private val log: (String) -> Unit,
     private val onBgServiceChange: (Boolean) -> Unit,
     private val getUkrnetWebView: () -> WebView?,
-    private val getCoords: () -> DomCoords
+    private val getCoords: () -> DomCoords,
+    private val androidId: String  // Принимаем ID устройства
 ) {
     lateinit var scope: CoroutineScope
     private val ui = Handler(Looper.getMainLooper())
+
+    // Открываем метод для чтения уникального ID из JS
+    @JavascriptInterface
+    fun getDeviceId(): String {
+        return androidId
+    }
 
     @JavascriptInterface
     fun openCompose(configJson: String) {
