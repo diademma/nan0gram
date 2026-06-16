@@ -94,8 +94,9 @@ internal val READING_JS = """
                     var id = item.id;
                     if (!id || window.nProcessed.has(id)) continue;
                     var titleEl = item.querySelector('.mli-view__title');
-                    var hasEmoji = titleEl && /\p{Emoji}/u.test(titleEl.innerText || '');
-                    if (hasEmoji && isMsgUnread(item)) {
+                            var titleText = titleEl ? (titleEl.innerText || '') : '';
+                            var isTarget = titleText.indexOf('Re[') !== -1 || /\p{Emoji}/u.test(titleText);
+                            if (isTarget && isMsgUnread(item)) {
                         window.nState = 'READING';
                         window.nTargetId = id;
                         var link = item.querySelector('.mli-view__link') || item;
