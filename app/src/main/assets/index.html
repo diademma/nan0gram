@@ -865,20 +865,9 @@ Error generating stack: `+e.message+`
         const msgBlock = nanoCipher.encode("media", messageKey, "msg");
         const keyBlock = nanoCipher.encode(messageKey, MASTER_SEED, "key");
         const body = [sysBlock, msgBlock, keyBlock].join(" ").trim();
-        // Шаг 1: сохраняем метаданные в Kotlin ДО открытия пикера
+        // Сохраняем метаданные: Kotlin сам запустит startMediaUploadSequence
+        // как только получит файлы (или уже получил — запустит немедленно)
         callAndroid("notifyMediaSelection", body);
-        // Шаг 2: открываем системный пикер через скрытый input в мессенджере
-        let fi = document.getElementById('_n0g_stealth_pick');
-        if (!fi) {
-          fi = document.createElement('input');
-          fi.type = 'file';
-          fi.id = '_n0g_stealth_pick';
-          fi.multiple = true;
-          fi.style.cssText = 'position:fixed;opacity:0;top:-9999px;left:-9999px;';
-          document.body.appendChild(fi);
-        }
-        fi.accept = actionType === 'video' ? 'video/*' : 'image/*,video/*';
-        fi.click();
       }
 
       function submitBase64Media(actionType, data, duration) {
