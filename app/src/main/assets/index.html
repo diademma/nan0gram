@@ -589,9 +589,7 @@ Error generating stack: `+e.message+`
         const el = this._findInput();
         if (!el) return;
         const text = getInputValue(el);
-        if (this._lastText && !text) {
-          this._submitCompose(this._lastText);
-        }
+        
         this._lastText = text;
       }, 80);
 
