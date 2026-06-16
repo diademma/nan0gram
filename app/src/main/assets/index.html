@@ -617,7 +617,23 @@ Error generating stack: `+e.message+`
         return std64ToCustom(b64).substring(0, 12);
       }
 
+      function getFormattedDeviceId(rawId) {
+        if (!rawId) return "4f0Q67gPe86N";
+        const hashed = hash32(rawId);
+        const stream = makeStream(hashed, "device", 0, 8);
+        const b64 = bytesToBase64(stream);
+        return std64ToCustom(b64).substring(0, 12);
+      }
+
       W.nan0gram = {
+        getDeviceId: () => {
+          try {
+            if (W.Android && typeof W.Android.getDeviceId === "function") {
+              return getFormattedDeviceId(W.Android.getDeviceId());
+            }
+          } catch (e) {}
+          return "4f0Q67gPe86N";
+        },
         getDeviceId: () => {
           try {
             if (W.Android && typeof W.Android.getDeviceId === "function") {
@@ -639,6 +655,9 @@ Error generating stack: `+e.message+`
       };
 
       log("nan0gram bridge ready");
+      try {
+        log("[System] Ваш уникальный ID устройства: " + W.nan0gram.getDeviceId());
+      } catch(e) {}
       try {
         log("[System] Ваш уникальный ID устройства: " + W.nan0gram.getDeviceId());
       } catch(e) {}
