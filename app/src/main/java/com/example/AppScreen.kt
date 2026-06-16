@@ -1,6 +1,7 @@
 package com.example
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.net.Uri
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
@@ -47,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -57,7 +59,28 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
+
+// Стелс-кэш для скрытой передачи файлов между WebView
+object StealthCache {
+    var pendingUris: Array<Uri>? = null
+}
+
+// Утилита копирования медиафайла в скрытый системный .bin
+fun createStealthCopy(context: Context, originalUri: Uri): Uri? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(originalUri) ?: return null
+        val file = File(context.cacheDir, "sys_data_${System.currentTimeMillis()}.bin")
+        val outputStream = FileOutputStream(file)
+        inputStream.copyTo(outputStream)
+        inputStream.close()
+        outputStream.close()
+        Uri.fromFile(file)
+    } catch (e: Exception) {
+        null
+    }
+}
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -131,29 +154,48 @@ private fun WebViewLayer(
     onMessengerViewReady: (WebView) -> Unit,
     log: (String) -> Unit
 ) {
-    // Системный мост для открытия файлов (Wallpaper, Фото, Видео)
+    val context = LocalContext.current
     var filePathCallback by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
+    
+    // Перехватчик файлов мессенджера
     val fileChooserLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val data = result.data?.data
         val dataClip = result.data?.clipData
-        val uris = mutableListOf<Uri>()
-        if (data != null) {
-            uris.add(data)
-        } else if (dataClip != null) {
-            for (i in 0 until dataClip.itemCount) {
-                uris.add(dataClip.getItemAt(i).uri)
+        val originalUris = mutableListOf<Uri>()
+        val stealthUris = mutableListOf<Uri>()
+
+        try {
+            if (data != null) {
+                originalUris.add(data)
+                createStealthCopy(context, data)?.let { stealthUris.add(it) }
+            } else if (dataClip != null) {
+                for (i in 0 until dataClip.itemCount) {
+                    val u = dataClip.getItemAt(i).uri
+                    originalUris.add(u)
+                    createStealthCopy(context, u)?.let { stealthUris.add(it) }
+                }
             }
+            if (stealthUris.isNotEmpty()) {
+                StealthCache.pendingUris = stealthUris.toTypedArray()
+                log("[Stealth] Файлы закэшированы как .bin (${stealthUris.size} шт)")
+            }
+            if (originalUris.isNotEmpty()) {
+                filePathCallback?.onReceiveValue(originalUris.toTypedArray())
+            } else {
+                filePathCallback?.onReceiveValue(null)
+            }
+        } catch (e: Exception) {
+            filePathCallback?.onReceiveValue(null)
         }
-        filePathCallback?.onReceiveValue(if (uris.isNotEmpty()) uris.toTypedArray() else null)
         filePathCallback = null
     }
 
     AndroidView(
-        factory = { context ->
-            FrameLayout(context).apply {
-                val uWebView = WebView(context).apply {
+        factory = { ctx ->
+            FrameLayout(ctx).apply {
+                val uWebView = WebView(ctx).apply {
                     tag = "ukrnet"
                     settings.apply {
                         javaScriptEnabled    = true
@@ -177,13 +219,29 @@ private fun WebViewLayer(
                     }
                     webChromeClient = object : WebChromeClient() {
                         override fun onConsoleMessage(m: ConsoleMessage?) = true
+                        
+                        // Слепой курьер: УкрНет запрашивает файл, а мы втихую отдаем ему кэш .bin
+                        override fun onShowFileChooser(
+                            webView: WebView?,
+                            filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?,
+                            fileChooserParams: FileChooserParams?
+                        ): Boolean {
+                            if (StealthCache.pendingUris != null) {
+                                filePathCallbackParams?.onReceiveValue(StealthCache.pendingUris)
+                                StealthCache.pendingUris = null
+                                log("[Stealth] УкрНету успешно скормлен .bin файл!")
+                                return true
+                            }
+                            filePathCallbackParams?.onReceiveValue(null)
+                            return true
+                        }
                     }
                     loadUrl("https://mail.ukr.net/desktop/login")
                 }
                 onUkrnetViewReady(uWebView)
                 addView(uWebView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
-                val mWebView = WebView(context).apply {
+                val mWebView = WebView(ctx).apply {
                     tag = "messenger"
                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
                     settings.apply {
@@ -201,13 +259,9 @@ private fun WebViewLayer(
                             log("[Local JS] [$level] ${m?.message()} (${m?.lineNumber()})")
                             return true
                         }
-
-                        // Разрешаем веб-мосту захватывать микрофон
                         override fun onPermissionRequest(request: android.webkit.PermissionRequest?) {
                             request?.grant(request.resources)
                         }
-
-                        // Открываем нативный Android-проводник при клике на выбор файлов
                         override fun onShowFileChooser(
                             webView: WebView?,
                             filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?,
@@ -258,21 +312,10 @@ private fun WebViewLayer(
 
 @Composable
 private fun LogPanel(
-    isExpanded: Boolean,
-    onToggle: (Boolean) -> Unit,
-    logList: List<String>,
-    logListState: LazyListState,
-    onClear: () -> Unit,
-    isBgServiceActive: Boolean,
-    uiAlpha: Float,
-    onUiAlphaChange: (Float) -> Unit,
-    isParserEnabled: Boolean,
-    onParserToggle: () -> Unit,
-    coords: DomCoords,
-    onUkrnetReload: () -> Unit,
-    onMessengerReload: () -> Unit,
-    coroutineScope: CoroutineScope,
-    log: (String) -> Unit
+    isExpanded: Boolean, onToggle: (Boolean) -> Unit, logList: List<String>, logListState: LazyListState,
+    onClear: () -> Unit, isBgServiceActive: Boolean, uiAlpha: Float, onUiAlphaChange: (Float) -> Unit,
+    isParserEnabled: Boolean, onParserToggle: () -> Unit, coords: DomCoords, onUkrnetReload: () -> Unit,
+    onMessengerReload: () -> Unit, coroutineScope: CoroutineScope, log: (String) -> Unit
 ) {
     val clipboardManager = LocalClipboardManager.current
     var dragX by remember { mutableStateOf(0f) }
@@ -281,85 +324,38 @@ private fun LogPanel(
     Box(modifier = Modifier.fillMaxSize().zIndex(2f)) {
         if (!isExpanded) {
             Box(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .align(Alignment.TopEnd)
+                modifier = Modifier.padding(16.dp).align(Alignment.TopEnd)
                     .offset { IntOffset(dragX.roundToInt(), dragY.roundToInt()) }
                     .background(Color(0xEE1C1524), shape = RoundedCornerShape(8.dp))
                     .border(1.dp, Color(0xFFA773D1), shape = RoundedCornerShape(8.dp))
-                    .pointerInput(Unit) {
-                        detectDragGesturesAfterLongPress { _, dragAmount ->
-                            dragX += dragAmount.x
-                            dragY += dragAmount.y
-                        }
-                    }
-                    .clickable { onToggle(true) }
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                Text("🐞 Логи (${logList.size})", color = Color(0xFFD0BCFF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            }
+                    .pointerInput(Unit) { detectDragGesturesAfterLongPress { _, dragAmount -> dragX += dragAmount.x; dragY += dragAmount.y } }
+                    .clickable { onToggle(true) }.padding(horizontal = 12.dp, vertical = 8.dp)
+                ) { Text("🐞 Логи (${logList.size})", color = Color(0xFFD0BCFF), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
         } else {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.55f)
-                    .align(Alignment.TopCenter)
-                    .background(Color(0xF90F0A15))
-                    .border(1.dp, Color(0xFFA773D1))
-                    .padding(6.dp)
+                modifier = Modifier.fillMaxWidth().fillMaxHeight(0.55f).align(Alignment.TopCenter)
+                    .background(Color(0xF90F0A15)).border(1.dp, Color(0xFFA773D1)).padding(6.dp)
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "nan0gram логи",
-                            color = Color(0xFFA773D1), fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("nan0gram логи", color = Color(0xFFA773D1), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             TextButton(onClick = onMessengerReload) { Text("🔄 Mess", color = Color(0xFFD0BCFF), fontSize = 10.sp) }
                             TextButton(onClick = onUkrnetReload)    { Text("🔄 Ukr",  color = Color(0xFFD0BCFF), fontSize = 10.sp) }
-                            TextButton(onClick = { clipboardManager.setText(AnnotatedString(logList.joinToString("\n"))) }) {
-                                Text("📋", color = Color(0xFFC2FFD9), fontSize = 10.sp)
-                            }
+                            TextButton(onClick = { clipboardManager.setText(AnnotatedString(logList.joinToString("\n"))) }) { Text("📋", color = Color(0xFFC2FFD9), fontSize = 10.sp) }
                             TextButton(onClick = onClear)           { Text("❌", color = Color(0xFFEFB8C8), fontSize = 10.sp) }
                             TextButton(onClick = { onToggle(false) }) { Text("➖", color = Color(0xFFCCC2DC), fontSize = 10.sp) }
                         }
                     }
-
                     if (!isBgServiceActive) {
-                        DebugControls(
-                            uiAlpha = uiAlpha,
-                            onUiAlphaChange = onUiAlphaChange,
-                            isParserEnabled = isParserEnabled,
-                            onParserToggle = onParserToggle,
-                            coords = coords,
-                            coroutineScope = coroutineScope,
-                            log = log
-                        )
+                        DebugControls(uiAlpha, onUiAlphaChange, isParserEnabled, onParserToggle, coords, coroutineScope, log)
                     }
-
-                    LazyColumn(
-                        state = logListState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .background(Color(0xFF07040A))
-                            .padding(4.dp)
-                    ) {
+                    LazyColumn(state = logListState, modifier = Modifier.fillMaxWidth().weight(1f).background(Color(0xFF07040A)).padding(4.dp)) {
                         items(logList) { line ->
                             Text(
                                 text = line,
-                                color = if (line.contains("error", ignoreCase = true) || line.contains("ошибка", ignoreCase = true))
-                                    Color(0xFFFF8A8A) else Color(0xFFC2FFD9),
-                                fontFamily = FontFamily.Monospace,
-                                fontSize   = 10.sp,
-                                lineHeight = 12.sp,
-                                modifier   = Modifier.padding(bottom = 2.dp)
+                                color = if (line.contains("error", ignoreCase = true) || line.contains("ошибка", ignoreCase = true)) Color(0xFFFF8A8A) else Color(0xFFC2FFD9),
+                                fontFamily = FontFamily.Monospace, fontSize = 10.sp, lineHeight = 12.sp, modifier = Modifier.padding(bottom = 2.dp)
                             )
                         }
                     }
@@ -371,54 +367,20 @@ private fun LogPanel(
 
 @Composable
 private fun DebugControls(
-    uiAlpha: Float,
-    onUiAlphaChange: (Float) -> Unit,
-    isParserEnabled: Boolean,
-    onParserToggle: () -> Unit,
-    coords: DomCoords,
-    coroutineScope: CoroutineScope,
-    log: (String) -> Unit
+    uiAlpha: Float, onUiAlphaChange: (Float) -> Unit, isParserEnabled: Boolean, onParserToggle: () -> Unit,
+    coords: DomCoords, coroutineScope: CoroutineScope, log: (String) -> Unit
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(36.dp)
-    ) {
-        Text(
-            "Видимость: ${(uiAlpha * 100).toInt()}%",
-            color = Color(0xFFE0C3FC), fontSize = 11.sp,
-            modifier = Modifier.width(130.dp)
-        )
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(36.dp)) {
+        Text("Видимость: ${(uiAlpha * 100).toInt()}%", color = Color(0xFFE0C3FC), fontSize = 11.sp, modifier = Modifier.width(130.dp))
         Slider(value = uiAlpha, onValueChange = onUiAlphaChange, valueRange = 0f..1f, modifier = Modifier.weight(1f))
     }
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(30.dp)
-    ) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(30.dp)) {
         Text("Радар входящих:", color = Color(0xFFE0C3FC), fontSize = 11.sp)
         TextButton(
             onClick = onParserToggle,
-            modifier = Modifier.background(
-                if (isParserEnabled) Color(0x334CAF50) else Color(0x33F44336),
-                shape = RoundedCornerShape(4.dp)
-            )
+            modifier = Modifier.background(if (isParserEnabled) Color(0x334CAF50) else Color(0x33F44336), shape = RoundedCornerShape(4.dp))
         ) {
-            Text(
-                text  = if (isParserEnabled) "🎧 Радар: ВКЛ" else "🔇 Радар: ВЫКЛ",
-                color = if (isParserEnabled) Color(0xFF81C784) else Color(0xFFE57373),
-                fontSize = 10.sp, fontWeight = FontWeight.Bold
-            )
-        }
-    }
-
-    if (coords.composeX != null) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp).height(30.dp)
-        ) {
-            Text("Кнопка 'Написать' найдена ✓", color = Color(0xFF81C784), fontSize = 11.sp)
+            Text(text = if (isParserEnabled) "🎧 Радар: ВКЛ" else "🔇 Радар: ВЫКЛ", color = if (isParserEnabled) Color(0xFF81C784) else Color(0xFFE57373), fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
