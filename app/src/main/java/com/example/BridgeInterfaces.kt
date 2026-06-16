@@ -139,12 +139,10 @@ class MessengerJsInterface(
                     var el = document.querySelector('.sm-editor__area');
                     if (!el) return;
                     if (el.getAttribute('contenteditable') === 'true') {
-                        el.textContent = text;
+                        el.innerHTML = ''; // Агрессивная зачистка призраков старых черновиков
+                        el.innerText = text;
                     } else {
-                        try {
-                            var ns = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set;
-                            ns.call(el, text);
-                        } catch(e) { el.value = text; }
+                        try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el, text); } catch(e) { el.value = text; }
                     }
                     el.dispatchEvent(new Event('input',{bubbles:true}));
                     el.dispatchEvent(new Event('change',{bubbles:true}));
@@ -154,26 +152,50 @@ class MessengerJsInterface(
         }
     }
 
+    // Выделен общий Убийца Окон, который защищает отправку
+    private val POPUP_CRUSHER_JS = """
+        function ensureSent() {
+            var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
+            if (btn) btn.click();
+            
+            var checkCount = 0;
+            var errIntv = setInterval(function() {
+                checkCount++;
+                if (checkCount > 12) clearInterval(errIntv);
+                
+                var popups = document.querySelectorAll('.popup, .modal, .dialog');
+                for(var j=0; j<popups.length; j++) {
+                    var text = popups[j].innerText.toLowerCase();
+                    if (text.indexOf('получателя') !== -1 || text.indexOf('одержувача') !== -1) {
+                        var okBtn = popups[j].querySelector('button.default, button.button');
+                        if (okBtn) okBtn.click();
+                        
+                        var toEl = document.querySelector('.sm-auto-complete__input');
+                        if (toEl) {
+                            try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
+                            toEl.dispatchEvent(new Event('input',{bubbles:true}));
+                            toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                        }
+                        setTimeout(function(){ if(btn) btn.click(); }, 300);
+                    }
+                }
+            }, 250);
+        }
+    """.trimIndent()
+
     @JavascriptInterface
     fun submitCompose() {
         ui.post {
             val js = """
                 (function(){
-                    var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
-                    if (btn) { btn.click(); return 'sent_selector'; }
-                    var buttons = document.querySelectorAll('button');
-                    for (var i = 0; i < buttons.length; i++) {
-                        var txt = buttons[i].innerText.toLowerCase();
-                        if (txt.indexOf('отправить') !== -1 || txt.indexOf('відправити') !== -1) { buttons[i].click(); return 'sent_text'; }
-                    }
-                    return 'no_btn';
+                    $POPUP_CRUSHER_JS
+                    ensureSent();
                 })();
             """.trimIndent()
-            getUkrnetWebView()?.evaluateJavascript(js) { r -> log("[Bridge OUT] submitCompose → ${r?.trim('"')}") }
+            getUkrnetWebView()?.evaluateJavascript(js) { r -> log("[Bridge OUT] submitCompose trigger") }
         }
     }
 
-    // НОВЫЙ МЕТОД: Умный авто-загрузчик файлов для УкрНета
     @JavascriptInterface
     fun triggerStealthUpload(sysBlock: String) {
         ui.post {
@@ -181,13 +203,20 @@ class MessengerJsInterface(
             val esc = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
             val js = """
                 (function(metaText){
-                    // 1. Вставляем метаданные в текст письма
+                    $POPUP_CRUSHER_JS
+                    
+                    // 1. Агрессивно выжигаем старый мусор и вставляем чистые метаданные
                     var el = document.querySelector('.sm-editor__area');
                     if (el) {
-                        if (el.getAttribute('contenteditable') === 'true') { el.textContent = metaText; } 
-                        else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el, metaText); } catch(e) { el.value = metaText; } }
+                        if (el.getAttribute('contenteditable') === 'true') { 
+                            el.innerHTML = ''; 
+                            el.innerText = metaText; 
+                        } else { 
+                            try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el, metaText); } catch(e) { el.value = metaText; } 
+                        }
                         el.dispatchEvent(new Event('input',{bubbles:true}));
                     }
+                    
                     // 2. Кликаем по скрепке (триггер onShowFileChooser в Kotlin)
                     var fileInput = document.querySelector('input[type="file"]');
                     if (fileInput) {
@@ -195,7 +224,8 @@ class MessengerJsInterface(
                     } else {
                         return 'no_file_input';
                     }
-                    // 3. Ждем загрузку и отправляем
+                    
+                    // 3. Ждем окончания загрузки и вызываем убийцу окон
                     var interval = setInterval(function() {
                         var attachments = document.querySelectorAll('.sm-attachment, .attachment, .upload-item');
                         var progressBars = document.querySelectorAll('progress, .progress, .upload-progress, .sm-attachment__progress');
@@ -203,12 +233,10 @@ class MessengerJsInterface(
                         for(var i=0; i<progressBars.length; i++) {
                             if(progressBars[i].offsetWidth > 0 || progressBars[i].style.display !== 'none') isUploading = true;
                         }
+                        
                         if (attachments.length > 0 && !isUploading) {
                             clearInterval(interval);
-                            setTimeout(function() {
-                                var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
-                                if (btn) btn.click();
-                            }, 800);
+                            setTimeout(ensureSent, 800);
                         }
                     }, 500);
                 })('$esc');
