@@ -109,6 +109,10 @@ class MessengerJsInterface(
     fun notifyMediaSelection(sysBlock: String) {
         StealthCache.pendingSysBlock = sysBlock
         log("[Stealth] Файлы выбраны, метаданные сохранены.")
+        // Файлы уже закэшированы пикером — запускаем загрузку немедленно
+        if (StealthCache.pendingUris != null) {
+            startMediaUploadSequence()
+        }
     }
 
     // Умный Убийца Окон: ждёт чип адресата перед отправкой
