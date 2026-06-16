@@ -181,11 +181,8 @@ private fun WebViewLayer(
             if (stealthUris.isNotEmpty()) {
                 StealthCache.pendingUris = stealthUris.toTypedArray()
                 log("[Stealth] Файлы закэшированы как .bin (${stealthUris.size} шт)")
-                
-                // Если метаданные были подготовлены заранее, сразу запускаем последовательность отправки!
-                if (StealthCache.pendingSysBlock != null) {
-                    messengerInterface.startMediaUploadSequence()
-                }
+                // startMediaUploadSequence запускается ТОЛЬКО из notifyMediaSelection
+                // (один источник правды, нет race-condition двойного вызова)
             }
             if (originalUris.isNotEmpty()) {
                 filePathCallback?.onReceiveValue(originalUris.toTypedArray())
