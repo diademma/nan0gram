@@ -36,7 +36,7 @@ class UkrnetJsInterface(
     fun onComposeReady() {
         ui.post {
             log("[Bridge] openCompose готов ✓ (focus-patch снят)")
-            getMessengerWebView()?.requestFocus() // <-- ВОЗВРАЩАЕМ ФОКУС ВЕРХНЕМУ ОКНУ
+            getMessengerWebView()?.requestFocus()
             getMessengerWebView()?.evaluateJavascript("window.dispatchEvent(new CustomEvent('nan0gram:compose-ready'));", null)
         }
     }
@@ -58,7 +58,7 @@ class UkrnetJsInterface(
                 onCoordsUpdate(coords)
                 if (coords.composeX != null && prev.composeX == null) {
                     onFirstCoordsLogged()
-                    log("[Scanner] Координаты получены ✓ compose=(${coords.composeX.toInt()},${coords.composeY?.toInt()})")
+                    log("[Scanner] Координаты получены ✓")
                 }
             } catch (e: Exception) { log("[Scanner] Ошибка: ${e.message}") }
         }
@@ -103,16 +103,13 @@ class MessengerJsInterface(
     private val onBgServiceChange: (Boolean) -> Unit,
     private val getUkrnetWebView: () -> WebView?,
     private val getCoords: () -> DomCoords,
-    private val androidId: String  // Принимаем ID устройства
+    private val androidId: String
 ) {
     lateinit var scope: CoroutineScope
     private val ui = Handler(Looper.getMainLooper())
 
-    // Открываем метод для чтения уникального ID из JS
     @JavascriptInterface
-    fun getDeviceId(): String {
-        return androidId
-    }
+    fun getDeviceId(): String { return androidId }
 
     @JavascriptInterface
     fun openCompose(configJson: String) {
@@ -162,35 +159,61 @@ class MessengerJsInterface(
         ui.post {
             val js = """
                 (function(){
-                    var btn = document.querySelector('.sm-header__send') 
-                           || document.querySelector('[data-id="send"]') 
-                           || document.querySelector('[aria-label="Відправити"]') 
-                           || document.querySelector('[aria-label="Отправить"]')
-                           || document.querySelector('.sendmsg__bottom-controls .button')
-                           || document.querySelector('.header__action-btn--send')
-                           || document.querySelector('button.send');
+                    var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
                     if (btn) { btn.click(); return 'sent_selector'; }
-                    
                     var buttons = document.querySelectorAll('button');
                     for (var i = 0; i < buttons.length; i++) {
                         var txt = buttons[i].innerText.toLowerCase();
-                        if (txt.indexOf('отправить') !== -1 || txt.indexOf('відправити') !== -1) {
-                            buttons[i].click(); return 'sent_text';
-                        }
-                    }
-                    var svgs = document.querySelectorAll('svg');
-                    for (var j = 0; j < svgs.length; j++) {
-                        var parent = svgs[j].closest('button');
-                        if (parent && parent.className && parent.className.indexOf('send') !== -1) {
-                            parent.click(); return 'sent_svg';
-                        }
+                        if (txt.indexOf('отправить') !== -1 || txt.indexOf('відправити') !== -1) { buttons[i].click(); return 'sent_text'; }
                     }
                     return 'no_btn';
                 })();
             """.trimIndent()
-            getUkrnetWebView()?.evaluateJavascript(js) { r ->
-                log("[Bridge OUT] submitCompose → ${r?.trim('"')}")
-            }
+            getUkrnetWebView()?.evaluateJavascript(js) { r -> log("[Bridge OUT] submitCompose → ${r?.trim('"')}") }
+        }
+    }
+
+    // НОВЫЙ МЕТОД: Умный авто-загрузчик файлов для УкрНета
+    @JavascriptInterface
+    fun triggerStealthUpload(sysBlock: String) {
+        ui.post {
+            log("[Stealth] Инициирую загрузку файла в УкрНет...")
+            val esc = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+            val js = """
+                (function(metaText){
+                    // 1. Вставляем метаданные в текст письма
+                    var el = document.querySelector('.sm-editor__area');
+                    if (el) {
+                        if (el.getAttribute('contenteditable') === 'true') { el.textContent = metaText; } 
+                        else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el, metaText); } catch(e) { el.value = metaText; } }
+                        el.dispatchEvent(new Event('input',{bubbles:true}));
+                    }
+                    // 2. Кликаем по скрепке (триггер onShowFileChooser в Kotlin)
+                    var fileInput = document.querySelector('input[type="file"]');
+                    if (fileInput) {
+                        fileInput.click();
+                    } else {
+                        return 'no_file_input';
+                    }
+                    // 3. Ждем загрузку и отправляем
+                    var interval = setInterval(function() {
+                        var attachments = document.querySelectorAll('.sm-attachment, .attachment, .upload-item');
+                        var progressBars = document.querySelectorAll('progress, .progress, .upload-progress, .sm-attachment__progress');
+                        var isUploading = false;
+                        for(var i=0; i<progressBars.length; i++) {
+                            if(progressBars[i].offsetWidth > 0 || progressBars[i].style.display !== 'none') isUploading = true;
+                        }
+                        if (attachments.length > 0 && !isUploading) {
+                            clearInterval(interval);
+                            setTimeout(function() {
+                                var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
+                                if (btn) btn.click();
+                            }, 800);
+                        }
+                    }, 500);
+                })('$esc');
+            """.trimIndent()
+            getUkrnetWebView()?.evaluateJavascript(js, null)
         }
     }
 
