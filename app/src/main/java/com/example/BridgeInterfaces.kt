@@ -23,7 +23,7 @@ class UkrnetJsInterface(
 
     @JavascriptInterface
     fun jsLog(msg: String) {
-        log("[Ukrnet JS] ${"$"}{msg}")
+        log("[Ukrnet JS] $msg")
     }
 
     @JavascriptInterface
@@ -89,7 +89,7 @@ class UkrnetJsInterface(
                 val escaped = JSONArray().apply { put(msg) }.toString()
                     .replace("\\", "\\\\").replace("\"", "\\\"")
                 getMessengerWebView()?.evaluateJavascript(
-                    "window.dispatchEvent(new CustomEvent('nan0gram:email-received', { detail: \"${"$"}escaped\" }));", null
+                    "window.dispatchEvent(new CustomEvent('nan0gram:email-received', { detail: \"$escaped\" }));", null
                 )
             }
         }
@@ -167,7 +167,7 @@ class MessengerJsInterface(
                             val x = coordsObj.getDouble("x").toFloat()
                             val y = coordsObj.getDouble("y").toFloat()
                             
-                            log("[Stealth] Скрепка найдена на X=${"$"}{x}, Y=${"$"}{y}. Активируем скрытый тап...")
+                            log("[Stealth] Скрепка найдена на X=$x, Y=$y. Активируем скрытый тап...")
                             
                             // Даем фокус УкрНету временно БЕЗ вывода на передний план!
                             ukr.isFocusable = true
@@ -184,7 +184,7 @@ class MessengerJsInterface(
                                 mess?.requestFocus()
                             }, 1500)
                         } catch(e: Exception) {
-                            log("[Stealth] Ошибка разбора координат: ${"$"}{e.message}")
+                            log("[Stealth] Ошибка разбора координат: $e.message")
                         }
                     } else {
                         log("[Stealth] Кнопка скрепки не найдена на странице УкрНета!")
@@ -253,12 +253,12 @@ class MessengerJsInterface(
         val now = System.currentTimeMillis()
         val msSinceSubmit = now - lastSubmitMs
         if (msSinceSubmit < RECOIL_MS) {
-            log("[Compose] Откат-блок ${"$"}{msSinceSubmit}мс — ждём конца recoil")
+            log("[Compose] Откат-блок $msSinceSubmit мс — ждём конца recoil")
             return
         }
         val msSinceOpen = now - lastOpenMs
         if (msSinceOpen < DEBOUNCE_MS) {
-            log("[Compose] Дебаунс ${"$"}{msSinceOpen}мс — пропускаем дубль")
+            log("[Compose] Дебаунс $msSinceOpen мс — пропускаем дубль")
             return
         }
         lastOpenMs = now
@@ -367,7 +367,19 @@ class MessengerJsInterface(
     fun cancelCompose() {
         ui.post {
             scope.launch {
-                getUkrnetWebView()?.evaluateJavascript("(function(){ var btn = document.querySelector(\"${"$"}{UkrnetSelectors.CANCEL_BUTTON}\"") || document.querySelector('[aria-label=\"Відмінити\"]') || document.querySelector('[aria-label=\"Отменить\"]'); if (btn) { btn.click(); return 'ok'; } history.back(); return 'fallback'; })();", null)
+                getUkrnetWebView()?.evaluateJavascript(
+                    """
+                        (function(){
+                            var btn = document.querySelector('${UkrnetSelectors.CANCEL_BUTTON}')
+                                || document.querySelector('[aria-label="Відмінити"]')
+                                || document.querySelector('[aria-label="Отменить"]');
+                            if (btn) { btn.click(); return 'ok'; }
+                            history.back();
+                            return 'fallback';
+                        })();
+                    """.trimIndent(),
+                    null
+                )
             }
         }
     }
