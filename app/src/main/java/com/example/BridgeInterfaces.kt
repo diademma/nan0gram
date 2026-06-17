@@ -23,7 +23,7 @@ class UkrnetJsInterface(
 
     @JavascriptInterface
     fun jsLog(msg: String) {
-        log("[Ukrnet JS] $msg")
+        log("[Ukrnet JS] ${"$"}{msg}")
     }
 
     @JavascriptInterface
@@ -89,7 +89,7 @@ class UkrnetJsInterface(
                 val escaped = JSONArray().apply { put(msg) }.toString()
                     .replace("\\", "\\\\").replace("\"", "\\\"")
                 getMessengerWebView()?.evaluateJavascript(
-                    "window.dispatchEvent(new CustomEvent('nan0gram:email-received', { detail: \"$escaped\" }));", null
+                    "window.dispatchEvent(new CustomEvent('nan0gram:email-received', { detail: \"${"$"}escaped\" }));", null
                 )
             }
         }
@@ -147,7 +147,7 @@ class MessengerJsInterface(
                 log("[Stealth] Сканируем координаты кнопки-скрепки...")
                 ukr.evaluateJavascript("""
                     (function(){
-                        var el = document.querySelector('button.sm-header__attach') || document.querySelector('[class*="attach"]');
+                        var el = document.querySelector('${UkrnetSelectors.ATTACH_BUTTON}') || document.querySelector('[class*="attach"]');
                         if (!el) return 'not_found';
                         var r = el.getBoundingClientRect();
                         return JSON.stringify({
@@ -167,7 +167,7 @@ class MessengerJsInterface(
                             val x = coordsObj.getDouble("x").toFloat()
                             val y = coordsObj.getDouble("y").toFloat()
                             
-                            log("[Stealth] Скрепка найдена на X=$x, Y=$y. Активируем скрытый тап...")
+                            log("[Stealth] Скрепка найдена на X=${"$"}{x}, Y=${"$"}{y}. Активируем скрытый тап...")
                             
                             // Даем фокус УкрНету временно БЕЗ вывода на передний план!
                             ukr.isFocusable = true
@@ -184,7 +184,7 @@ class MessengerJsInterface(
                                 mess?.requestFocus()
                             }, 1500)
                         } catch(e: Exception) {
-                            log("[Stealth] Ошибка разбора координат: ${e.message}")
+                            log("[Stealth] Ошибка разбора координат: ${"$"}{e.message}")
                         }
                     } else {
                         log("[Stealth] Кнопка скрепки не найдена на странице УкрНета!")
@@ -200,7 +200,7 @@ class MessengerJsInterface(
             window._n0gSending = true;
             function doSend() {
                 console.log('[Upload] Нажимаем кнопку Отправить!');
-                var btn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('input[type="submit"]');
+                var btn = document.querySelector('${UkrnetSelectors.SEND_BUTTON}') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('input[type="submit"]');
                 if (btn) { btn.disabled = false; btn.click(); }
                 window._n0gStealthUpload = false;
                 setTimeout(function() { window._n0gSending = false; }, 8000);
@@ -218,14 +218,14 @@ class MessengerJsInterface(
             if (uploadCheckCount > 60) { clearInterval(window._n0gUploadInt); setTimeout(ensureSent, 500); return; }
             
             // 🎯 Точные селекторы из DOM-анализа:
-            var isUploading = document.querySelectorAll('.sm-attachments__progress-state').length > 0;
+            var isUploading = document.querySelectorAll('${UkrnetSelectors.ATTACH_PROGRESS}').length > 0;
             
             // 🎯 Ждем исчезновения лоадера автосохранения (черновика):
-            var isSaving = document.querySelectorAll('.sm-header__loader').length > 0;
+            var isSaving = document.querySelectorAll('${UkrnetSelectors.LOADER}').length > 0;
             if (isSaving) { isUploading = true; }
             
             // Если кнопка заблокирована - 100% еще грузит
-            var sendBtn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]');
+            var sendBtn = document.querySelector('${UkrnetSelectors.SEND_BUTTON}') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]');
             if (sendBtn && sendBtn.disabled) { isUploading = true; }
             
             if (isUploading) { return; }
@@ -244,7 +244,7 @@ class MessengerJsInterface(
         ui.post {
             val ukr = getUkrnetWebView()
             log("[Upload] Начинаем отслеживание загрузки файла...")
-            ukr?.evaluateJavascript(POPUP_CRUSHER_JS + "\n" + UPLOAD_OBSERVER_JS, null)
+            ukr?.evaluateJavascript(POPUP_CRUSHER_JS + "\\n" + UPLOAD_OBSERVER_JS, null)
         }
     }
 
@@ -253,12 +253,12 @@ class MessengerJsInterface(
         val now = System.currentTimeMillis()
         val msSinceSubmit = now - lastSubmitMs
         if (msSinceSubmit < RECOIL_MS) {
-            log("[Compose] Откат-блок ${msSinceSubmit}мс — ждём конца recoil")
+            log("[Compose] Откат-блок ${"$"}{msSinceSubmit}мс — ждём конца recoil")
             return
         }
         val msSinceOpen = now - lastOpenMs
         if (msSinceOpen < DEBOUNCE_MS) {
-            log("[Compose] Дебаунс ${msSinceOpen}мс — пропускаем дубль")
+            log("[Compose] Дебаунс ${"$"}{msSinceOpen}мс — пропускаем дубль")
             return
         }
         lastOpenMs = now
@@ -280,7 +280,7 @@ class MessengerJsInterface(
                 return@post
             }
             getUkrnetWebView()?.evaluateJavascript(
-                "(document.querySelector('.sm-editor__area') !== null).toString();"
+                "(document.querySelector('${UkrnetSelectors.BODY_AREA}') !== null).toString();"
             ) { value ->
                 val isOpen = value?.trim()?.replace("\"", "") == "true"
                 scope.launch {
@@ -293,7 +293,7 @@ class MessengerJsInterface(
                     } else {
                         log("[Compose] Уже открыт — только заполняем поля")
                     }
-                    val subject = "Re[${(2..30).random()}]:"
+                    val subject = "Re[${"$"}{(2..30).random()}]:"
                     val fillJs = COMPOSE_FILL_JS
                         .replace("%TO%", "270232@ukr.net")
                         .replace("%SUBJECT%", subject)
@@ -307,10 +307,10 @@ class MessengerJsInterface(
     fun setComposeBody(encodedText: String) {
         lastComposeBody = encodedText
         ui.post {
-            val esc = encodedText.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+            val esc = encodedText.replace("\\", "\\\\").replace("'", "\\'").replace("\\n", "\\\\n")
             val js = """
                 (function(text) {
-                    var el = document.querySelector('.sm-editor__area')
+                    var el = document.querySelector('${UkrnetSelectors.BODY_AREA}')
                         || document.querySelector('[contenteditable="true"]')
                         || document.querySelector('textarea[name="body"]')
                         || document.querySelector('textarea');
@@ -333,7 +333,7 @@ class MessengerJsInterface(
         ui.post {
             val js = """
                 (function(){
-                    var btn = document.querySelector('.sm-header__send')
+                    var btn = document.querySelector('${UkrnetSelectors.SEND_BUTTON}')
                         || document.querySelector('button[type="submit"]')
                         || document.querySelector('[data-id="send"]')
                         || document.querySelector('[aria-label="Відправити"]')
@@ -343,7 +343,7 @@ class MessengerJsInterface(
                     if (isTouch) {
                         if (btn) btn.click();
                     } else {
-                        var toEl = document.querySelector('.sm-auto-complete__input');
+                        var toEl = document.querySelector('${UkrnetSelectors.TO_INPUT}');
                         var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
                         if (toEl && !hasChip) {
                             try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
@@ -367,7 +367,7 @@ class MessengerJsInterface(
     fun cancelCompose() {
         ui.post {
             scope.launch {
-                getUkrnetWebView()?.evaluateJavascript("(function(){ var btn = document.querySelector('.sm-header__cancel') || document.querySelector('[aria-label=\"Відмінити\"]') || document.querySelector('[aria-label=\"Отменить\"]'); if (btn) { btn.click(); return 'ok'; } history.back(); return 'fallback'; })();", null)
+                getUkrnetWebView()?.evaluateJavascript("(function(){ var btn = document.querySelector(\"${"$"}{UkrnetSelectors.CANCEL_BUTTON}\"") || document.querySelector('[aria-label=\"Відмінити\"]') || document.querySelector('[aria-label=\"Отменить\"]'); if (btn) { btn.click(); return 'ok'; } history.back(); return 'fallback'; })();", null)
             }
         }
     }
