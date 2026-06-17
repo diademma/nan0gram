@@ -198,68 +198,52 @@ class MessengerJsInterface(
         function ensureSent() {
             if (window._n0gSending) return;
             window._n0gSending = true;
-            var toEl = document.querySelector('.sm-auto-complete__input') || document.querySelector('input[name="to"]');
-            var inputVal = toEl ? toEl.value.trim() : '';
             function doSend() {
-                var btn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]') || document.querySelector('input[type="submit"]');
-                if (btn) btn.click();
+                var btn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('input[type="submit"]');
+                if (btn) { btn.disabled = false; btn.click(); }
                 window._n0gStealthUpload = false;
                 setTimeout(function() { window._n0gSending = false; }, 8000);
                 try { if(window.Android && window.Android.onMediaSent) window.Android.onMediaSent(); } catch(e){}
             }
-            var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
-            if (isTouch) {
-                doSend();
-                return;
-            }
-            function waitClearThenSend(inputEl) {
-                var waited = 0;
-                var t = setInterval(function() {
-                    waited++;
-                    var val = inputEl ? inputEl.value.trim() : '';
-                    if (val === '' || waited > 25) { clearInterval(t); if (val === '') { setTimeout(doSend, 400); } else { window._n0gSending = false; } }
-                }, 150);
-            }
-            if (inputVal !== '') {
-                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                waitClearThenSend(toEl);
-            } else if (toEl) {
-                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
-                toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                waitClearThenSend(toEl);
-            } else { doSend(); }
+            doSend();
         }
     """.trimIndent()
 
     private val UPLOAD_OBSERVER_JS = """
+        if (window._n0gUploadInt) clearInterval(window._n0gUploadInt);
         var uploadCheckCount = 0;
-        var checkInterval = setInterval(function() {
+        window._n0gUploadInt = setInterval(function() {
             uploadCheckCount++;
-            if (uploadCheckCount > 120) { clearInterval(checkInterval); return; }
-            var stillUploading = document.querySelectorAll('.sm-attachments__progress-bar, .sm-attachments__upload-icon');
-            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"]');
-            if (stillUploading.length > 0) { return; }
-            if (doneLinks.length > 0) { clearInterval(checkInterval); setTimeout(ensureSent, 400); }
-        }, 400);
+            if (uploadCheckCount > 60) { clearInterval(window._n0gUploadInt); setTimeout(ensureSent, 500); return; }
+            
+            // Ищем любые индикаторы загрузки (спиннеры, прогресс-бары)
+            var uploadingEls = document.querySelectorAll('[class*="progress"], [class*="spinner"], [class*="uploading"], [class*="loading"]');
+            var isUploading = false;
+            for(var i=0; i<uploadingEls.length; i++) {
+                if(uploadingEls[i].offsetWidth > 0 || uploadingEls[i].offsetHeight > 0) { isUploading = true; break; }
+            }
+            
+            // Если кнопка заблокирована - 100% еще грузит
+            var sendBtn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]');
+            if (sendBtn && sendBtn.disabled) { isUploading = true; }
+            
+            if (isUploading) { return; }
+            
+            // Если индикаторов нет, и прошло хотя бы 1.5 сек с начала (даем время на старт загрузки)
+            if (uploadCheckCount > 3) {
+                clearInterval(window._n0gUploadInt);
+                setTimeout(ensureSent, 600);
+            }
+        }, 500);
     """.trimIndent()
 
     @Volatile private var uploadSequenceActive = false
 
     fun startMediaUploadSequence() {
-        if (uploadSequenceActive) return
-        uploadSequenceActive = true
         ui.post {
             val ukr = getUkrnetWebView()
             log("[Upload] Начинаем отслеживание загрузки файла...")
             ukr?.evaluateJavascript(POPUP_CRUSHER_JS + "\n" + UPLOAD_OBSERVER_JS, null)
-            
-            scope.launch {
-                kotlinx.coroutines.delay(12000)
-                uploadSequenceActive = false
-            }
         }
     }
 
