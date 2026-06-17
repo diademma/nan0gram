@@ -41,12 +41,9 @@ class UkrnetJsInterface(
 
     @JavascriptInterface
     fun onMediaSent() {
-        // Медиа отправлено — сбрасываем _composeOpen в NanoBridge мессенджера.
-        // Без этого следующий тап на textarea увидит _composeOpen=true и пропустит
-        // _openComposeIfNeeded, хотя реального compose-окна уже нет.
         ui.post {
             getMessengerWebView()?.evaluateJavascript(
-                "if(window.nan0gram) window.nan0gram._composeOpen = false;", null
+                "if(window.nan0gram) window.nan0gram._composeOpen = false; window.dispatchEvent(new CustomEvent('nan0gram:media-sent'));", null
             )
         }
     }
@@ -113,13 +110,9 @@ class MessengerJsInterface(
     lateinit var scope: CoroutineScope
     private val ui = Handler(Looper.getMainLooper())
 
-    // ── lastSubmitMs: установлен НЕМЕДЛЕННО в submitCompose (НЕ внутри ui.post!)
-    // Это гарантирует что WebCore-поток увидит значение при следующем вызове openCompose.
-    // RECOIL_MS: блокируем openCompose на 3с после каждого Send.
     @Volatile private var lastSubmitMs = 0L
     private val RECOIL_MS = 3000L
 
-    // ── Дебаунс: блокируем дублирующие вызовы openCompose с разницей < 300мс
     @Volatile private var lastOpenMs = 0L
     private val DEBOUNCE_MS = 300L
 
@@ -144,10 +137,8 @@ class MessengerJsInterface(
             function doSend() {
                 var btn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]') || document.querySelector('input[type="submit"]');
                 if (btn) btn.click();
-                // Немедленный сброс — COMPOSE_FILL_JS снова работает для текстовых сессий
                 window._n0gStealthUpload = false;
                 setTimeout(function() { window._n0gSending = false; }, 8000);
-                // Уведомляем мессенджер: _composeOpen = false (даже если завис)
                 try { if(window.Android && window.Android.onMediaSent) window.Android.onMediaSent(); } catch(e){}
             }
             function waitClearThenSend(inputEl) {
@@ -176,31 +167,32 @@ class MessengerJsInterface(
         var uploadCheckCount = 0;
         var checkInterval = setInterval(function() {
             uploadCheckCount++;
-            if (uploadCheckCount > 120) { clearInterval(checkInterval); return; }
-            var stillUploading = document.querySelectorAll('.sm-attachments__progress-bar, .sm-attachments__upload-icon');
-            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"]');
+            var stillUploading = document.querySelectorAll('.sm-attachments__progress-bar, .sm-attachments__upload-icon, [class*="progress"], [class*="loading"], .spinner');
+            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], a[href*="/attach/"], .sendmsg__attachments-item, [class*="attachment-item"]');
             if (stillUploading.length > 0) { return; }
-            if (doneLinks.length > 0) { clearInterval(checkInterval); setTimeout(ensureSent, 400); }
+            if (doneLinks.length > 0 || uploadCheckCount > 40) { 
+                clearInterval(checkInterval); 
+                setTimeout(ensureSent, 400); 
+            }
         }, 400);
     """.trimIndent()
 
     @Volatile private var uploadSequenceActive = false
 
-    // ─── startMediaUploadSequence ─────────────────────────────────────────────
-    // В sendmsg-режиме (нет координат compose-кнопки) compose УЖЕ открыт.
-    // Координаты НЕ нужны — инжектируем JS напрямую на текущую страницу.
     fun startMediaUploadSequence() {
-        if (uploadSequenceActive) { log("[Stealth] we skipped double call"); return }
+        if (uploadSequenceActive) { log("[Stealth] Дубль вызова — пропускаем"); return }
         uploadSequenceActive = true
         ui.post {
             scope.launch {
                 try {
                     val sysBlock = StealthCache.pendingSysBlock ?: return@launch
                     StealthCache.pendingSysBlock = null
-                    val c = getCoords()
-                    if (c.composeX == null || c.composeY == null) {
-                        log("[Stealth] sendmsg-режим — compose открыт, инжектируем напрямую")
-                    }
+                    
+                    // ХАК СИСТЕМЫ БЕЗОПАСНОСТИ: Посылаем прямой аппаратный тап в WebView.
+                    // Браузер засчитает это как "User Gesture" и разрешит вызов fi.click()
+                    ui.post { simulateTouch(getUkrnetWebView(), 10f, 10f, stealFocus = false) }
+                    delay(150)
+                    
                     getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
                     val subject = "Re[${(2..30).random()}]:"
                     val escSys = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
@@ -222,17 +214,23 @@ class MessengerJsInterface(
                             }
                             var findFileInput = setInterval(function() {
                                 var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
-                                if (fi) { clearInterval(findFileInput); fi.click(); }
+                                if (fi) { 
+                                    clearInterval(findFileInput); 
+                                    // Принудительно делаем инпут видимым, чтобы клик не отклонился
+                                    fi.style.display = 'block';
+                                    fi.style.opacity = '0';
+                                    fi.click(); 
+                                }
                             }, 100);
                             setTimeout(function() { clearInterval(findFileInput); }, 8000);
                             $POPUP_CRUSHER_JS
                             $UPLOAD_OBSERVER_JS
-                            // Issue #3: если doSend() не сработает — сброс через 30 сек
+                            // Страховка от зависания таймера
                             setTimeout(function() { window._n0gStealthUpload = false; }, 30000);
                         })();
                     """.trimIndent()
                     getUkrnetWebView()?.evaluateJavascript(js, null)
-                    log("[Stealth] JS инжектирован")
+                    log("[Stealth] JS загрузчика успешно инжектирован")
                 } finally {
                     uploadSequenceActive = false
                 }
@@ -240,13 +238,6 @@ class MessengerJsInterface(
         }
     }
 
-    // ─── openCompose ─────────────────────────────────────────────────────────
-    // Порядок проверок (все синхронные — нет гонок потоков):
-    //  1. RECOIL_BLOCK: < 3с после Send → игнорируем (lastSubmitMs ставится ДО ui.post!)
-    //  2. DEBOUNCE: < 300мс после предыдущего openCompose → игнорируем дубль
-    //  3. Нет coords (.ml-header__compose не найден) → мы на sendmsg или мобильной версии
-    //     → проверяем URL асинхронно, если не sendmsg → loadUrl(sendmsg)
-    //  4. Есть coords (десктоп) → старый путь через simulateTouch
     @JavascriptInterface
     fun openCompose(configJson: String) {
         val now = System.currentTimeMillis()
@@ -324,14 +315,9 @@ class MessengerJsInterface(
         }
     }
 
-    // ─── submitCompose ────────────────────────────────────────────────────────
-    // КРИТИЧНО: lastSubmitMs = ... стоит ДО ui.post{}
-    // Это означает что он устанавливается на WebCore-потоке НЕМЕДЛЕННО при вызове.
-    // Следующий вызов openCompose() (тоже на WebCore-потоке) увидит это значение
-    // сразу — без ожидания Main thread. Это устраняет гонку потоков.
     @JavascriptInterface
     fun submitCompose() {
-        lastSubmitMs = System.currentTimeMillis()   // ← ВНЕ ui.post — немедленно!
+        lastSubmitMs = System.currentTimeMillis()
         ui.post {
             val js = """
                 (function(){
@@ -350,6 +336,9 @@ class MessengerJsInterface(
                         toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
                         setTimeout(function() { if (btn) btn.click(); }, 120);
                     } else { if (btn) btn.click(); }
+                    window._n0gStealthUpload = false;
+                    setTimeout(function() { window._n0gSending = false; }, 8000);
+                    try { if(window.Android && window.Android.onMediaSent) window.Android.onMediaSent(); } catch(e){}
                 })();
             """.trimIndent()
             getUkrnetWebView()?.evaluateJavascript(js, null)
