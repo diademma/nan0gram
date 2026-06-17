@@ -199,8 +199,12 @@ private fun WebViewLayer(
             ukrnetFilePathCallback?.onReceiveValue(selectedUris.toTypedArray())
             log("[Stealth] Файлы переданы напрямую в УкрНет для нативной загрузки.")
             
-            // 2. Генерируем красивую копию для мгновенного отображения в Мессенджере
             val firstUri = selectedUris.first()
+            val isVideo = context.contentResolver.getType(firstUri)?.startsWith("video") == true
+            val typeStr = if (isVideo) "video" else "photo"
+            messengerWebViewInstance?.evaluateJavascript("if(window.nan0gram && window.nan0gram.submitStealthFile) window.nan0gram.submitStealthFile('$typeStr');", null)
+            
+            // 2. Генерируем красивую копию для мгновенного отображения в Мессенджере
             val b64 = uriToBase64(context, firstUri)
             if (b64.isNotEmpty()) {
                 val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
@@ -215,6 +219,7 @@ private fun WebViewLayer(
             }
         } else {
             ukrnetFilePathCallback?.onReceiveValue(null)
+            messengerWebViewInstance?.evaluateJavascript("window._n0gStealthPending = false;", null)
         }
         ukrnetFilePathCallback = null
         
@@ -345,6 +350,7 @@ private fun WebViewLayer(
                                     document.addEventListener('touchstart', function(e) {
                                         var t = e.target.closest('.input-icon');
                                         if (t && (t.textContent.indexOf('📎') !== -1 || t.textContent.indexOf('🎬') !== -1)) {
+                                            window._n0gStealthPending = true;
                                             triggerStealthAttach();
                                         }
                                     }, true);
@@ -352,6 +358,7 @@ private fun WebViewLayer(
                                     document.addEventListener('mousedown', function(e) {
                                         var t = e.target.closest('.input-icon');
                                         if (t && (t.textContent.indexOf('📎') !== -1 || t.textContent.indexOf('🎬') !== -1)) {
+                                            window._n0gStealthPending = true;
                                             triggerStealthAttach();
                                         }
                                     }, true);
