@@ -22,6 +22,11 @@ class UkrnetJsInterface(
     private val ui = Handler(Looper.getMainLooper())
 
     @JavascriptInterface
+    fun jsLog(msg: String) {
+        log("[Ukrnet JS] $msg")
+    }
+
+    @JavascriptInterface
     fun postMessage(type: String, key: String, value: String) {
         ui.post {
             if (type == "ui" && key == "login_success" && value == "true" && !isLoginHandled()) {
@@ -133,13 +138,15 @@ class MessengerJsInterface(
         function ensureSent() {
             if (window._n0gSending) return;
             window._n0gSending = true;
+            if (window.Android && window.Android.jsLog) window.Android.jsLog("Вызвана функция ensureSent(). Инициируем отправку.");
+            
             function doSend() {
                 var btn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]') || document.querySelector('input[type="submit"]');
                 if (btn) {
-                    console.log('[Stealth JS] Финальный клик по кнопке отправки выполнен!');
+                    if (window.Android && window.Android.jsLog) window.Android.jsLog("Финальный клик по кнопке отправки!");
                     btn.click();
                 } else {
-                    console.error('[Stealth JS] Кнопка отправки не найдена!');
+                    if (window.Android && window.Android.jsLog) window.Android.jsLog("ОШИБКА: Кнопка отправки письма не найдена!");
                 }
                 window._n0gStealthUpload = false;
                 setTimeout(function() { window._n0gSending = false; }, 8000);
@@ -173,25 +180,44 @@ class MessengerJsInterface(
     """.trimIndent()
 
     private val UPLOAD_OBSERVER_JS = """
-        var uploadCheckCount = 0;
+        var uploadAttempts = 0;
         var checkInterval = setInterval(function() {
-            uploadCheckCount++;
-            if (uploadCheckCount > 120) { 
-                console.error('[Stealth JS] Превышен таймаут ожидания загрузки файла (48с)!');
-                clearInterval(checkInterval); 
-                return; 
-            }
-            var stillUploading = document.querySelectorAll('.sm-attachments__upload, .sm-attachments__upload-icon, .sm-attachments__progress-bar, .sm-attachments__progress-state, [class*="progress"], [class*="loading"]');
-            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], .attachment-preview, .sm-attachments__attach-preview, [class*="attachment-item"], [class*="attach-item"]');
+            uploadAttempts++;
             
-            if (stillUploading.length > 0) { 
-                console.log('[Stealth JS] Файл еще загружается, ждем...');
-                return; 
+            var loaders = document.querySelectorAll('.sm-attachments__upload, .sm-attachments__upload-icon, .sm-attachments__progress-bar, .sm-attachments__progress-state, [class*="progress"], [class*="loading"], .spinner, .loader');
+            var isUploading = false;
+            
+            // Проверяем, есть ли на экране реальные видимые индикаторы загрузки
+            for(var i = 0; i < loaders.length; i++) {
+                if(loaders[i].offsetWidth > 0 || loaders[i].offsetHeight > 0) {
+                    isUploading = true;
+                    break;
+                }
             }
-            if (doneLinks.length > 0) { 
-                console.log('[Stealth JS] Загрузка файла успешно завершена! Инициируем отправку.');
+            
+            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], .attachment-preview, .sm-attachments__attach-preview, [class*="attachment-item"], [class*="attach-item"]');
+            var hasAttachments = doneLinks.length > 0;
+            
+            if (uploadAttempts % 3 === 0) {
+                if (window.Android && window.Android.jsLog) {
+                    window.Android.jsLog("Наблюдение за загрузкой: isUploading=" + isUploading + ", hasAttachments=" + hasAttachments);
+                }
+            }
+
+            if (isUploading && uploadAttempts < 100) {
+                return; // Файл всё еще грузится, ждем
+            }
+            
+            if (hasAttachments || uploadAttempts > 15) {
+                if (window.Android && window.Android.jsLog) window.Android.jsLog("Ожидание завершено. Запускаем отправку.");
                 clearInterval(checkInterval); 
-                setTimeout(ensureSent, 400); 
+                setTimeout(ensureSent, 500); 
+            }
+            
+            if (uploadAttempts > 100) {
+                if (window.Android && window.Android.jsLog) window.Android.jsLog("Превышен таймаут загрузки (40с). Принудительная отправка.");
+                clearInterval(checkInterval);
+                setTimeout(ensureSent, 500);
             }
         }, 400);
     """.trimIndent()
@@ -206,15 +232,15 @@ class MessengerJsInterface(
                 try {
                     val sysBlock = StealthCache.pendingSysBlock ?: return@launch
                     StealthCache.pendingSysBlock = null
+                    
                     getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
                     val subject = "Re[${(2..30).random()}]:"
                     val escSys = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
                     
-                    // Обновленный скрипт с обходом блокировок и тотальным try-catch
                     val js = """
                         (function(){
                             try {
-                                console.log('[Stealth JS] Начинаем процесс загрузки медиафайла...');
+                                if (window.Android && window.Android.jsLog) window.Android.jsLog("Старт инжекта медиафайла...");
                                 window._n0gStealthUpload = true;
                                 if (document.activeElement && document.activeElement.tagName !== 'BODY') document.activeElement.blur();
                                 
@@ -224,14 +250,13 @@ class MessengerJsInterface(
                                     if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '$escSys'; }
                                     else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl,'$escSys'); } catch(e) { bodyEl.value='$escSys'; } }
                                     bodyEl.dispatchEvent(new Event('input',{bubbles:true}));
-                                    console.log('[Stealth JS] Поле ввода заполнено зашифрованными данными');
+                                    if (window.Android && window.Android.jsLog) window.Android.jsLog("Текст вставлен.");
                                 }
                                 
                                 var subjEl = document.querySelector('#sendmsg__subject') || document.querySelector('input[name="subject"]');
                                 if(subjEl) {
                                     try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl,'$subject'); } catch(e) { subjEl.value='$subject'; }
                                     subjEl.dispatchEvent(new Event('input',{bubbles:true}));
-                                    console.log('[Stealth JS] Поле темы заполнено');
                                 }
                                 
                                 var attempts = 0;
@@ -241,9 +266,9 @@ class MessengerJsInterface(
                                     
                                     if (fi) { 
                                         clearInterval(findFileInput); 
-                                        console.log('[Stealth JS] Инпут выбора файла успешно найден, обходим блокировку WebView и кликаем!');
+                                        if (window.Android && window.Android.jsLog) window.Android.jsLog("Инпут файла найден. Снимаем скрытие и кликаем.");
                                         
-                                        // Принудительно делаем инпут видимым, чтобы WebView не заблокировал клик
+                                        // Принудительная отмена display:none для обхода блокировки WebView
                                         fi.style.display = 'block';
                                         fi.style.visibility = 'visible';
                                         fi.style.opacity = '1';
@@ -256,12 +281,11 @@ class MessengerJsInterface(
                                         
                                         try {
                                             fi.click();
-                                            console.log('[Stealth JS] Метод fi.click() выполнен успешно.');
-                                        } catch(e) {
-                                            console.error('[Stealth JS] Ошибка при клике по инпуту: ' + e.message);
+                                            if (window.Android && window.Android.jsLog) window.Android.jsLog("Клик по инпуту выполнен.");
+                                        } catch(err) {
+                                            if (window.Android && window.Android.jsLog) window.Android.jsLog("Ошибка при клике: " + err.message);
                                         }
                                     } else {
-                                        // Инпут генерируется динамически? Кликаем по кнопке-скрепке!
                                         var attachBtn = document.querySelector('.sm-header__attach, .sendmsg__attach, [aria-label*="Прикр"], [aria-label*="Attach"], label[class*="attach"], button[class*="attach"]');
                                         if (attachBtn) {
                                             attachBtn.click();
@@ -269,7 +293,7 @@ class MessengerJsInterface(
                                     }
                                     
                                     if (attempts > 80) {
-                                        console.error('[Stealth JS] Инпут файла так и не был найден за 8 секунд!');
+                                        if (window.Android && window.Android.jsLog) window.Android.jsLog("ОШИБКА: Инпут файла не найден за 8 секунд!");
                                         clearInterval(findFileInput);
                                     }
                                 }, 100);
@@ -278,12 +302,12 @@ class MessengerJsInterface(
                                 $UPLOAD_OBSERVER_JS
                                 
                             } catch (globalErr) {
-                                console.error('[Stealth JS] ГЛОБАЛЬНАЯ ОШИБКА ИНЖЕКТА: ' + globalErr.message);
+                                if (window.Android && window.Android.jsLog) window.Android.jsLog("ГЛОБАЛЬНЫЙ КРАШ ИНЖЕКТА: " + globalErr.message);
                             }
                         })();
                     """.trimIndent()
                     getUkrnetWebView()?.evaluateJavascript(js, null)
-                    log("[Stealth] JS инжектирован")
+                    log("[Stealth] JS загрузчика инжектирован, ожидаем логи от Ukrnet JS...")
                 } finally { uploadSequenceActive = false }
             }
         }
