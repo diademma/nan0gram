@@ -206,7 +206,6 @@ private fun WebViewLayer(
                         loadWithOverviewMode = true
                         allowFileAccess      = true
                         allowContentAccess   = true
-                        javaScriptCanOpenWindowsAutomatically = true
                         userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                     }
                     CookieManager.getInstance().setAcceptCookie(true)
@@ -219,6 +218,26 @@ private fun WebViewLayer(
                                 view?.evaluateJavascript("window._n0gFilled = false;", null)
                                 view?.evaluateJavascript(SENDMSG_FILL_JS, null)
                                 log("[Compose] sendmsg загружен — заполняем поля")
+                                val bufferedBody = messengerInterface.lastComposeBody
+                                if (bufferedBody.isNotEmpty()) {
+                                    val esc = bufferedBody.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+                                    val js = """
+                                        (function(text) {
+                                            var el = document.querySelector('.sm-editor__area')
+                                                || document.querySelector('[contenteditable="true"]')
+                                                || document.querySelector('textarea[name="body"]')
+                                                || document.querySelector('textarea');
+                                            if (!el) return;
+                                            el.innerHTML = '';
+                                            if (el.getAttribute('contenteditable') === 'true') { el.innerText = text; }
+                                            else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el,text); } catch(e) { el.value=text; } }
+                                            el.dispatchEvent(new Event('input',{bubbles:true}));
+                                            el.dispatchEvent(new Event('change',{bubbles:true}));
+                                        })('$esc');
+                                    """.trimIndent()
+                                    view?.evaluateJavascript(js, null)
+                                    log("[Compose] Восстановлен текст из буфера быстрого ввода")
+                                }
                             }
                         }
                         override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
