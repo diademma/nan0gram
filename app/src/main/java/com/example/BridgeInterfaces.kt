@@ -184,7 +184,7 @@ class MessengerJsInterface(
                                 mess?.requestFocus()
                             }, 1500)
                         } catch(e: Exception) {
-                            log("[Stealth] Ошибка разбора координат: $e.message")
+                            log("[Stealth] Ошибка разбора координат: ${e.message}")
                         }
                     } else {
                         log("[Stealth] Кнопка скрепки не найдена на странице УкрНета!")
@@ -244,7 +244,7 @@ class MessengerJsInterface(
         ui.post {
             val ukr = getUkrnetWebView()
             log("[Upload] Начинаем отслеживание загрузки файла...")
-            ukr?.evaluateJavascript(POPUP_CRUSHER_JS + "\\n" + UPLOAD_OBSERVER_JS, null)
+            ukr?.evaluateJavascript(POPUP_CRUSHER_JS + '\n' + UPLOAD_OBSERVER_JS, null)
         }
     }
 
@@ -293,7 +293,7 @@ class MessengerJsInterface(
                     } else {
                         log("[Compose] Уже открыт — только заполняем поля")
                     }
-                    val subject = "Re[${"$"}{(2..30).random()}]:"
+                    val subject = "Re[${(2..30).random()}]:"
                     val fillJs = COMPOSE_FILL_JS
                         .replace("%TO%", "270232@ukr.net")
                         .replace("%SUBJECT%", subject)
@@ -307,7 +307,7 @@ class MessengerJsInterface(
     fun setComposeBody(encodedText: String) {
         lastComposeBody = encodedText
         ui.post {
-            val esc = encodedText.replace("\\", "\\\\").replace("'", "\\'").replace("\\n", "\\\\n")
+            val esc = encodedText.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
             val js = """
                 (function(text) {
                     var el = document.querySelector('${UkrnetSelectors.BODY_AREA}')
@@ -367,10 +367,8 @@ class MessengerJsInterface(
     fun cancelCompose() {
         ui.post {
             scope.launch {
-                getUkrnetWebView()?.evaluateJavascript(
-                    "(function(){ var btn = document.querySelector('" + UkrnetSelectors.CANCEL_BUTTON + "') || document.querySelector('[aria-label=\'Відмінити\']') || document.querySelector('[aria-label=\'Отменить\']'); if (btn) { btn.click(); return 'ok'; } history.back(); return 'fallback'; })();",
-                    null
-                )
+                val js = "(function(){ var btn = document.querySelector('" + UkrnetSelectors.CANCEL_BUTTON + "') || document.querySelector('[aria-label=\"Відмінити\"]') || document.querySelector('[aria-label=\"Отменить\"]'); if (btn) { btn.click(); return 'ok'; } history.back(); return 'fallback'; })();"
+                getUkrnetWebView()?.evaluateJavascript(js, null)
             }
         }
     }
