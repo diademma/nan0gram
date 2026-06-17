@@ -109,6 +109,7 @@ class MessengerJsInterface(
 ) {
     lateinit var scope: CoroutineScope
     private val ui = Handler(Looper.getMainLooper())
+    @Volatile var lastComposeBody: String = """
 
     // ── lastSubmitMs: установлен НЕМЕДЛЕННО в submitCompose (НЕ внутри ui.post!)
     // Это гарантирует что WebCore-поток увидит значение при следующем вызове openCompose.
@@ -300,6 +301,7 @@ class MessengerJsInterface(
 
     @JavascriptInterface
     fun setComposeBody(encodedText: String) {
+        lastComposeBody = encodedText
         ui.post {
             val esc = encodedText.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
             val js = """
@@ -328,6 +330,7 @@ class MessengerJsInterface(
     @JavascriptInterface
     fun submitCompose() {
         lastSubmitMs = System.currentTimeMillis()   // ← ВНЕ ui.post — немедленно!
+        lastComposeBody = ""
         ui.post {
             val js = """
                     (function(){
