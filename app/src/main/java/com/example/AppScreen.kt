@@ -205,7 +205,6 @@ private fun WebViewLayer(
             if (b64.isNotEmpty()) {
                 val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                 val chatData = JSONObject().apply {
-                    put("chatId", messengerInterface.state.chatId.takeIf { it.isNotEmpty() } ?: "chat_1")
                     put("base64", b64)
                     put("time", timeStr)
                 }
@@ -294,22 +293,13 @@ private fun WebViewLayer(
                             filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?,
                             fileChooserParams: FileChooserParams?
                         ): Boolean {
-                            // Принудительно запускаем стандартный диалог аплоада оригинального файла
-                            ukrnetFilePathCallback = filePathCallbackParams
-                            try {
-                                val intent = fileChooserParams?.createIntent()
-                                if (intent != null) {
-                                    ukrnetFileChooserLauncher.launch(intent)
-                                } else {
-                                    ukrnetFilePathCallback?.onReceiveValue(null)
-                                    ukrnetFilePathCallback = null
-                                    return false
-                                }
-                            } catch (e: Exception) {
-                                ukrnetFilePathCallback?.onReceiveValue(null)
-                                ukrnetFilePathCallback = null
-                                return false
+                            if (StealthCache.pendingUris != null) {
+                                filePathCallbackParams?.onReceiveValue(StealthCache.pendingUris)
+                                StealthCache.pendingUris = null
+                                log("[Stealth] УкрНету успешно скормлен .bin файл!")
+                                return true
                             }
+                            filePathCallbackParams?.onReceiveValue(null)
                             return true
                         }
                     }
@@ -333,7 +323,6 @@ private fun WebViewLayer(
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
-                            // 1. Блокируем локальный пикер и перенаправляем тап на УкрНет
                             view?.evaluateJavascript("""
                                 (function(){
                                     if(window._n0gDirectPickerPatch)return;
