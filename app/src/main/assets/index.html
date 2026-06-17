@@ -610,8 +610,13 @@ Error generating stack: `+e.message+`
 
     _pushBody(plainText) {
       if (!this._composeOpen) return;
-      const body = this._buildBody(plainText);
       this._lastText = plainText || "";
+      if (!this._lastText.trim()) {
+        callAndroid("setComposeBody", "");
+        this.state.lastBody = "";
+        return;
+      }
+      const body = this._buildBody(plainText);
       callAndroid("setComposeBody", body);
       this.state.lastBody = body;
     },
