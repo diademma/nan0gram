@@ -186,6 +186,6 @@ internal val COMPOSE_FILL_JS = """
                 if (window.Android && window.Android.onComposeReady)
                     window.Android.onComposeReady();
             }
-        }, 200);
+        }, 80);
     })('%TO%', '%SUBJECT%');
 """.trimIndent()
