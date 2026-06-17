@@ -22,11 +22,6 @@ class UkrnetJsInterface(
     private val ui = Handler(Looper.getMainLooper())
 
     @JavascriptInterface
-    fun jsLog(msg: String) {
-        log("[Ukrnet JS] $msg")
-    }
-
-    @JavascriptInterface
     fun postMessage(type: String, key: String, value: String) {
         ui.post {
             if (type == "ui" && key == "login_success" && value == "true" && !isLoginHandled()) {
@@ -46,9 +41,12 @@ class UkrnetJsInterface(
 
     @JavascriptInterface
     fun onMediaSent() {
+        // Медиа отправлено — сбрасываем _composeOpen в NanoBridge мессенджера.
+        // Без этого следующий тап на textarea увидит _composeOpen=true и пропустит
+        // _openComposeIfNeeded, хотя реального compose-окна уже нет.
         ui.post {
             getMessengerWebView()?.evaluateJavascript(
-                "window.dispatchEvent(new CustomEvent('nan0gram:media-sent'));", null
+                "if(window.nan0gram) window.nan0gram._composeOpen = false;", null
             )
         }
     }
@@ -114,12 +112,14 @@ class MessengerJsInterface(
 ) {
     lateinit var scope: CoroutineScope
     private val ui = Handler(Looper.getMainLooper())
-    @Volatile var lastComposeBody: String = ""
-    @Volatile var getMessengerWebView: (() -> WebView?)? = null
 
+    // ── lastSubmitMs: установлен НЕМЕДЛЕННО в submitCompose (НЕ внутри ui.post!)
+    // Это гарантирует что WebCore-поток увидит значение при следующем вызове openCompose.
+    // RECOIL_MS: блокируем openCompose на 3с после каждого Send.
     @Volatile private var lastSubmitMs = 0L
     private val RECOIL_MS = 3000L
 
+    // ── Дебаунс: блокируем дублирующие вызовы openCompose с разницей < 300мс
     @Volatile private var lastOpenMs = 0L
     private val DEBOUNCE_MS = 300L
 
@@ -127,38 +127,11 @@ class MessengerJsInterface(
     fun getDeviceId(): String { return androidId }
 
     @JavascriptInterface
-    fun notifyMediaSelection(sysBlock: String) {}
-
-    // Подготовка прозрачного слоя УкрНета поверх экрана для перехвата физического касания
-    @JavascriptInterface
-    fun prepareForDirectAttach() {
-        ui.post {
-            val ukr = getUkrnetWebView()
-            if (ukr != null) {
-                val stretchJs = """
-                    (function(){
-                        var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
-                        if (fi) {
-                            fi.style.display = 'block';
-                            fi.style.visibility = 'visible';
-                            fi.style.opacity = '0.01';
-                            fi.style.position = 'fixed';
-                            fi.style.left = '0px';
-                            fi.style.top = '0px';
-                            fi.style.width = '100vw';
-                            fi.style.height = '100vh';
-                            fi.style.zIndex = '2147483647';
-                        }
-                    })();
-                """.trimIndent()
-                ukr.evaluateJavascript(stretchJs, null)
-                
-                ukr.isFocusable = true
-                ukr.isFocusableInTouchMode = true
-                ukr.alpha = 0.01f  // Почти полностью прозрачный
-                ukr.bringToFront()
-                ukr.requestFocus()
-            }
+    fun notifyMediaSelection(sysBlock: String) {
+        StealthCache.pendingSysBlock = sysBlock
+        log("[Stealth] Файлы выбраны, метаданные сохранены.")
+        if (StealthCache.pendingUris != null) {
+            startMediaUploadSequence()
         }
     }
 
@@ -166,91 +139,114 @@ class MessengerJsInterface(
         function ensureSent() {
             if (window._n0gSending) return;
             window._n0gSending = true;
-            if (window.Android && window.Android.jsLog) window.Android.jsLog("Вызвана функция ensureSent(). Инициируем отправку.");
-            
+            var toEl = document.querySelector('.sm-auto-complete__input') || document.querySelector('input[name="to"]');
+            var inputVal = toEl ? toEl.value.trim() : '';
             function doSend() {
                 var btn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]') || document.querySelector('input[type="submit"]');
-                if (btn) {
-                    if (window.Android && window.Android.jsLog) window.Android.jsLog("Финальный клик по кнопке отправки!");
-                    btn.click();
-                } else {
-                    if (window.Android && window.Android.jsLog) window.Android.jsLog("ОШИБКА: Кнопка отправки письма не найдена!");
-                }
+                if (btn) btn.click();
+                // Немедленный сброс — COMPOSE_FILL_JS снова работает для текстовых сессий
                 window._n0gStealthUpload = false;
                 setTimeout(function() { window._n0gSending = false; }, 8000);
+                // Уведомляем мессенджер: _composeOpen = false (даже если завис)
                 try { if(window.Android && window.Android.onMediaSent) window.Android.onMediaSent(); } catch(e){}
             }
-            var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
-            if (isTouch) {
-                doSend();
-            } else {
-                var toEl = document.querySelector('.sm-auto-complete__input');
-                var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
-                if (toEl && !hasChip) {
-                    try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
-                    toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                    toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                    toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                    var waited = 0;
-                    var t = setInterval(function() {
-                        waited++;
-                        var currentVal = toEl.value.trim();
-                        if (currentVal === '' || waited > 15) {
-                            clearInterval(t);
-                            setTimeout(doSend, 400);
-                        }
-                    }, 150);
-                } else {
-                    doSend();
-                }
+            function waitClearThenSend(inputEl) {
+                var waited = 0;
+                var t = setInterval(function() {
+                    waited++;
+                    var val = inputEl ? inputEl.value.trim() : '';
+                    if (val === '' || waited > 25) { clearInterval(t); if (val === '') { setTimeout(doSend, 400); } else { window._n0gSending = false; } }
+                }, 150);
             }
+            if (inputVal !== '') {
+                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                waitClearThenSend(toEl);
+            } else if (toEl) {
+                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
+                toEl.dispatchEvent(new Event('input',{bubbles:true}));
+                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                waitClearThenSend(toEl);
+            } else { doSend(); }
         }
     """.trimIndent()
 
     private val UPLOAD_OBSERVER_JS = """
-        var uploadAttempts = 0;
+        var uploadCheckCount = 0;
         var checkInterval = setInterval(function() {
-            uploadAttempts++;
-            
-            var loaders = document.querySelectorAll('.sm-attachments__upload, .sm-attachments__upload-icon, .sm-attachments__progress-bar, .sm-attachments__progress-state, [class*="progress"], [class*="loading"], .spinner, .loader');
-            var isUploading = false;
-            
-            for(var i = 0; i < loaders.length; i++) {
-                if(loaders[i].offsetWidth > 0 || loaders[i].offsetHeight > 0) {
-                    isUploading = true;
-                    break;
-                }
-            }
-            
-            if (isUploading) {
-                var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
-                if (fi && fi.style.position === 'fixed') {
-                    fi.style.position = 'static';
-                    fi.style.width = '1px';
-                    fi.style.height = '1px';
-                    fi.style.opacity = '0';
-                    if (window.Android && window.Android.jsLog) window.Android.jsLog("Клик успешен! Файл начал загрузку. Прячем инпут.");
-                }
-                if (uploadAttempts % 3 === 0 && window.Android && window.Android.jsLog) {
-                    window.Android.jsLog("Файл загружается...");
-                }
-                return;
-            }
-            
-            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], .attachment-preview, .sm-attachments__attach-preview, [class*="attachment-item"], [class*="attach-item"]');
-            
-            if (doneLinks.length > 0 || uploadAttempts > 20) {
-                if (window.Android && window.Android.jsLog) window.Android.jsLog("Загрузка завершена или сработал таймаут. Запускаем отправку.");
-                clearInterval(checkInterval); 
-                setTimeout(ensureSent, 500); 
-            }
+            uploadCheckCount++;
+            if (uploadCheckCount > 120) { clearInterval(checkInterval); return; }
+            var stillUploading = document.querySelectorAll('.sm-attachments__progress-bar, .sm-attachments__upload-icon');
+            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"]');
+            if (stillUploading.length > 0) { return; }
+            if (doneLinks.length > 0) { clearInterval(checkInterval); setTimeout(ensureSent, 400); }
         }, 400);
     """.trimIndent()
 
     @Volatile private var uploadSequenceActive = false
 
-    fun startMediaUploadSequence() {}
+    // ─── startMediaUploadSequence ─────────────────────────────────────────────
+    // В sendmsg-режиме (нет координат compose-кнопки) compose УЖЕ открыт.
+    // Координаты НЕ нужны — инжектируем JS напрямую на текущую страницу.
+    fun startMediaUploadSequence() {
+        if (uploadSequenceActive) { log("[Stealth] we skipped double call"); return }
+        uploadSequenceActive = true
+        ui.post {
+            scope.launch {
+                try {
+                    val sysBlock = StealthCache.pendingSysBlock ?: return@launch
+                    StealthCache.pendingSysBlock = null
+                    val c = getCoords()
+                    if (c.composeX == null || c.composeY == null) {
+                        log("[Stealth] sendmsg-режим — compose открыт, инжектируем напрямую")
+                    }
+                    getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
+                    val subject = "Re[${(2..30).random()}]:"
+                    val escSys = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+                    val js = """
+                        (function(){
+                            window._n0gStealthUpload = true;
+                            if (document.activeElement && document.activeElement.tagName !== 'BODY') document.activeElement.blur();
+                            var bodyEl = document.querySelector('.sm-editor__area') || document.querySelector('textarea[name="body"]') || document.querySelector('textarea');
+                            if(bodyEl) {
+                                bodyEl.innerHTML = '';
+                                if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '$escSys'; }
+                                else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl,'$escSys'); } catch(e) { bodyEl.value='$escSys'; } }
+                                bodyEl.dispatchEvent(new Event('input',{bubbles:true}));
+                            }
+                            var subjEl = document.querySelector('#sendmsg__subject') || document.querySelector('input[name="subject"]');
+                            if(subjEl) {
+                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl,'$subject'); } catch(e) { subjEl.value='$subject'; }
+                                subjEl.dispatchEvent(new Event('input',{bubbles:true}));
+                            }
+                            var findFileInput = setInterval(function() {
+                                var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
+                                if (fi) { clearInterval(findFileInput); fi.click(); }
+                            }, 100);
+                            setTimeout(function() { clearInterval(findFileInput); }, 8000);
+                            $POPUP_CRUSHER_JS
+                            $UPLOAD_OBSERVER_JS
+                            // Issue #3: если doSend() не сработает — сброс через 30 сек
+                            setTimeout(function() { window._n0gStealthUpload = false; }, 30000);
+                        })();
+                    """.trimIndent()
+                    getUkrnetWebView()?.evaluateJavascript(js, null)
+                    log("[Stealth] JS инжектирован")
+                } finally {
+                    uploadSequenceActive = false
+                }
+            }
+        }
+    }
 
+    // ─── openCompose ─────────────────────────────────────────────────────────
+    // Порядок проверок (все синхронные — нет гонок потоков):
+    //  1. RECOIL_BLOCK: < 3с после Send → игнорируем (lastSubmitMs ставится ДО ui.post!)
+    //  2. DEBOUNCE: < 300мс после предыдущего openCompose → игнорируем дубль
+    //  3. Нет coords (.ml-header__compose не найден) → мы на sendmsg или мобильной версии
+    //     → проверяем URL асинхронно, если не sendmsg → loadUrl(sendmsg)
+    //  4. Есть coords (десктоп) → старый путь через simulateTouch
     @JavascriptInterface
     fun openCompose(configJson: String) {
         val now = System.currentTimeMillis()
@@ -308,7 +304,6 @@ class MessengerJsInterface(
 
     @JavascriptInterface
     fun setComposeBody(encodedText: String) {
-        lastComposeBody = encodedText
         ui.post {
             val esc = encodedText.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
             val js = """
@@ -329,10 +324,14 @@ class MessengerJsInterface(
         }
     }
 
+    // ─── submitCompose ────────────────────────────────────────────────────────
+    // КРИТИЧНО: lastSubmitMs = ... стоит ДО ui.post{}
+    // Это означает что он устанавливается на WebCore-потоке НЕМЕДЛЕННО при вызове.
+    // Следующий вызов openCompose() (тоже на WebCore-потоке) увидит это значение
+    // сразу — без ожидания Main thread. Это устраняет гонку потоков.
     @JavascriptInterface
     fun submitCompose() {
-        lastSubmitMs = System.currentTimeMillis()
-        lastComposeBody = ""
+        lastSubmitMs = System.currentTimeMillis()   // ← ВНЕ ui.post — немедленно!
         ui.post {
             val js = """
                 (function(){
@@ -342,20 +341,15 @@ class MessengerJsInterface(
                         || document.querySelector('[aria-label="Відправити"]')
                         || document.querySelector('[aria-label="Отправить"]')
                         || document.querySelector('input[type="submit"]');
-                    var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
-                    if (isTouch) {
-                        if (btn) btn.click();
-                    } else {
-                        var toEl = document.querySelector('.sm-auto-complete__input');
-                        var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
-                        if (toEl && !hasChip) {
-                            try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
-                            toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                            toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                            toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                            setTimeout(function() { if (btn) btn.click(); }, 120);
-                        } else { if (btn) btn.click(); }
-                    }
+                    var toEl = document.querySelector('.sm-auto-complete__input') || document.querySelector('input[name="to"]');
+                    var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
+                    if (toEl && !hasChip) {
+                        try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
+                        toEl.dispatchEvent(new Event('input',{bubbles:true}));
+                        toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                        toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                        setTimeout(function() { if (btn) btn.click(); }, 120);
+                    } else { if (btn) btn.click(); }
                 })();
             """.trimIndent()
             getUkrnetWebView()?.evaluateJavascript(js, null)
