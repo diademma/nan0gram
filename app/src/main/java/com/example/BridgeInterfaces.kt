@@ -135,7 +135,12 @@ class MessengerJsInterface(
             window._n0gSending = true;
             function doSend() {
                 var btn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]') || document.querySelector('input[type="submit"]');
-                if (btn) btn.click();
+                if (btn) {
+                    console.log('[Stealth JS] Финальный клик по кнопке отправки выполнен!');
+                    btn.click();
+                } else {
+                    console.error('[Stealth JS] Кнопка отправки не найдена!');
+                }
                 window._n0gStealthUpload = false;
                 setTimeout(function() { window._n0gSending = false; }, 8000);
                 try { if(window.Android && window.Android.onMediaSent) window.Android.onMediaSent(); } catch(e){}
@@ -171,11 +176,26 @@ class MessengerJsInterface(
         var uploadCheckCount = 0;
         var checkInterval = setInterval(function() {
             uploadCheckCount++;
-            if (uploadCheckCount > 120) { clearInterval(checkInterval); return; }
-            var stillUploading = document.querySelectorAll('.sm-attachments__progress-bar, .sm-attachments__upload-icon');
-            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"]');
-            if (stillUploading.length > 0) { return; }
-            if (doneLinks.length > 0) { clearInterval(checkInterval); setTimeout(ensureSent, 400); }
+            if (uploadCheckCount > 120) { 
+                console.error('[Stealth JS] Превышен таймаут ожидания загрузки файла (48с)!');
+                clearInterval(checkInterval); 
+                return; 
+            }
+            // ТОЧНЫЕ АКТУАЛЬНЫЕ СЕЛЕКТОРЫ ПРОЦЕССА ЗАГРУЗКИ UKR.NET
+            var stillUploading = document.querySelectorAll('.sm-attachments__upload, .sm-attachments__upload-icon, .sm-attachments__progress-bar, .sm-attachments__progress-state');
+            
+            // ТОЧНЫЕ АКТУАЛЬНЫЕ СЕЛЕКТОРЫ ГОТОВОГО ФАЙЛА UKR.NET
+            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], .attachment-preview, .sm-attachments__attach-preview');
+            
+            if (stillUploading.length > 0) { 
+                console.log('[Stealth JS] Файл еще загружается, ждем...');
+                return; 
+            }
+            if (doneLinks.length > 0) { 
+                console.log('[Stealth JS] Загрузка файла успешно завершена! Инициируем отправку.');
+                clearInterval(checkInterval); 
+                setTimeout(ensureSent, 400); 
+            }
         }, 400);
     """.trimIndent()
 
@@ -189,15 +209,12 @@ class MessengerJsInterface(
                 try {
                     val sysBlock = StealthCache.pendingSysBlock ?: return@launch
                     StealthCache.pendingSysBlock = null
-                    val c = getCoords()
-                    if (c.composeX == null || c.composeY == null) {
-                        log("[Stealth] sendmsg-режим — compose открыт, инжектируем напрямую")
-                    }
                     getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
                     val subject = "Re[${(2..30).random()}]:"
                     val escSys = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
                     val js = """
                         (function(){
+                            console.log('[Stealth JS] Начинаем процесс загрузки медиафайла...');
                             window._n0gStealthUpload = true;
                             if (document.activeElement && document.activeElement.tagName !== 'BODY') document.activeElement.blur();
                             var bodyEl = document.querySelector('.sm-editor__area') || document.querySelector('textarea[name="body"]') || document.querySelector('textarea');
@@ -206,15 +223,21 @@ class MessengerJsInterface(
                                 if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '$escSys'; }
                                 else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl,'$escSys'); } catch(e) { bodyEl.value='$escSys'; } }
                                 bodyEl.dispatchEvent(new Event('input',{bubbles:true}));
+                                console.log('[Stealth JS] Поле ввода заполнено зашифрованными данными');
                             }
                             var subjEl = document.querySelector('#sendmsg__subject') || document.querySelector('input[name="subject"]');
                             if(subjEl) {
                                 try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl,'$subject'); } catch(e) { subjEl.value='$subject'; }
                                 subjEl.dispatchEvent(new Event('input',{bubbles:true}));
+                                console.log('[Stealth JS] Поле темы заполнено');
                             }
                             var findFileInput = setInterval(function() {
                                 var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
-                                if (fi) { clearInterval(findFileInput); fi.click(); }
+                                if (fi) { 
+                                    clearInterval(findFileInput); 
+                                    console.log('[Stealth JS] Инпут выбора файла успешно найден, кликаем!');
+                                    fi.click(); 
+                                }
                             }, 100);
                             setTimeout(function() { clearInterval(findFileInput); }, 8000);
                             $POPUP_CRUSHER_JS
