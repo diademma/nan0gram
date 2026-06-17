@@ -361,7 +361,27 @@
             window.nan0gram_setMessages(prev => {
                 const updated = { ...prev };
                 if (!updated[cid]) updated[cid] = [];
-                updated[cid].push({ id: Date.now(), type: "out", author: "Я", images: [data.base64], time: data.time });
+                
+                const msgObj = {
+                    id: Date.now(),
+                    type: "out",
+                    author: "Я",
+                    time: data.time
+                };
+                
+                if (data.base64) {
+                    if (data.isVideo) {
+                        msgObj.video = data.base64;
+                    } else if (data.base64.startsWith("data:audio")) {
+                        msgObj.audio = data.base64;
+                    } else {
+                        msgObj.images = [data.base64];
+                    }
+                } else if (data.base64s && data.base64s.length > 0) {
+                    msgObj.images = data.base64s;
+                }
+                
+                updated[cid].push(msgObj);
                 return updated;
             });
         } catch (e) { console.error("Ошибка отображения локального превью:", e); }
