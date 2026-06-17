@@ -215,7 +215,6 @@ private fun WebViewLayer(
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
                             if (url != null && url.contains("sendmsg")) {
-                                // Сбрасываем флаг — новая страница, нужно заполнить снова
                                 view?.evaluateJavascript("window._n0gFilled = false;", null)
                                 view?.evaluateJavascript(SENDMSG_FILL_JS, null)
                                 log("[Compose] sendmsg загружен — заполняем поля")
@@ -267,9 +266,7 @@ private fun WebViewLayer(
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
-                            // Перехватываем клик на любой input[type=file]:
-                            // ставим _n0gStealthPending ДО открытия системного пикера,
-                            // чтобы onFocusIn не вызвал _openComposeIfNeeded при возврате фокуса
+                            // 1. Перехватчик file-picker (оригинал)
                             view?.evaluateJavascript("""
                                 (function(){
                                     if(window._n0gPickerPatch)return;
@@ -280,6 +277,22 @@ private fun WebViewLayer(
                                             window._n0gStealthPending=true;
                                         }
                                     },true);
+                                })();
+                            """.trimIndent(), null)
+                            // 2. Полифил для window.nan0gram._openComposeIfNeeded
+                            // Мессенджер вызывает эту функцию при init, но в текущей версии
+                            // бриджа она не определена — это вызывает TypeError и петлю.
+                            // Делаем её no-op: мессенджер продолжит работу без ошибки.
+                            view?.evaluateJavascript("""
+                                (function polyfillNan0gramFn(){
+                                    if(window.nan0gram){
+                                        if(!window.nan0gram._openComposeIfNeeded){
+                                            window.nan0gram._openComposeIfNeeded=function(){};
+                                            console.log('[Polyfill] _openComposeIfNeeded injected');
+                                        }
+                                    } else {
+                                        setTimeout(polyfillNan0gramFn, 300);
+                                    }
                                 })();
                             """.trimIndent(), null)
                         }
