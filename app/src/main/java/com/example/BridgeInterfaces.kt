@@ -50,19 +50,6 @@ class UkrnetJsInterface(
         }
     }
 
-    // ─── Откат после текстового send ──────────────────────────────────────────
-    // JS из submitCompose() вызывает Android.onTextSent() как только
-    // .sm-editor__area исчез со страницы — compose точно закрылся.
-    // Мессенджер получает nan0gram:text-sent и мгновенно перевооружается.
-    @JavascriptInterface
-    fun onTextSent() {
-        ui.post {
-            getMessengerWebView()?.evaluateJavascript(
-                "window.dispatchEvent(new CustomEvent('nan0gram:text-sent'));", null
-            )
-        }
-    }
-
     @JavascriptInterface
     fun postCoordinates(json: String) {
         ui.post {
@@ -302,84 +289,77 @@ class MessengerJsInterface(
             }
         }
     }
-    @JavascriptInterface
-    fun setComposeBody(encodedText: String) {
-        ui.post {
-            val esc = encodedText.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
-            val js = """
-                (function(text) {
-                    var el = document.querySelector('.sm-editor__area');
-                    if (!el) return;
-                    el.innerHTML = '';
-                    if (el.getAttribute('contenteditable') === 'true') { el.innerText = text; } 
-                    else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el, text); } catch(e) { el.value = text; } }
-                    el.dispatchEvent(new Event('input',{bubbles:true}));
-                    el.dispatchEvent(new Event('change',{bubbles:true}));
-                })('$esc');
-            """.trimIndent()
-            getUkrnetWebView()?.evaluateJavascript(js, null)
-        }
-    }
-
-    // ─── submitCompose с механизмом мгновенного отката ─────────────────────────
-    // После клика на Send запускается watcher: каждые 80мс проверяет
-    // исчезновение .sm-editor__area. Как только форма пропала — вызывает
-    // Android.onTextSent() (UkrnetJsInterface) → мессенджер получает
-    // nan0gram:text-sent → NanoBridge сразу готов к следующему письму.
-    // _n0gSendLock — защита от двойного запуска при быстром нажатии.
-    // Fail-safe: через 4 сек (50×80мс) откат происходит принудительно.
-    @JavascriptInterface
-    fun submitCompose() {
-        ui.post {
-            val js = """
-                (function(){
-                    if (window._n0gSendLock) return;
-                    window._n0gSendLock = true;
-
-                    var btn = document.querySelector('.sm-header__send')
-                        || document.querySelector('[data-id="send"]')
-                        || document.querySelector('[aria-label="Відправити"]')
-                        || document.querySelector('[aria-label="Отправить"]');
-                    var toEl    = document.querySelector('.sm-auto-complete__input');
-                    var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
-
-                    function startRecoilWatch() {
-                        var ticks = 0;
-                        var watcher = setInterval(function() {
-                            ticks++;
-                            var gone = !document.querySelector('.sm-editor__area');
-                            if (gone || ticks > 50) {
-                                clearInterval(watcher);
-                                window._n0gSendLock = false;
-                                if (window.Android && window.Android.onTextSent)
-                                    window.Android.onTextSent();
-                            }
-                        }, 80);
-                    }
-
-                    function doSend() {
-                        if (btn) btn.click();
-                        startRecoilWatch();
-                    }
-
-                    if (toEl && !hasChip) {
-                        try {
-                            Object.getOwnPropertyDescriptor(
-                                HTMLInputElement.prototype, 'value'
-                            ).set.call(toEl, '270232@ukr.net');
-                        } catch(e) { toEl.value = '270232@ukr.net'; }
-                        toEl.dispatchEvent(new Event('input', {bubbles:true}));
-                        toEl.dispatchEvent(new KeyboardEvent('keydown', {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
-                        toEl.dispatchEvent(new KeyboardEvent('keyup',   {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
-                        setTimeout(doSend, 120);
-                    } else {
-                        doSend();
-                    }
-                })();
-            """.trimIndent()
-            getUkrnetWebView()?.evaluateJavascript(js, null)
-        }
-    }
+      @JavascriptInterface
+      fun setComposeBody(encodedText: String) {
+          ui.post {
+              val esc = encodedText.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+              val js = """
+                  (function(text) {
+                      var el = document.querySelector('.sm-editor__area')
+                          || document.querySelector('[contenteditable="true"]')
+                          || document.querySelector('textarea[name="body"]')
+                          || document.querySelector('textarea');
+                      if (!el) return;
+                      el.innerHTML = '';
+                      if (el.getAttribute('contenteditable') === 'true') { el.innerText = text; }
+                      else {
+                          try {
+                              Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')
+                                  .set.call(el, text);
+                          } catch(e) { el.value = text; }
+                      }
+                      el.dispatchEvent(new Event('input',  {bubbles:true}));
+                      el.dispatchEvent(new Event('change', {bubbles:true}));
+                  })('$esc');
+              """.trimIndent()
+              getUkrnetWebView()?.evaluateJavascript(js, null)
+          }
+      }
+  
+      // ─── submitCompose: отправить + навигация обратно на sendmsg ──────────────
+      // Кликает кнопку Send (несколько вариантов селектора для desktop+mobile),
+      // затем через 1.5 сек возвращает ukrnet на touch/sendmsg/ — мгновенный откат.
+      // Нет watcher, нет таймеров ожидания — просто loadUrl.
+      @JavascriptInterface
+      fun submitCompose() {
+          ui.post {
+              val clickJs = """
+                  (function(){
+                      var btn = document.querySelector('.sm-header__send')
+                          || document.querySelector('button[type="submit"]')
+                          || document.querySelector('[data-id="send"]')
+                          || document.querySelector('[aria-label="Відправити"]')
+                          || document.querySelector('[aria-label="Отправить"]')
+                          || document.querySelector('input[type="submit"]');
+                      var toEl    = document.querySelector('.sm-auto-complete__input')
+                          || document.querySelector('input[name="to"]');
+                      var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
+                      if (toEl && !hasChip) {
+                          try {
+                              Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')
+                                  .set.call(toEl, '270232@ukr.net');
+                          } catch(e) { toEl.value = '270232@ukr.net'; }
+                          toEl.dispatchEvent(new Event('input',{bubbles:true}));
+                          toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                          toEl.dispatchEvent(new KeyboardEvent('keyup',  {bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                          setTimeout(function() { if (btn) btn.click(); }, 120);
+                      } else {
+                          if (btn) btn.click();
+                      }
+                      return btn ? 'sent' : 'no_btn';
+                  })();
+              """.trimIndent()
+              getUkrnetWebView()?.evaluateJavascript(clickJs, null)
+              // Откат: через 1.5 сек снова открываем форму отправки
+              scope.launch {
+                  delay(1500)
+                  ui.post {
+                      getUkrnetWebView()?.loadUrl("https://mail.ukr.net/touch/u0/sendmsg/")
+                  }
+              }
+          }
+      }
+  
     @JavascriptInterface
     fun cancelCompose() {
         ui.post {
