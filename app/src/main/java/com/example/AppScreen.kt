@@ -206,6 +206,7 @@ private fun WebViewLayer(
                         loadWithOverviewMode = true
                         allowFileAccess      = true
                         allowContentAccess   = true
+                        javaScriptCanOpenWindowsAutomatically = true
                         userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                     }
                     CookieManager.getInstance().setAcceptCookie(true)
@@ -266,9 +267,7 @@ private fun WebViewLayer(
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
-                            // Перехватываем клик на любой input[type=file]:
-                            // ставим _n0gStealthPending = true ДО открытия системного пикера,
-                            // чтобы onFocusIn не вызвал _openComposeIfNeeded при возврате фокуса
+                            // 1. Перехватчик file-picker: ставим _n0gStealthPending ДО открытия системного пикера
                             view?.evaluateJavascript("""
                                 (function(){
                                     if(window._n0gPickerPatch)return;
@@ -281,14 +280,12 @@ private fun WebViewLayer(
                                     },true);
                                 })();
                             """.trimIndent(), null)
-                            
-                            // 2. Полифил для window.nan0gram._openComposeIfNeeded
+                            // 2. Полифил
                             view?.evaluateJavascript("""
                                 (function polyfillNan0gramFn(){
                                     if(window.nan0gram){
                                         if(!window.nan0gram._openComposeIfNeeded){
                                             window.nan0gram._openComposeIfNeeded=function(){};
-                                            console.log('[Polyfill] _openComposeIfNeeded injected');
                                         }
                                     } else {
                                         setTimeout(polyfillNan0gramFn, 300);
