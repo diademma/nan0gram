@@ -216,9 +216,8 @@ class MessengerJsInterface(
                     // Убиваем любой lingering COMPOSE_FILL_JS перед инжекцией
                     getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
 
-                    val subject = "Re[${'$'}{(2..30).random()}]:"
-                    val escSys = sysBlock.replace("\", "\\").replace("'", "\'").replace("
-", "\n")
+                    val subject = "Re[${(2..30).random()}]:"
+                    val escSys = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
 
                     val js = """
                         (function(){
@@ -229,13 +228,13 @@ class MessengerJsInterface(
                             var bodyEl = document.querySelector('.sm-editor__area');
                             if(bodyEl) {
                                 bodyEl.innerHTML = '';
-                                if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '${'$'}escSys'; } 
-                                else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl, '${'$'}escSys'); } catch(e) { bodyEl.value = '${'$'}escSys'; } }
+                                if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '$escSys'; } 
+                                else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl, '$escSys'); } catch(e) { bodyEl.value = '$escSys'; } }
                                 bodyEl.dispatchEvent(new Event('input',{bubbles:true}));
                             }
                             var subjEl = document.querySelector('#sendmsg__subject');
                             if(subjEl) {
-                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl, '${'$'}subject'); } catch(e) { subjEl.value = '${'$'}subject'; }
+                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl, '$subject'); } catch(e) { subjEl.value = '$subject'; }
                                 subjEl.dispatchEvent(new Event('input',{bubbles:true}));
                             }
                             // findFileInput ждёт до 8 сек — compose может ещё открываться
@@ -247,8 +246,8 @@ class MessengerJsInterface(
                                 }
                             }, 100);
                             setTimeout(function() { clearInterval(findFileInput); }, 8000);
-                            ${'$'}POPUP_CRUSHER_JS
-                            ${'$'}UPLOAD_OBSERVER_JS
+                            $POPUP_CRUSHER_JS
+                            $UPLOAD_OBSERVER_JS
                         })();
                     """.trimIndent()
                     getUkrnetWebView()?.evaluateJavascript(js, null)
@@ -268,7 +267,7 @@ class MessengerJsInterface(
             getUkrnetWebView()?.evaluateJavascript(
                 "(document.querySelector('.sm-editor__area') !== null).toString();"
             ) { value ->
-                val isOpen = value?.trim()?.replace(""", "") == "true"
+                val isOpen = value?.trim()?.replace("\"", "") == "true"
                 scope.launch {
                     val c = getCoords()
                     if (c.composeX == null || c.composeY == null) return@launch
@@ -290,7 +289,6 @@ class MessengerJsInterface(
             }
         }
     }
-
     @JavascriptInterface
     fun setComposeBody(encodedText: String) {
         ui.post {
