@@ -215,6 +215,8 @@ private fun WebViewLayer(
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
                             if (url != null && url.contains("sendmsg")) {
+                                // Сбрасываем флаг — новая страница, нужно заполнить снова
+                                view?.evaluateJavascript("window._n0gFilled = false;", null)
                                 view?.evaluateJavascript(SENDMSG_FILL_JS, null)
                                 log("[Compose] sendmsg загружен — заполняем поля")
                             }
