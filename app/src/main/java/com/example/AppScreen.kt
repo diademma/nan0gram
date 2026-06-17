@@ -212,6 +212,13 @@ private fun WebViewLayer(
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                     addJavascriptInterface(ukrnetInterface, "Android")
                     webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            if (url != null && url.contains("sendmsg")) {
+                                view?.evaluateJavascript(SENDMSG_FILL_JS, null)
+                                log("[Compose] sendmsg загружен — заполняем поля")
+                            }
+                        }
                         override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                             super.doUpdateVisitedHistory(view, url, isReload)
                             if (url != null) ukrnetInterface.onUrlChange(url)
