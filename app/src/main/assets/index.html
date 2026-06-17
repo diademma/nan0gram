@@ -948,6 +948,32 @@ Error generating stack: `+e.message+`
   NanoBridge.init();
 
   // Слушатель для автоматического приема и добавления входящих сообщений в React UI
+    // Слушатель для красивой копии локально выбранного медиа
+  window.addEventListener('nan0gram:local-media-sent', function(event) {
+    if (typeof window.nan0gram_setMessages !== 'function') return;
+    try {
+      const data = JSON.parse(event.detail);
+      const activeChatEl = document.querySelector('.chat-item.active');
+      const cid = activeChatEl ? activeChatEl.getAttribute('data-chat-id') : 'chat_1';
+      
+      window.nan0gram_setMessages(prev => {
+        const updated = { ...prev };
+        if (!updated[cid]) updated[cid] = [];
+        updated[cid].push({
+          id: Date.now(),
+          type: "out",
+          author: "Я",
+          images: [data.base64],
+          time: data.time
+        });
+        return updated;
+      });
+    } catch (e) {
+      console.error("Ошибка отображения локального превью:", e);
+    }
+  });
+
+  // Слушатель для автоматического приема и добавления входящих сообщений в React UI
   window.addEventListener('nan0gram:email-received', function(event) {
     if (typeof window.nan0gram_setMessages !== 'function') return;
     try {
