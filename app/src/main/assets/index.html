@@ -986,7 +986,8 @@ Error generating stack: `+e.message+`
       var input = document.querySelector('.msg-input');
       if (input && input.value.trim() && window.nan0gram && window.nan0gram.submitCompose) {
         window.nan0gram.submitCompose(input.value.trim());
-        input.blur(); // Снимаем фокус и прячем клавиатуру!
+        // input.blur();
+          setTimeout(function() { input.focus(); }, 10);
       }
     }
   }, {capture: true});
