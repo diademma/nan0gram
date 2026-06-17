@@ -137,7 +137,7 @@ class MessengerJsInterface(
             if (window._n0gSending) return;
             window._n0gSending = true;
             var toEl = document.querySelector('.sm-auto-complete__input') || document.querySelector('input[name="to"]');
-            var inputVal = toEl ? toEl.value.trim() : '';
+            var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
             function doSend() {
                 var btn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]') || document.querySelector('input[type="submit"]');
                 if (btn) btn.click();
@@ -145,25 +145,30 @@ class MessengerJsInterface(
                 setTimeout(function() { window._n0gSending = false; }, 8000);
                 try { if(window.Android && window.Android.onMediaSent) window.Android.onMediaSent(); } catch(e){}
             }
-            function waitClearThenSend(inputEl) {
-                var waited = 0;
-                var t = setInterval(function() {
-                    waited++;
-                    var val = inputEl ? inputEl.value.trim() : '';
-                    if (val === '' || waited > 25) { clearInterval(t); if (val === '') { setTimeout(doSend, 400); } else { window._n0gSending = false; } }
-                }, 150);
+            if (toEl) {
+                var val = toEl.value.trim();
+                if (val === '270232@ukr.net' && !hasChip) {
+                    doSend();
+                } else if (hasChip) {
+                    doSend();
+                } else {
+                    try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
+                    toEl.dispatchEvent(new Event('input',{bubbles:true}));
+                    toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                    toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                    var waited = 0;
+                    var t = setInterval(function() {
+                        waited++;
+                        var currentVal = toEl.value.trim();
+                        if (currentVal === '' || waited > 15) {
+                            clearInterval(t);
+                            setTimeout(doSend, 400);
+                        }
+                    }, 150);
+                }
+            } else {
+                doSend();
             }
-            if (inputVal !== '') {
-                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                waitClearThenSend(toEl);
-            } else if (toEl) {
-                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
-                toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                waitClearThenSend(toEl);
-            } else { doSend(); }
         }
     """.trimIndent()
 
@@ -334,9 +339,10 @@ class MessengerJsInterface(
                         || document.querySelector('[aria-label="Відправити"]')
                         || document.querySelector('[aria-label="Отправить"]')
                         || document.querySelector('input[type="submit"]');
-                    var toEl = document.querySelector('.sm-auto-complete__input') || document.querySelector('input[name="to"]');
+                                        var toEl = document.querySelector('.sm-auto-complete__input') || document.querySelector('input[name="to"]');
                     var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
-                    if (toEl && !hasChip) {
+                    var alreadyFilled = (toEl && toEl.value && toEl.value.indexOf('270232@ukr.net') !== -1);
+                    if (toEl && !hasChip && !alreadyFilled) {
                         try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
                         toEl.dispatchEvent(new Event('input',{bubbles:true}));
                         toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
