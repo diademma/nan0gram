@@ -1600,6 +1600,8 @@ html, body, #root {
   border-radius: 10px;
   object-fit: cover;
 }
+
+/* Наложение даты и статуса отправки прямо поверх правого нижнего угла картинки/видео (когда нет подписи) */
 .message:has(.msg-album-container):not(:has([style*="pre-wrap"])) .msg-bottom-flow,
 .message:has(.video-thumb-wrapper):not(:has([style*="pre-wrap"])) .msg-bottom-flow {
   position: absolute;
@@ -1620,4 +1622,52 @@ html, body, #root {
 .message:has(.msg-album-container):not(:has([style*="pre-wrap"])) .msg-meta span,
 .message:has(.video-thumb-wrapper):not(:has([style*="pre-wrap"])) .msg-meta span {
   color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* 🎯 РЕАКЦИИ: Если есть реакция, отменяем наложение даты поверх фото,
+   чтобы реакция и дата ложились аккуратно под фото на дно бабла, не перекрывая картинку */
+.message:has(.reactions-container) {
+  padding: 4px 4px 6px 4px !important;
+}
+.message:has(.reactions-container) .msg-bottom-flow {
+  position: static !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
+  margin-top: 4px !important;
+  background: transparent !important;
+  padding: 0 4px !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.message:has(.reactions-container) .msg-meta,
+.message:has(.reactions-container) .msg-meta span {
+  color: var(--text-time) !important;
+}
+.message:has(.reactions-container) .reactions-container {
+  margin-top: 0 !important;
+}
+
+/* 🎯 ПОДПИСЬ К ФОТО: Если в бабле с фото есть текст подписи (style*="pre-wrap"),
+   растягиваем одиночное фото на всю ширину бабла (100%) с аккуратным кропом (cover), как в ТГ */
+.message:has([style*="pre-wrap"]) .msg-album-container {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+.message:has([style*="pre-wrap"]) .album-row:only-child .album-img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 200px !important;
+  object-fit: cover !important;
+}
+.message:has([style*="pre-wrap"]) .video-thumb-wrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 200px !important;
+}
+.message:has([style*="pre-wrap"]) .video-thumb {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
 }
