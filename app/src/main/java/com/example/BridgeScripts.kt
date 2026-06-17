@@ -10,7 +10,7 @@ object UkrnetSelectors {
     const val ATTACH_BUTTON = "button.sm-header__attach"
     const val CANCEL_BUTTON = ".sm-header__cancel"
 
-    // Индикаторы загрузки
+    // Инфикаторы загрузки
     const val ATTACH_PROGRESS = ".sm-attachments__progress-state"
     const val LOADER = ".sm-header__loader"
 
