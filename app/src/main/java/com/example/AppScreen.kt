@@ -61,6 +61,10 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import java.io.File
 import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import org.json.JSONObject
 
 // Стелс-кэш для скрытой передачи файлов между WebView
 object StealthCache {
@@ -80,6 +84,20 @@ fun createStealthCopy(context: Context, originalUri: Uri): Uri? {
         Uri.fromFile(file)
     } catch (e: Exception) {
         null
+    }
+}
+
+// Утилита перевода выбранного медиафайла в Base64 для красивого превью в мессенджере
+fun uriToBase64(context: Context, uri: Uri): String {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return ""
+        val bytes = inputStream.readBytes()
+        inputStream.close()
+        val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+        val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+        "data:$mimeType;base64,$b64"
+    } catch (e: Exception) {
+        ""
     }
 }
 
@@ -156,41 +174,55 @@ private fun WebViewLayer(
     log: (String) -> Unit
 ) {
     val context = LocalContext.current
-    var filePathCallback by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
+    var ukrnetFilePathCallback by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
     
-    // Перехватчик файлов мессенджера
-    val fileChooserLauncher = rememberLauncherForActivityResult(
+    var ukrnetWebViewInstance by remember { mutableStateOf<WebView?>(null) }
+    var messengerWebViewInstance by remember { mutableStateOf<WebView?>(null) }
+    
+    // Прямой перехватчик файлов УкрНета (без шифрования, оригинальный нативный аплоад)
+    val ukrnetFileChooserLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val data = result.data?.data
-        val dataClip = result.data?.clipData
-        val originalUris = mutableListOf<Uri>()
-        val stealthUris = mutableListOf<Uri>()
-
-        try {
-            if (data != null) {
-                originalUris.add(data)
-                createStealthCopy(context, data)?.let { stealthUris.add(it) }
-            } else if (dataClip != null) {
-                for (i in 0 until dataClip.itemCount) {
-                    val u = dataClip.getItemAt(i).uri
-                    originalUris.add(u)
-                    createStealthCopy(context, u)?.let { stealthUris.add(it) }
-                }
+        val uri = result.data?.data
+        val clipData = result.data?.clipData
+        val selectedUris = mutableListOf<Uri>()
+        if (uri != null) {
+            selectedUris.add(uri)
+        } else if (clipData != null) {
+            for (i in 0 until clipData.itemCount) {
+                selectedUris.add(clipData.getItemAt(i).uri)
             }
-            if (stealthUris.isNotEmpty()) {
-                StealthCache.pendingUris = stealthUris.toTypedArray()
-                log("[Stealth] Файлы закэшированы как .bin (${stealthUris.size} шт)")
-            }
-            if (originalUris.isNotEmpty()) {
-                filePathCallback?.onReceiveValue(originalUris.toTypedArray())
-            } else {
-                filePathCallback?.onReceiveValue(null)
-            }
-        } catch (e: Exception) {
-            filePathCallback?.onReceiveValue(null)
         }
-        filePathCallback = null
+        
+        if (selectedUris.isNotEmpty()) {
+            // 1. Отдаем файлы УкрНету напрямую для стандартного быстрого аплоада
+            ukrnetFilePathCallback?.onReceiveValue(selectedUris.toTypedArray())
+            log("[Stealth] Файлы переданы напрямую в УкрНет для нативной загрузки.")
+            
+            // 2. Генерируем красивую копию для мгновенного отображения в Мессенджере
+            val firstUri = selectedUris.first()
+            val b64 = uriToBase64(context, firstUri)
+            if (b64.isNotEmpty()) {
+                val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                val chatData = JSONObject().apply {
+                    put("base64", b64)
+                    put("time", timeStr)
+                }
+                val escaped = chatData.toString().replace("\\", "\\\\").replace("\"", "\\\"")
+                messengerWebViewInstance?.evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \"$escaped\" }));", null
+                )
+            }
+        } else {
+            ukrnetFilePathCallback?.onReceiveValue(null)
+        }
+        ukrnetFilePathCallback = null
+        
+        // Возвращаем мессенджер на передний план
+        ukrnetWebViewInstance?.isFocusable = false
+        ukrnetWebViewInstance?.isFocusableInTouchMode = false
+        messengerWebViewInstance?.bringToFront()
+        messengerWebViewInstance?.requestFocus()
     }
 
     AndroidView(
@@ -206,6 +238,7 @@ private fun WebViewLayer(
                         loadWithOverviewMode = true
                         allowFileAccess      = true
                         allowContentAccess   = true
+                        javaScriptCanOpenWindowsAutomatically = true
                         userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                     }
                     CookieManager.getInstance().setAcceptCookie(true)
@@ -249,27 +282,39 @@ private fun WebViewLayer(
                         }
                     }
                     webChromeClient = object : WebChromeClient() {
-                        override fun onConsoleMessage(m: ConsoleMessage?) = true
+                        override fun onConsoleMessage(m: ConsoleMessage?): Boolean {
+                            val level = m?.messageLevel()?.name ?: "LOG"
+                            log("[Ukrnet JS] [$level] ${m?.message()} (${m?.lineNumber()})")
+                            return true
+                        }
                         
-                        // Слепой курьер: УкрНет запрашивает файл, а мы втихую отдаем ему кэш .bin
                         override fun onShowFileChooser(
                             webView: WebView?,
                             filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?,
                             fileChooserParams: FileChooserParams?
                         ): Boolean {
-                            if (StealthCache.pendingUris != null) {
-                                filePathCallbackParams?.onReceiveValue(StealthCache.pendingUris)
-                                StealthCache.pendingUris = null
-                                log("[Stealth] УкрНету успешно скормлен .bin файл!")
-                                return true
+                            ukrnetFilePathCallback = filePathCallbackParams
+                            try {
+                                val intent = fileChooserParams?.createIntent()
+                                if (intent != null) {
+                                    ukrnetFileChooserLauncher.launch(intent)
+                                } else {
+                                    ukrnetFilePathCallback?.onReceiveValue(null)
+                                    ukrnetFilePathCallback = null
+                                    return false
+                                }
+                            } catch (e: Exception) {
+                                ukrnetFilePathCallback?.onReceiveValue(null)
+                                ukrnetFilePathCallback = null
+                                return false
                             }
-                            filePathCallbackParams?.onReceiveValue(null)
                             return true
                         }
                     }
                     loadUrl("https://mail.ukr.net/desktop/login")
                 }
                 onUkrnetViewReady(uWebView)
+                ukrnetWebViewInstance = uWebView
                 addView(uWebView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
 
                 val mWebView = WebView(ctx).apply {
@@ -286,25 +331,47 @@ private fun WebViewLayer(
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
-                            // 1. Перехватчик file-picker: ставим _n0gStealthPending ДО открытия системного пикера
                             view?.evaluateJavascript("""
                                 (function(){
-                                    if(window._n0gPickerPatch)return;
-                                    window._n0gPickerPatch=true;
-                                    document.addEventListener('click',function(e){
-                                        var t=e.target;
-                                        if(t&&t.tagName==='INPUT'&&t.type==='file'){
-                                            window._n0gStealthPending=true;
+                                    if(window._n0gDirectPickerPatch)return;
+                                    window._n0gDirectPickerPatch=true;
+                                    
+                                    function triggerStealthAttach() {
+                                        if (window.Android && window.Android.prepareForDirectAttach) {
+                                            window.Android.prepareForDirectAttach();
                                         }
-                                    },true);
+                                    }
+                                    
+                                    document.addEventListener('touchstart', function(e) {
+                                        var t = e.target.closest('.input-icon');
+                                        if (t && (t.textContent.indexOf('📎') !== -1 || t.textContent.indexOf('🎬') !== -1)) {
+                                            triggerStealthAttach();
+                                        }
+                                    }, true);
+
+                                    document.addEventListener('mousedown', function(e) {
+                                        var t = e.target.closest('.input-icon');
+                                        if (t && (t.textContent.indexOf('📎') !== -1 || t.textContent.indexOf('🎬') !== -1)) {
+                                            triggerStealthAttach();
+                                        }
+                                    }, true);
+
+                                    document.addEventListener('click', function(e) {
+                                        var t = e.target.closest('.input-icon');
+                                        if (t && (t.textContent.indexOf('📎') !== -1 || t.textContent.indexOf('🎬') !== -1)) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                        }
+                                    }, true);
                                 })();
                             """.trimIndent(), null)
-                            // 2. Полифил
+                            
                             view?.evaluateJavascript("""
                                 (function polyfillNan0gramFn(){
                                     if(window.nan0gram){
                                         if(!window.nan0gram._openComposeIfNeeded){
                                             window.nan0gram._openComposeIfNeeded=function(){};
+                                            console.log('[Polyfill] _openComposeIfNeeded injected');
                                         }
                                     } else {
                                         setTimeout(polyfillNan0gramFn, 300);
@@ -327,28 +394,15 @@ private fun WebViewLayer(
                             filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?,
                             fileChooserParams: FileChooserParams?
                         ): Boolean {
-                            filePathCallback?.onReceiveValue(null)
-                            filePathCallback = filePathCallbackParams
-                            try {
-                                val intent = fileChooserParams?.createIntent()
-                                if (intent != null) {
-                                    fileChooserLauncher.launch(intent)
-                                } else {
-                                    filePathCallback?.onReceiveValue(null)
-                                    filePathCallback = null
-                                    return false
-                                }
-                            } catch (e: Exception) {
-                                filePathCallback?.onReceiveValue(null)
-                                filePathCallback = null
-                                return false
-                            }
+                            filePathCallbackParams?.onReceiveValue(null)
                             return true
                         }
                     }
                     loadUrl("file:///android_asset/index.html")
                 }
                 onMessengerViewReady(mWebView)
+                messengerWebViewInstance = mWebView
+                messengerInterface.getMessengerWebView = { mWebView } // Привязываем ссылку на мессенджер в рантайме
                 addView(mWebView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
             }
         },
@@ -356,14 +410,19 @@ private fun WebViewLayer(
             val ukrV  = frameLayout.findViewWithTag<WebView>("ukrnet")
             val messV = frameLayout.findViewWithTag<WebView>("messenger")
             if (isBgServiceActive) {
+                ukrV?.isFocusable = true
+                ukrV?.isFocusableInTouchMode = true
                 messV?.visibility = View.GONE
                 ukrV?.visibility  = View.VISIBLE
                 ukrV?.bringToFront()
             } else {
+                ukrV?.isFocusable = false
+                ukrV?.isFocusableInTouchMode = false
                 ukrV?.visibility  = View.VISIBLE
                 messV?.visibility = View.VISIBLE
                 messV?.alpha      = uiAlpha
                 messV?.bringToFront()
+                messV?.requestFocus()
             }
         },
         modifier = Modifier.fillMaxSize().zIndex(0f)
