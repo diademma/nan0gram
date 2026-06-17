@@ -102,12 +102,12 @@ class MainActivity : ComponentActivity() {
                 UkrnetJsInterface(
                     log                 = ::log,
                     onLoginSuccess      = {
-                  hasHandledLogin = true
-                  isBgServiceActive = false
-                  android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                      ukrnetWebView?.loadUrl("https://mail.ukr.net/touch/u0/sendmsg/")
-                  }, 600)
-              },
+                hasHandledLogin = true
+                isBgServiceActive = false
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    ukrnetWebView?.loadUrl("https://mail.ukr.net/touch/u0/sendmsg/")
+                }, 600)
+            },
                     onCoordsUpdate      = { coords = it },
                     onFirstCoordsLogged = { },
                     getMessengerWebView = { messengerWebView },
