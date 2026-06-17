@@ -41,12 +41,11 @@ class UkrnetJsInterface(
 
     @JavascriptInterface
     fun onMediaSent() {
-        // Медиа отправлено — сбрасываем _composeOpen в NanoBridge мессенджера.
-        // Без этого следующий тап на textarea увидит _composeOpen=true и пропустит
-        // _openComposeIfNeeded, хотя реального compose-окна уже нет.
+        // Диспатчим событие в мессенджер: NanoBridge сбросит _composeOpen
+        // и сам вызовет _openComposeIfNeeded(true) → новый compose готов
         ui.post {
             getMessengerWebView()?.evaluateJavascript(
-                "if(window.nan0gram) window.nan0gram._composeOpen = false;", null
+                "window.dispatchEvent(new CustomEvent('nan0gram:media-sent'));", null
             )
         }
     }
@@ -197,67 +196,49 @@ class MessengerJsInterface(
     // @Volatile флаг против двойного запуска (race-condition fix)
     @Volatile private var uploadSequenceActive = false
 
-    // Умный запуск загрузки медиа
+    // Persistent compose mode: compose всегда открыт, просто заполняем и прикрепляем
     fun startMediaUploadSequence() {
         if (uploadSequenceActive) {
-            log("[Stealth] Дубль вызова startMediaUploadSequence — пропускаем")
+            log("[Stealth] Дубль вызова — пропускаем")
             return
         }
         uploadSequenceActive = true
         ui.post {
-            // Проверяем, открыто ли уже окно создания письма в УкрНэте
-            getUkrnetWebView()?.evaluateJavascript("(function(){ return document.querySelector('.sm-editor__area') !== null; })();") { value ->
-                val isAlreadyOpen = value?.toBoolean() ?: false
-                
-                scope.launch {
-                    try {
+            scope.launch {
+                try {
                     val sysBlock = StealthCache.pendingSysBlock ?: return@launch
                     StealthCache.pendingSysBlock = null
-                    
                     val c = getCoords()
-                    if (c.composeX == null || c.composeY == null) return@launch
-                    
-                    // Кликаем по кнопке создания черновика только если он еще не открыт!
-                    if (!isAlreadyOpen) {
-                        log("[Stealth] Окно закрыто. Открываем новое...")
-                        // Флаг ДО открытия: убивает любой lingering COMPOSE_FILL_JS
-                        getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
-                        getUkrnetWebView()?.evaluateJavascript(FOCUS_PATCH_JS, null)
-                        delay(60)
-                        simulateTouch(getUkrnetWebView(), c.composeX, c.composeY, log = log)
-                        delay(400)
-                    } else {
-                        log("[Stealth] Окно уже открыто. Используем текущую сессию...")
-                        getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
+                    if (c.composeX == null || c.composeY == null) {
+                        log("[Stealth] Нет координат — пропускаем")
+                        return@launch
                     }
-                    
-                    // Всегда маскируем тему под Re[X]! Никаких статичных тем нанограм чат!
-                    val subject = "Re[${(2..30).random()}]:"
-                    val escSys = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
-                    
+                    // Убиваем любой lingering COMPOSE_FILL_JS перед инжекцией
+                    getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
+
+                    val subject = "Re[${'$'}{(2..30).random()}]:"
+                    val escSys = sysBlock.replace("\", "\\").replace("'", "\'").replace("
+", "\n")
+
                     val js = """
                         (function(){
-                            // Стелс-режим: подтверждаем флаг, снимаем фокус (блокируем клавиатуру ukrnet)
                             window._n0gStealthUpload = true;
                             if (document.activeElement && document.activeElement.tagName !== 'BODY') {
                                 document.activeElement.blur();
                             }
-                            // Очищаем форму от мусора старых черновиков
                             var bodyEl = document.querySelector('.sm-editor__area');
                             if(bodyEl) {
                                 bodyEl.innerHTML = '';
-                                if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '$escSys'; } 
-                                else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl, '$escSys'); } catch(e) { bodyEl.value = '$escSys'; } }
+                                if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '${'$'}escSys'; } 
+                                else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl, '${'$'}escSys'); } catch(e) { bodyEl.value = '${'$'}escSys'; } }
                                 bodyEl.dispatchEvent(new Event('input',{bubbles:true}));
                             }
-                            
                             var subjEl = document.querySelector('#sendmsg__subject');
                             if(subjEl) {
-                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl, '$subject'); } catch(e) { subjEl.value = '$subject'; }
+                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl, '${'$'}subject'); } catch(e) { subjEl.value = '${'$'}subject'; }
                                 subjEl.dispatchEvent(new Event('input',{bubbles:true}));
                             }
-                            
-                            // Динамическое ожидание появления инпута скрепки в DOM перед кликом
+                            // findFileInput ждёт до 8 сек — compose может ещё открываться
                             var findFileInput = setInterval(function() {
                                 var fileInput = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
                                 if (fileInput) {
@@ -265,18 +246,15 @@ class MessengerJsInterface(
                                     fileInput.click();
                                 }
                             }, 100);
-                            setTimeout(function() { clearInterval(findFileInput); }, 5000);
-                            
-                            $POPUP_CRUSHER_JS
-                            $UPLOAD_OBSERVER_JS
-                            // Issue #3: если doSend() не сработает — сброс через 30 сек
-                            setTimeout(function() { window._n0gStealthUpload = false; }, 30000);
+                            setTimeout(function() { clearInterval(findFileInput); }, 8000);
+                            ${'$'}POPUP_CRUSHER_JS
+                            ${'$'}UPLOAD_OBSERVER_JS
                         })();
                     """.trimIndent()
                     getUkrnetWebView()?.evaluateJavascript(js, null)
-                    } finally {
-                        uploadSequenceActive = false
-                    }
+                    log("[Stealth] JS инжектирован")
+                } finally {
+                    uploadSequenceActive = false
                 }
             }
         }
@@ -285,17 +263,30 @@ class MessengerJsInterface(
     @JavascriptInterface
     fun openCompose(configJson: String) {
         ui.post {
-            scope.launch {
-                val c = getCoords()
-                if (c.composeX == null || c.composeY == null) return@launch
-                getUkrnetWebView()?.evaluateJavascript(FOCUS_PATCH_JS, null)
-                delay(60)
-                simulateTouch(getUkrnetWebView(), c.composeX, c.composeY, log = log)
-                val to = "270232@ukr.net"
-                // Всегда генерируем стелс-тему Re[X]: при вводе сообщений!
-                val subject = "Re[${(2..30).random()}]:"
-                val fillJs = COMPOSE_FILL_JS.replace("%TO%", to).replace("%SUBJECT%", subject)
-                getUkrnetWebView()?.evaluateJavascript(fillJs, null)
+            // Persistent mode: если compose уже открыт — только заполняем поля,
+            // simulateTouch не нужен (не открываем второй compose поверх первого)
+            getUkrnetWebView()?.evaluateJavascript(
+                "(document.querySelector('.sm-editor__area') !== null).toString();"
+            ) { value ->
+                val isOpen = value?.trim()?.replace(""", "") == "true"
+                scope.launch {
+                    val c = getCoords()
+                    if (c.composeX == null || c.composeY == null) return@launch
+                    if (!isOpen) {
+                        log("[Compose] Закрыт — открываем через simulateTouch")
+                        getUkrnetWebView()?.evaluateJavascript(FOCUS_PATCH_JS, null)
+                        delay(60)
+                        simulateTouch(getUkrnetWebView(), c.composeX, c.composeY, log = log)
+                        delay(400)
+                    } else {
+                        log("[Compose] Уже открыт — только заполняем поля")
+                    }
+                    val subject = "Re[${(2..30).random()}]:"
+                    val fillJs = COMPOSE_FILL_JS
+                        .replace("%TO%", "270232@ukr.net")
+                        .replace("%SUBJECT%", subject)
+                    getUkrnetWebView()?.evaluateJavascript(fillJs, null)
+                }
             }
         }
     }
