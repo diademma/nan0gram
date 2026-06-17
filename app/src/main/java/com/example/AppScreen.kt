@@ -181,8 +181,6 @@ private fun WebViewLayer(
             if (stealthUris.isNotEmpty()) {
                 StealthCache.pendingUris = stealthUris.toTypedArray()
                 log("[Stealth] Файлы закэшированы как .bin (${stealthUris.size} шт)")
-                // startMediaUploadSequence запускается ТОЛЬКО из notifyMediaSelection
-                // (один источник правды, нет race-condition двойного вызова)
             }
             if (originalUris.isNotEmpty()) {
                 filePathCallback?.onReceiveValue(originalUris.toTypedArray())
@@ -206,6 +204,9 @@ private fun WebViewLayer(
                         databaseEnabled      = true
                         useWideViewPort      = true
                         loadWithOverviewMode = true
+                        allowFileAccess      = true
+                        allowContentAccess   = true
+                        javaScriptCanOpenWindowsAutomatically = true
                         userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                     }
                     CookieManager.getInstance().setAcceptCookie(true)
@@ -221,21 +222,7 @@ private fun WebViewLayer(
                                 val bufferedBody = messengerInterface.lastComposeBody
                                 if (bufferedBody.isNotEmpty()) {
                                     val esc = bufferedBody.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
-                                    val js = """
-                                        (function(text) {
-                                            var el = document.querySelector('.sm-editor__area')
-                                                || document.querySelector('[contenteditable="true"]')
-                                                || document.querySelector('textarea[name="body"]')
-                                                || document.querySelector('textarea');
-                                            if (!el) return;
-                                            el.innerHTML = '';
-                                            if (el.getAttribute('contenteditable') === 'true') { el.innerText = text; }
-                                            else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el,text); } catch(e) { el.value=text; } }
-                                            el.dispatchEvent(new Event('input',{bubbles:true}));
-                                            el.dispatchEvent(new Event('change',{bubbles:true}));
-                                        })('$esc');
-                                    """.trimIndent()
-                                    view?.evaluateJavascript(js, null)
+                                    view?.evaluateJavascript("(function(t){ var el = document.querySelector('.sm-editor__area') || document.querySelector(\"[contenteditable='true']\") || document.querySelector(\"textarea[name='body']\") || document.querySelector('textarea'); if(el){ el.innerHTML=''; if(el.getAttribute('contenteditable')==='true'){ el.innerText=t; }else{ el.value=t; } el.dispatchEvent(new Event('input',{bubbles:true})); } })('$esc');", null)
                                     log("[Compose] Восстановлен текст из буфера быстрого ввода")
                                 }
                             }
@@ -249,7 +236,11 @@ private fun WebViewLayer(
                         }
                     }
                     webChromeClient = object : WebChromeClient() {
-                        override fun onConsoleMessage(m: ConsoleMessage?) = true
+                        override fun onConsoleMessage(m: ConsoleMessage?): Boolean {
+                            val level = m?.messageLevel()?.name ?: "LOG"
+                            log("[Ukrnet JS] [$level] ${m?.message()} (${m?.lineNumber()})")
+                            return true
+                        }
                         
                         // Слепой курьер: УкрНет запрашивает файл, а мы втихую отдаем ему кэш .bin
                         override fun onShowFileChooser(
@@ -286,7 +277,6 @@ private fun WebViewLayer(
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
-                            // 1. Перехватчик file-picker (оригинал)
                             view?.evaluateJavascript("""
                                 (function(){
                                     if(window._n0gPickerPatch)return;
@@ -299,10 +289,6 @@ private fun WebViewLayer(
                                     },true);
                                 })();
                             """.trimIndent(), null)
-                            // 2. Полифил для window.nan0gram._openComposeIfNeeded
-                            // Мессенджер вызывает эту функцию при init, но в текущей версии
-                            // бриджа она не определена — это вызывает TypeError и петлю.
-                            // Делаем её no-op: мессенджер продолжит работу без ошибки.
                             view?.evaluateJavascript("""
                                 (function polyfillNan0gramFn(){
                                     if(window.nan0gram){
