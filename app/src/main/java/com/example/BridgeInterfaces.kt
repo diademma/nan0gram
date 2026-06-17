@@ -187,7 +187,6 @@ class MessengerJsInterface(
             var loaders = document.querySelectorAll('.sm-attachments__upload, .sm-attachments__upload-icon, .sm-attachments__progress-bar, .sm-attachments__progress-state, [class*="progress"], [class*="loading"], .spinner, .loader');
             var isUploading = false;
             
-            // Проверяем, есть ли на экране реальные видимые индикаторы загрузки
             for(var i = 0; i < loaders.length; i++) {
                 if(loaders[i].offsetWidth > 0 || loaders[i].offsetHeight > 0) {
                     isUploading = true;
@@ -195,29 +194,28 @@ class MessengerJsInterface(
                 }
             }
             
-            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], .attachment-preview, .sm-attachments__attach-preview, [class*="attachment-item"], [class*="attach-item"]');
-            var hasAttachments = doneLinks.length > 0;
-            
-            if (uploadAttempts % 3 === 0) {
-                if (window.Android && window.Android.jsLog) {
-                    window.Android.jsLog("Наблюдение за загрузкой: isUploading=" + isUploading + ", hasAttachments=" + hasAttachments);
+            if (isUploading) {
+                // Восстанавливаем инпут обратно, так как клик успешно прошел
+                var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
+                if (fi && fi.style.position === 'fixed') {
+                    fi.style.position = 'static';
+                    fi.style.width = '1px';
+                    fi.style.height = '1px';
+                    fi.style.opacity = '0';
+                    if (window.Android && window.Android.jsLog) window.Android.jsLog("Клик успешен! Файл начал загрузку. Прячем инпут.");
                 }
-            }
-
-            if (isUploading && uploadAttempts < 100) {
-                return; // Файл всё еще грузится, ждем
+                if (uploadAttempts % 3 === 0 && window.Android && window.Android.jsLog) {
+                    window.Android.jsLog("Файл загружается...");
+                }
+                return;
             }
             
-            if (hasAttachments || uploadAttempts > 15) {
-                if (window.Android && window.Android.jsLog) window.Android.jsLog("Ожидание завершено. Запускаем отправку.");
+            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], .attachment-preview, .sm-attachments__attach-preview, [class*="attachment-item"], [class*="attach-item"]');
+            
+            if (doneLinks.length > 0 || uploadAttempts > 25) {
+                if (window.Android && window.Android.jsLog) window.Android.jsLog("Загрузка завершена или сработал таймаут. Запускаем отправку.");
                 clearInterval(checkInterval); 
                 setTimeout(ensureSent, 500); 
-            }
-            
-            if (uploadAttempts > 100) {
-                if (window.Android && window.Android.jsLog) window.Android.jsLog("Превышен таймаут загрузки (40с). Принудительная отправка.");
-                clearInterval(checkInterval);
-                setTimeout(ensureSent, 500);
             }
         }, 400);
     """.trimIndent()
@@ -266,33 +264,19 @@ class MessengerJsInterface(
                                     
                                     if (fi) { 
                                         clearInterval(findFileInput); 
-                                        if (window.Android && window.Android.jsLog) window.Android.jsLog("Инпут файла найден. Снимаем скрытие и кликаем.");
+                                        if (window.Android && window.Android.jsLog) window.Android.jsLog("Инпут найден. Растягиваем на весь экран для физического тапа.");
                                         
-                                        // Принудительная отмена display:none для обхода блокировки WebView
+                                        // Делаем инпут огромным и невидимым для перехвата физического касания
                                         fi.style.display = 'block';
                                         fi.style.visibility = 'visible';
-                                        fi.style.opacity = '1';
-                                        fi.style.position = 'absolute';
-                                        fi.style.left = '0';
-                                        fi.style.top = '0';
-                                        fi.style.width = '10px';
-                                        fi.style.height = '10px';
-                                        fi.style.zIndex = '9999';
-                                        
-                                        try {
-                                            fi.click();
-                                            if (window.Android && window.Android.jsLog) window.Android.jsLog("Клик по инпуту выполнен.");
-                                        } catch(err) {
-                                            if (window.Android && window.Android.jsLog) window.Android.jsLog("Ошибка при клике: " + err.message);
-                                        }
-                                    } else {
-                                        var attachBtn = document.querySelector('.sm-header__attach, .sendmsg__attach, [aria-label*="Прикр"], [aria-label*="Attach"], label[class*="attach"], button[class*="attach"]');
-                                        if (attachBtn) {
-                                            attachBtn.click();
-                                        }
-                                    }
-                                    
-                                    if (attempts > 80) {
+                                        fi.style.opacity = '0.01'; 
+                                        fi.style.position = 'fixed';
+                                        fi.style.left = '0px';
+                                        fi.style.top = '0px';
+                                        fi.style.width = '100vw';
+                                        fi.style.height = '100vh';
+                                        fi.style.zIndex = '2147483647';
+                                    } else if (attempts > 80) {
                                         if (window.Android && window.Android.jsLog) window.Android.jsLog("ОШИБКА: Инпут файла не найден за 8 секунд!");
                                         clearInterval(findFileInput);
                                     }
@@ -307,7 +291,17 @@ class MessengerJsInterface(
                         })();
                     """.trimIndent()
                     getUkrnetWebView()?.evaluateJavascript(js, null)
-                    log("[Stealth] JS загрузчика инжектирован, ожидаем логи от Ukrnet JS...")
+                    log("[Stealth] JS загрузчика инжектирован. Генерируем серию физических тапов...")
+                    
+                    // Генерируем серию нативных касаний в центр экрана, чтобы WebView засчитал "user activation"
+                    // и открыл растянутый на весь экран <input type="file">
+                    for (i in 1..8) {
+                        delay(400)
+                        ui.post {
+                            simulateTouch(getUkrnetWebView(), 150f, 150f, stealFocus = false, log = log)
+                        }
+                    }
+                    
                 } finally { uploadSequenceActive = false }
             }
         }
