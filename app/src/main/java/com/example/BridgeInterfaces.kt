@@ -368,16 +368,7 @@ class MessengerJsInterface(
         ui.post {
             scope.launch {
                 getUkrnetWebView()?.evaluateJavascript(
-                    """
-                        (function(){
-                            var btn = document.querySelector('${UkrnetSelectors.CANCEL_BUTTON}')
-                                || document.querySelector('[aria-label="Відмінити"]')
-                                || document.querySelector('[aria-label="Отменить"]');
-                            if (btn) { btn.click(); return 'ok'; }
-                            history.back();
-                            return 'fallback';
-                        })();
-                    """.trimIndent(),
+                    "(function(){ var btn = document.querySelector('" + UkrnetSelectors.CANCEL_BUTTON + "') || document.querySelector('[aria-label=\'Відмінити\']') || document.querySelector('[aria-label=\'Отменить\']'); if (btn) { btn.click(); return 'ok'; } history.back(); return 'fallback'; })();",
                     null
                 )
             }
