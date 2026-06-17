@@ -1576,7 +1576,16 @@ html, body, #root {
   padding: 4px;
   border-radius: 12px;
 }
+.album-img {
+  flex: 1;
+  min-width: 0;
+  height: 120px;
+  object-fit: cover;
+  cursor: pointer;
+  display: block;
+}
 .album-row:only-child .album-img {
+  flex: none !important;
   max-width: 280px;
   max-height: 320px;
   width: auto;
@@ -1670,4 +1679,15 @@ html, body, #root {
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
+}
+
+/* 🎯 ШИРОКИЙ ЭКРАН (ПЛАНШЕТ/ПК): Ограничиваем максимальную ширину бабла с фото/видео до 380px (до оранжевой линии),
+   чтобы картинка с длинной подписью не раздувалась на пол-экрана */
+@media(min-width: 768px) {
+  .message:has(.msg-album-container) {
+    max-width: 380px !important;
+  }
+  .message:has(.video-thumb-wrapper) {
+    max-width: 380px !important;
+  }
 }
