@@ -101,7 +101,14 @@ class MainActivity : ComponentActivity() {
             val ukrnetInterface = remember {
                 UkrnetJsInterface(
                     log                 = ::log,
-                    onLoginSuccess      = { hasHandledLogin = true; isBgServiceActive = false },
+                    onLoginSuccess      = {
+                  hasHandledLogin = true
+                  isBgServiceActive = false
+                  // Навигация к форме отправки — мгновенно, без кликов
+                  android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                      ukrnetWebView?.loadUrl("https://mail.ukr.net/touch/u0/sendmsg/")
+                  }, 600)
+              },
                     onCoordsUpdate      = { coords = it },
                     onFirstCoordsLogged = { },
                     getMessengerWebView = { messengerWebView },
