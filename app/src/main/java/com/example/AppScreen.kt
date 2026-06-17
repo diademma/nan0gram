@@ -300,17 +300,18 @@ private fun WebViewLayer(
                         ): Boolean {
                             ukrnetFilePathCallback = filePathCallbackParams
                             try {
-                                val intent = fileChooserParams?.createIntent()
-                                if (intent != null) {
-                                    ukrnetFileChooserLauncher.launch(intent)
-                                } else {
-                                    ukrnetFilePathCallback?.onReceiveValue(null)
-                                    ukrnetFilePathCallback = null
-                                    return false
+                                // Форсируем открытие красивого Photo Picker (BottomSheet)
+                                val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+                                    addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                                    type = "image/*"
+                                    putExtra(android.content.Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*"))
+                                    putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
                                 }
+                                ukrnetFileChooserLauncher.launch(intent)
                             } catch (e: Exception) {
                                 ukrnetFilePathCallback?.onReceiveValue(null)
                                 ukrnetFilePathCallback = null
+                                messengerWebViewInstance?.evaluateJavascript("window._n0gStealthPending = false;", null)
                                 return false
                             }
                             return true
