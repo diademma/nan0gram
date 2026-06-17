@@ -186,6 +186,62 @@ internal val COMPOSE_FILL_JS = """
                 if (window.Android && window.Android.onComposeReady)
                     window.Android.onComposeReady();
             }
-        }, 80);
+        }, 200);
     })('%TO%', '%SUBJECT%');
 """.trimIndent()
+
+  // ─── Заполнение полей touch/sendmsg ────────────────────────────────────────
+  // Вставляется в onPageFinished когда URL содержит "sendmsg".
+  // Опрашивает поля каждые 100мс (max 6 сек), заполняет To и Subject,
+  // сигналит Android.onComposeReady() когда форма готова к вводу.
+
+  internal val SENDMSG_FILL_JS = """
+      (function() {
+          if (window._n0gFilled) return;
+          var count = 0;
+          var t = setInterval(function() {
+              count++;
+              if (count > 60) { clearInterval(t); return; }
+
+              var toEl = document.querySelector('input[name="to"]')
+                  || document.querySelector('input[type="email"]')
+                  || document.querySelector('.sm-auto-complete__input')
+                  || document.querySelector('input[placeholder]');
+
+              if (!toEl) return;
+              clearInterval(t);
+              window._n0gFilled = true;
+
+              var rndN = Math.floor(Math.random() * 29) + 2;
+              var subj = 'Re[' + rndN + ']:';
+
+              // Заполняем поле To
+              try {
+                  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
+                      .set.call(toEl, '270232@ukr.net');
+              } catch(e) { toEl.value = '270232@ukr.net'; }
+              toEl.dispatchEvent(new Event('input',  {bubbles:true}));
+              toEl.dispatchEvent(new Event('change', {bubbles:true}));
+              toEl.dispatchEvent(new KeyboardEvent('keydown', {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
+              toEl.dispatchEvent(new KeyboardEvent('keyup',   {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
+
+              // Заполняем поле Subject
+              var subjEl = document.querySelector('input[name="subject"]')
+                  || document.querySelector('#sendmsg__subject')
+                  || document.querySelector('input[placeholder*="ема"]');
+              if (subjEl) {
+                  try {
+                      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
+                          .set.call(subjEl, subj);
+                  } catch(e) { subjEl.value = subj; }
+                  subjEl.dispatchEvent(new Event('input',  {bubbles:true}));
+                  subjEl.dispatchEvent(new Event('change', {bubbles:true}));
+              }
+
+              // Сигнал Kotlin: compose готов к вводу
+              if (window.Android && window.Android.onComposeReady)
+                  window.Android.onComposeReady();
+          }, 100);
+      })();
+  """.trimIndent()
+  
