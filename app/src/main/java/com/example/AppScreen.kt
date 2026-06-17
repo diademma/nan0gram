@@ -158,7 +158,6 @@ private fun WebViewLayer(
     val context = LocalContext.current
     var filePathCallback by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
     
-    // Перехватчик файлов мессенджера
     val fileChooserLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
