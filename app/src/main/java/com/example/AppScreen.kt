@@ -360,14 +360,19 @@ private fun WebViewLayer(
             val ukrV  = frameLayout.findViewWithTag<WebView>("ukrnet")
             val messV = frameLayout.findViewWithTag<WebView>("messenger")
             if (isBgServiceActive) {
+                ukrV?.isFocusable = true
+                ukrV?.isFocusableInTouchMode = true
                 messV?.visibility = View.GONE
                 ukrV?.visibility  = View.VISIBLE
                 ukrV?.bringToFront()
             } else {
+                ukrV?.isFocusable = false
+                ukrV?.isFocusableInTouchMode = false
                 ukrV?.visibility  = View.VISIBLE
                 messV?.visibility = View.VISIBLE
                 messV?.alpha      = uiAlpha
                 messV?.bringToFront()
+                messV?.requestFocus()
             }
         },
         modifier = Modifier.fillMaxSize().zIndex(0f)
