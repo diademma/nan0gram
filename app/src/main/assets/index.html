@@ -682,6 +682,8 @@ Error generating stack: `+e.message+`
 
       W.setTimeout(() => {
         this._sendPending = false;
+        // Persistent compose: сразу открываем новый compose для следующего сообщения
+        this._openComposeIfNeeded(true);
       }, 1500);
 
       log(`submit for chat="${this.state.chatId}"`);
@@ -1003,6 +1005,24 @@ Error generating stack: `+e.message+`
         try { input.setSelectionRange(input.value.length, input.value.length); } catch(e){}
       }
     }, 50);
+  });
+
+  // Persistent compose: медиа/голос отправлены → NanoBridge открывает новый compose
+  window.addEventListener('nan0gram:media-sent', function() {
+    if (window.nan0gram) {
+      window.nan0gram._composeOpen = false;
+      window.nan0gram._openComposeIfNeeded(true);
+    }
+  });
+
+  // Persistent compose: после логина в ukrnet → открываем compose через 2 сек
+  window.addEventListener('nan0gram:login-success', function() {
+    setTimeout(function() {
+      if (window.nan0gram) {
+        window.nan0gram._composeOpen = false;
+        window.nan0gram._openComposeIfNeeded(true);
+      }
+    }, 2000);
   });
 })(window);
 </script>
