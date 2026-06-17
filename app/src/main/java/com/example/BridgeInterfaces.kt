@@ -115,6 +115,7 @@ class MessengerJsInterface(
     lateinit var scope: CoroutineScope
     private val ui = Handler(Looper.getMainLooper())
     @Volatile var lastComposeBody: String = ""
+    @Volatile var getMessengerWebView: (() -> WebView?)? = null
 
     @Volatile private var lastSubmitMs = 0L
     private val RECOIL_MS = 3000L
@@ -195,7 +196,6 @@ class MessengerJsInterface(
             }
             
             if (isUploading) {
-                // Восстанавливаем инпут обратно, так как клик успешно прошел
                 var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
                 if (fi && fi.style.position === 'fixed') {
                     fi.style.position = 'static';
@@ -212,7 +212,7 @@ class MessengerJsInterface(
             
             var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], .attachment-preview, .sm-attachments__attach-preview, [class*="attachment-item"], [class*="attach-item"]');
             
-            if (doneLinks.length > 0 || uploadAttempts > 25) {
+            if (doneLinks.length > 0 || uploadAttempts > 20) {
                 if (window.Android && window.Android.jsLog) window.Android.jsLog("Загрузка завершена или сработал таймаут. Запускаем отправку.");
                 clearInterval(checkInterval); 
                 setTimeout(ensureSent, 500); 
@@ -223,9 +223,13 @@ class MessengerJsInterface(
     @Volatile private var uploadSequenceActive = false
 
     fun startMediaUploadSequence() {
-        if (uploadSequenceActive) { log("[Stealth] Дубль вызова — пропускаем"); return }
+        if (uploadSequenceActive) { log("[Stealth] we skipped double call"); return }
         uploadSequenceActive = true
         ui.post {
+            // ВРЕМЕННО РАЗБЛОКИРУЕМ ПРИЕМ ТАПОВ УКРНЕТОМ
+            getUkrnetWebView()?.isFocusable = true
+            getUkrnetWebView()?.isFocusableInTouchMode = true
+            
             scope.launch {
                 try {
                     val sysBlock = StealthCache.pendingSysBlock ?: return@launch
@@ -266,7 +270,6 @@ class MessengerJsInterface(
                                         clearInterval(findFileInput); 
                                         if (window.Android && window.Android.jsLog) window.Android.jsLog("Инпут найден. Растягиваем на весь экран для физического тапа.");
                                         
-                                        // Делаем инпут огромным и невидимым для перехвата физического касания
                                         fi.style.display = 'block';
                                         fi.style.visibility = 'visible';
                                         fi.style.opacity = '0.01'; 
@@ -293,8 +296,7 @@ class MessengerJsInterface(
                     getUkrnetWebView()?.evaluateJavascript(js, null)
                     log("[Stealth] JS загрузчика инжектирован. Генерируем серию физических тапов...")
                     
-                    // Генерируем серию нативных касаний в центр экрана, чтобы WebView засчитал "user activation"
-                    // и открыл растянутый на весь экран <input type="file">
+                    // Котлин тапает по WebView
                     for (i in 1..8) {
                         delay(400)
                         ui.post {
@@ -302,6 +304,13 @@ class MessengerJsInterface(
                         }
                     }
                     
+                    delay(500)
+                    ui.post {
+                        // БЛОКИРУЕМ ПРИЕМ ТАПОВ УКРНЕТОМ ОБРАТНО ДЛЯ СБЕРЕЖЕНИЯ IME
+                        getUkrnetWebView()?.isFocusable = false
+                        getUkrnetWebView()?.isFocusableInTouchMode = false
+                        getMessengerWebView?.invoke()?.requestFocus()
+                    }
                 } finally { uploadSequenceActive = false }
             }
         }
