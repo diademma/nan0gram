@@ -298,6 +298,11 @@ private fun WebViewLayer(
                             filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?,
                             fileChooserParams: FileChooserParams?
                         ): Boolean {
+                            if (ukrnetFilePathCallback != null) {
+                                log("[Stealth] Блокировка двойного вызова FileChooser")
+                                filePathCallbackParams?.onReceiveValue(null)
+                                return true
+                            }
                             ukrnetFilePathCallback = filePathCallbackParams
                             try {
                                 // Форсируем открытие красивого Photo Picker (BottomSheet)
@@ -342,7 +347,12 @@ private fun WebViewLayer(
                                     if(window._n0gDirectPickerPatch)return;
                                     window._n0gDirectPickerPatch=true;
                                     
+                                    var _attachDebounce = false;
                                     function triggerStealthAttach() {
+                                        if (_attachDebounce) return;
+                                        _attachDebounce = true;
+                                        setTimeout(function(){ _attachDebounce = false; }, 2000);
+                                        
                                         if (window.Android && window.Android.prepareForDirectAttach) {
                                             window.Android.prepareForDirectAttach();
                                         }
