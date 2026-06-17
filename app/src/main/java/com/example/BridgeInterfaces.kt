@@ -226,7 +226,6 @@ class MessengerJsInterface(
         if (uploadSequenceActive) { log("[Stealth] we skipped double call"); return }
         uploadSequenceActive = true
         ui.post {
-            // ВРЕМЕННО РАЗБЛОКИРУЕМ ПРИЕМ ТАПОВ УКРНЕТОМ
             getUkrnetWebView()?.isFocusable = true
             getUkrnetWebView()?.isFocusableInTouchMode = true
             
@@ -296,7 +295,6 @@ class MessengerJsInterface(
                     getUkrnetWebView()?.evaluateJavascript(js, null)
                     log("[Stealth] JS загрузчика инжектирован. Генерируем серию физических тапов...")
                     
-                    // Котлин тапает по WebView
                     for (i in 1..8) {
                         delay(400)
                         ui.post {
@@ -306,7 +304,6 @@ class MessengerJsInterface(
                     
                     delay(500)
                     ui.post {
-                        // БЛОКИРУЕМ ПРИЕМ ТАПОВ УКРНЕТОМ ОБРАТНО ДЛЯ СБЕРЕЖЕНИЯ IME
                         getUkrnetWebView()?.isFocusable = false
                         getUkrnetWebView()?.isFocusableInTouchMode = false
                         getMessengerWebView?.invoke()?.requestFocus()
