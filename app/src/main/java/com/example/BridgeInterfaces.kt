@@ -181,11 +181,8 @@ class MessengerJsInterface(
                 clearInterval(checkInterval); 
                 return; 
             }
-            // ТОЧНЫЕ АКТУАЛЬНЫЕ СЕЛЕКТОРЫ ПРОЦЕССА ЗАГРУЗКИ UKR.NET
-            var stillUploading = document.querySelectorAll('.sm-attachments__upload, .sm-attachments__upload-icon, .sm-attachments__progress-bar, .sm-attachments__progress-state');
-            
-            // ТОЧНЫЕ АКТУАЛЬНЫЕ СЕЛЕКТОРЫ ГОТОВОГО ФАЙЛА UKR.NET
-            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], .attachment-preview, .sm-attachments__attach-preview');
+            var stillUploading = document.querySelectorAll('.sm-attachments__upload, .sm-attachments__upload-icon, .sm-attachments__progress-bar, .sm-attachments__progress-state, [class*="progress"], [class*="loading"]');
+            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], .attachment-preview, .sm-attachments__attach-preview, [class*="attachment-item"], [class*="attach-item"]');
             
             if (stillUploading.length > 0) { 
                 console.log('[Stealth JS] Файл еще загружается, ждем...');
@@ -212,36 +209,77 @@ class MessengerJsInterface(
                     getUkrnetWebView()?.evaluateJavascript("window._n0gStealthUpload = true;", null)
                     val subject = "Re[${(2..30).random()}]:"
                     val escSys = sysBlock.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+                    
+                    // Обновленный скрипт с обходом блокировок и тотальным try-catch
                     val js = """
                         (function(){
-                            console.log('[Stealth JS] Начинаем процесс загрузки медиафайла...');
-                            window._n0gStealthUpload = true;
-                            if (document.activeElement && document.activeElement.tagName !== 'BODY') document.activeElement.blur();
-                            var bodyEl = document.querySelector('.sm-editor__area') || document.querySelector('textarea[name="body"]') || document.querySelector('textarea');
-                            if(bodyEl) {
-                                bodyEl.innerHTML = '';
-                                if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '$escSys'; }
-                                else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl,'$escSys'); } catch(e) { bodyEl.value='$escSys'; } }
-                                bodyEl.dispatchEvent(new Event('input',{bubbles:true}));
-                                console.log('[Stealth JS] Поле ввода заполнено зашифрованными данными');
-                            }
-                            var subjEl = document.querySelector('#sendmsg__subject') || document.querySelector('input[name="subject"]');
-                            if(subjEl) {
-                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl,'$subject'); } catch(e) { subjEl.value='$subject'; }
-                                subjEl.dispatchEvent(new Event('input',{bubbles:true}));
-                                console.log('[Stealth JS] Поле темы заполнено');
-                            }
-                            var findFileInput = setInterval(function() {
-                                var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
-                                if (fi) { 
-                                    clearInterval(findFileInput); 
-                                    console.log('[Stealth JS] Инпут выбора файла успешно найден, кликаем!');
-                                    fi.click(); 
+                            try {
+                                console.log('[Stealth JS] Начинаем процесс загрузки медиафайла...');
+                                window._n0gStealthUpload = true;
+                                if (document.activeElement && document.activeElement.tagName !== 'BODY') document.activeElement.blur();
+                                
+                                var bodyEl = document.querySelector('.sm-editor__area') || document.querySelector('textarea[name="body"]') || document.querySelector('textarea');
+                                if(bodyEl) {
+                                    bodyEl.innerHTML = '';
+                                    if (bodyEl.getAttribute('contenteditable') === 'true') { bodyEl.innerText = '$escSys'; }
+                                    else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(bodyEl,'$escSys'); } catch(e) { bodyEl.value='$escSys'; } }
+                                    bodyEl.dispatchEvent(new Event('input',{bubbles:true}));
+                                    console.log('[Stealth JS] Поле ввода заполнено зашифрованными данными');
                                 }
-                            }, 100);
-                            setTimeout(function() { clearInterval(findFileInput); }, 8000);
-                            $POPUP_CRUSHER_JS
-                            $UPLOAD_OBSERVER_JS
+                                
+                                var subjEl = document.querySelector('#sendmsg__subject') || document.querySelector('input[name="subject"]');
+                                if(subjEl) {
+                                    try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(subjEl,'$subject'); } catch(e) { subjEl.value='$subject'; }
+                                    subjEl.dispatchEvent(new Event('input',{bubbles:true}));
+                                    console.log('[Stealth JS] Поле темы заполнено');
+                                }
+                                
+                                var attempts = 0;
+                                var findFileInput = setInterval(function() {
+                                    attempts++;
+                                    var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
+                                    
+                                    if (fi) { 
+                                        clearInterval(findFileInput); 
+                                        console.log('[Stealth JS] Инпут выбора файла успешно найден, обходим блокировку WebView и кликаем!');
+                                        
+                                        // Принудительно делаем инпут видимым, чтобы WebView не заблокировал клик
+                                        fi.style.display = 'block';
+                                        fi.style.visibility = 'visible';
+                                        fi.style.opacity = '1';
+                                        fi.style.position = 'absolute';
+                                        fi.style.left = '0';
+                                        fi.style.top = '0';
+                                        fi.style.width = '10px';
+                                        fi.style.height = '10px';
+                                        fi.style.zIndex = '9999';
+                                        
+                                        try {
+                                            fi.click();
+                                            console.log('[Stealth JS] Метод fi.click() выполнен успешно.');
+                                        } catch(e) {
+                                            console.error('[Stealth JS] Ошибка при клике по инпуту: ' + e.message);
+                                        }
+                                    } else {
+                                        // Инпут генерируется динамически? Кликаем по кнопке-скрепке!
+                                        var attachBtn = document.querySelector('.sm-header__attach, .sendmsg__attach, [aria-label*="Прикр"], [aria-label*="Attach"], label[class*="attach"], button[class*="attach"]');
+                                        if (attachBtn) {
+                                            attachBtn.click();
+                                        }
+                                    }
+                                    
+                                    if (attempts > 80) {
+                                        console.error('[Stealth JS] Инпут файла так и не был найден за 8 секунд!');
+                                        clearInterval(findFileInput);
+                                    }
+                                }, 100);
+                                
+                                $POPUP_CRUSHER_JS
+                                $UPLOAD_OBSERVER_JS
+                                
+                            } catch (globalErr) {
+                                console.error('[Stealth JS] ГЛОБАЛЬНАЯ ОШИБКА ИНЖЕКТА: ' + globalErr.message);
+                            }
                         })();
                     """.trimIndent()
                     getUkrnetWebView()?.evaluateJavascript(js, null)
