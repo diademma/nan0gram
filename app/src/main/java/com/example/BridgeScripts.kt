@@ -1,5 +1,30 @@
 package com.example
 
+// ════════════════ ДОМ-селекторы веб-версии Ukr.net ═════════════════════════
+object UkrnetSelectors {
+    const val COMPOSE_BUTTON = ".ml-header__compose"
+    const val TO_INPUT = ".sm-auto-complete__input"
+    const val SUBJECT_INPUT = "#sendmsg__subject"
+    const val BODY_AREA = ".sm-editor__area"
+    const val SEND_BUTTON = ".sm-header__send"
+    const val ATTACH_BUTTON = "button.sm-header__attach"
+    const val CANCEL_BUTTON = ".sm-header__cancel"
+
+    // Индикаторы загрузки
+    const val ATTACH_PROGRESS = ".sm-attachments__progress-state"
+    const val LOADER = ".sm-header__loader"
+
+    // Селекторы списка писем и чтения для Радара
+    const val MAIL_ITEM = ".ml-item"
+    const val MAIL_ITEM_VIEW = ".mli-view"
+    const val MAIL_ITEM_TITLE = ".mli-view__title"
+    const val MAIL_ITEM_LINK = ".mli-view__link"
+
+    const val READ_BODY = ".rm-body__content"
+    const val READ_SUBJECT = ".readmsg__subject"
+    const val BACK_BUTTON = ".rm-header__list"
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // BRIDGE SCRIPTS  — JS-строки, инъектируемые в ukrnetWebView
 // Этот файл почти не меняется. Новые JS-скрипты добавляй сюда же.
@@ -45,11 +70,11 @@ internal val SCANNING_JS = """
             return { x: Math.round(r.left + r.width/2), y: Math.round(r.top + r.height/2) };
         }
         var result = {
-            compose: getCoords(document.querySelector('.ml-header__compose')),
-            to:      getCoords(document.querySelector('.sm-auto-complete__input')),
-            subject: getCoords(document.querySelector('#sendmsg__subject')),
-            body:    getCoords(document.querySelector('.sm-editor__area')),
-            send:    getCoords(document.querySelector('.sm-header__send'))
+            compose: getCoords(document.querySelector('${UkrnetSelectors.COMPOSE_BUTTON}')),
+            to:      getCoords(document.querySelector('${UkrnetSelectors.TO_INPUT}')),
+            subject: getCoords(document.querySelector('${UkrnetSelectors.SUBJECT_INPUT}')),
+            body:    getCoords(document.querySelector('${UkrnetSelectors.BODY_AREA}')),
+            send:    getCoords(document.querySelector('${UkrnetSelectors.SEND_BUTTON}'))
         };
         if (window.Android && window.Android.postCoordinates)
             window.Android.postCoordinates(JSON.stringify(result));
@@ -76,10 +101,10 @@ internal val READING_JS = """
                 try { localStorage.setItem('nan0gram_ids', JSON.stringify(Array.from(window.nProcessed))); } catch(e){}
             }
             function isMsgUnread(item) {
-                var view = item.querySelector('.mli-view');
+                var view = item.querySelector('${UkrnetSelectors.MAIL_ITEM_VIEW}');
                 if (view && (view.classList.contains('unread') || view.classList.contains('mli-view_unread'))) return true;
                 if (item.classList.contains('unread') || item.classList.contains('ml-item_unread')) return true;
-                var titleEl = item.querySelector('.mli-view__title');
+                var titleEl = item.querySelector('${UkrnetSelectors.MAIL_ITEM_TITLE}');
                 if (titleEl) {
                     var w = window.getComputedStyle(titleEl).fontWeight;
                     if (w === 'bold' || parseInt(w) >= 600) return true;
@@ -88,18 +113,18 @@ internal val READING_JS = """
             }
             if (window.location.href.indexOf('login') !== -1) return;
             if (window.nState === 'IDLE') {
-                var items = document.querySelectorAll('.ml-item');
+                var items = document.querySelectorAll('${UkrnetSelectors.MAIL_ITEM}');
                 for (var i = items.length - 1; i >= 0; i--) {
                     var item = items[i];
                     var id = item.id;
                     if (!id || window.nProcessed.has(id)) continue;
-                    var titleEl = item.querySelector('.mli-view__title');
+                    var titleEl = item.querySelector('${UkrnetSelectors.MAIL_ITEM_TITLE}');
                             var titleText = titleEl ? (titleEl.innerText || '') : '';
                             var isTarget = titleText.indexOf('Re[') !== -1 || /\p{Emoji}/u.test(titleText);
                             if (isTarget && isMsgUnread(item)) {
                         window.nState = 'READING';
                         window.nTargetId = id;
-                        var link = item.querySelector('.mli-view__link') || item;
+                        var link = item.querySelector('${UkrnetSelectors.MAIL_ITEM_LINK}') || item;
                         link.click();
                         return;
                     } else {
@@ -107,9 +132,9 @@ internal val READING_JS = """
                     }
                 }
             } else if (window.nState === 'READING') {
-                var bodyEl    = document.querySelector('.rm-body__content');
-                var subjectEl = document.querySelector('.readmsg__subject');
-                var backBtn   = document.querySelector('.rm-header__list');
+                var bodyEl    = document.querySelector('${UkrnetSelectors.READ_BODY}');
+                var subjectEl = document.querySelector('${UkrnetSelectors.READ_SUBJECT}');
+                var backBtn   = document.querySelector('${UkrnetSelectors.BACK_BUTTON}');
                 if (bodyEl && backBtn) {
                     var bodyText    = bodyEl.innerText || bodyEl.textContent || '';
                     var subjectText = subjectEl ? (subjectEl.innerText || '') : '';
@@ -161,8 +186,8 @@ internal val COMPOSE_FILL_JS = """
             attempts++;
             // Kill-switch: стелс-режим активен — не заполняем и не вызываем onComposeReady
             if (window._n0gStealthUpload) { clearInterval(t); return; }
-            var toEl   = document.querySelector('.sm-auto-complete__input');
-            var subjEl = document.querySelector('#sendmsg__subject');
+            var toEl   = document.querySelector('${UkrnetSelectors.TO_INPUT}');
+            var subjEl = document.querySelector('${UkrnetSelectors.SUBJECT_INPUT}');
             if (attempts > 40 || (toEl && subjEl)) {
                 clearInterval(t);
                 if (!toEl || !subjEl) return;
@@ -209,7 +234,7 @@ internal val SENDMSG_FILL_JS = """
 
             var toEl = document.querySelector('input[name="to"]')
                 || document.querySelector('input[type="email"]')
-                || document.querySelector('.sm-auto-complete__input')
+                || document.querySelector('${UkrnetSelectors.TO_INPUT}')
                 || document.querySelector('input[placeholder]');
 
             if (!toEl) return;
@@ -229,7 +254,7 @@ internal val SENDMSG_FILL_JS = """
             toEl.dispatchEvent(new KeyboardEvent('keyup',   {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
 
             var subjEl = document.querySelector('input[name="subject"]')
-                || document.querySelector('#sendmsg__subject')
+                || document.querySelector('${UkrnetSelectors.SUBJECT_INPUT}')
                 || document.querySelector('input[placeholder*="ема"]');
             if (subjEl) {
                 try {
