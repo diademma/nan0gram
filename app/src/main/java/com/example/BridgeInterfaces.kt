@@ -134,30 +134,54 @@ class MessengerJsInterface(
     fun prepareForDirectAttach() {
         ui.post {
             val ukr = getUkrnetWebView()
+            val mess = getMessengerWebView?.invoke()
             if (ukr != null) {
-                val stretchJs = """
+                log("[Stealth] Сканируем координаты кнопки-скрепки...")
+                ukr.evaluateJavascript("""
                     (function(){
-                        var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
-                        if (fi) {
-                            fi.style.display = 'block';
-                            fi.style.visibility = 'visible';
-                            fi.style.opacity = '0.01';
-                            fi.style.position = 'fixed';
-                            fi.style.left = '0px';
-                            fi.style.top = '0px';
-                            fi.style.width = '100vw';
-                            fi.style.height = '100vh';
-                            fi.style.zIndex = '2147483647';
-                        }
+                        var el = document.querySelector('button.sm-header__attach') || document.querySelector('[class*="attach"]');
+                        if (!el) return 'not_found';
+                        var r = el.getBoundingClientRect();
+                        return JSON.stringify({
+                            x: Math.round(r.left + r.width/2),
+                            y: Math.round(r.top + r.height/2)
+                        });
                     })();
-                """.trimIndent()
-                ukr.evaluateJavascript(stretchJs, null)
-                
-                ukr.isFocusable = true
-                ukr.isFocusableInTouchMode = true
-                ukr.alpha = 0.01f  // Почти полностью прозрачный
-                ukr.bringToFront()
-                ukr.requestFocus()
+                """.trimIndent()) { result ->
+                    if (result != null && result != "null" && result != "\"not_found\"") {
+                        try {
+                            val cleanJson = if (result.startsWith("\"") && result.endsWith("\"")) {
+                                result.substring(1, result.length - 1).replace("\\\"", "\"").replace("\\\\", "\\")
+                            } else {
+                                result
+                            }
+                            val coordsObj = JSONObject(cleanJson)
+                            val x = coordsObj.getDouble("x").toFloat()
+                            val y = coordsObj.getDouble("y").toFloat()
+                            
+                            log("[Stealth] Скрепка найдена на X=$x, Y=$y. Активируем скрытый тап...")
+                            
+                            // Даем фокус УкрНету временно БЕЗ вывода на передний план!
+                            ukr.isFocusable = true
+                            ukr.isFocusableInTouchMode = true
+                            ukr.requestFocus()
+                            
+                            // Симулируем тап напрямую в скрытый УкрНет
+                            simulateTouch(ukr, x, y, stealFocus = false, log = log)
+                            
+                            // Возвращаем фокус мессенджеру чуть позже
+                            ui.postDelayed({
+                                ukr.isFocusable = false
+                                ukr.isFocusableInTouchMode = false
+                                mess?.requestFocus()
+                            }, 1500)
+                        } catch(e: Exception) {
+                            log("[Stealth] Ошибка разбора координат: ${e.message}")
+                        }
+                    } else {
+                        log("[Stealth] Кнопка скрепки не найдена на странице УкрНета!")
+                    }
+                }
             }
         }
     }
@@ -166,16 +190,11 @@ class MessengerJsInterface(
         function ensureSent() {
             if (window._n0gSending) return;
             window._n0gSending = true;
-            if (window.Android && window.Android.jsLog) window.Android.jsLog("Вызвана функция ensureSent(). Инициируем отправку.");
-            
+            var toEl = document.querySelector('.sm-auto-complete__input') || document.querySelector('input[name="to"]');
+            var inputVal = toEl ? toEl.value.trim() : '';
             function doSend() {
                 var btn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]') || document.querySelector('input[type="submit"]');
-                if (btn) {
-                    if (window.Android && window.Android.jsLog) window.Android.jsLog("Финальный клик по кнопке отправки!");
-                    btn.click();
-                } else {
-                    if (window.Android && window.Android.jsLog) window.Android.jsLog("ОШИБКА: Кнопка отправки письма не найдена!");
-                }
+                if (btn) btn.click();
                 window._n0gStealthUpload = false;
                 setTimeout(function() { window._n0gSending = false; }, 8000);
                 try { if(window.Android && window.Android.onMediaSent) window.Android.onMediaSent(); } catch(e){}
@@ -183,67 +202,39 @@ class MessengerJsInterface(
             var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
             if (isTouch) {
                 doSend();
-            } else {
-                var toEl = document.querySelector('.sm-auto-complete__input');
-                var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
-                if (toEl && !hasChip) {
-                    try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
-                    toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                    toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                    toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                    var waited = 0;
-                    var t = setInterval(function() {
-                        waited++;
-                        var currentVal = toEl.value.trim();
-                        if (currentVal === '' || waited > 15) {
-                            clearInterval(t);
-                            setTimeout(doSend, 400);
-                        }
-                    }, 150);
-                } else {
-                    doSend();
-                }
+                return;
             }
+            function waitClearThenSend(inputEl) {
+                var waited = 0;
+                var t = setInterval(function() {
+                    waited++;
+                    var val = inputEl ? inputEl.value.trim() : '';
+                    if (val === '' || waited > 25) { clearInterval(t); if (val === '') { setTimeout(doSend, 400); } else { window._n0gSending = false; } }
+                }, 150);
+            }
+            if (inputVal !== '') {
+                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                waitClearThenSend(toEl);
+            } else if (toEl) {
+                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
+                toEl.dispatchEvent(new Event('input',{bubbles:true}));
+                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                waitClearThenSend(toEl);
+            } else { doSend(); }
         }
     """.trimIndent()
 
     private val UPLOAD_OBSERVER_JS = """
-        var uploadAttempts = 0;
+        var uploadCheckCount = 0;
         var checkInterval = setInterval(function() {
-            uploadAttempts++;
-            
-            var loaders = document.querySelectorAll('.sm-attachments__upload, .sm-attachments__upload-icon, .sm-attachments__progress-bar, .sm-attachments__progress-state, [class*="progress"], [class*="loading"], .spinner, .loader');
-            var isUploading = false;
-            
-            for(var i = 0; i < loaders.length; i++) {
-                if(loaders[i].offsetWidth > 0 || loaders[i].offsetHeight > 0) {
-                    isUploading = true;
-                    break;
-                }
-            }
-            
-            if (isUploading) {
-                var fi = document.querySelector('input[type="file"][multiple]') || document.querySelector('input[type="file"]');
-                if (fi && fi.style.position === 'fixed') {
-                    fi.style.position = 'static';
-                    fi.style.width = '1px';
-                    fi.style.height = '1px';
-                    fi.style.opacity = '0';
-                    if (window.Android && window.Android.jsLog) window.Android.jsLog("Клик успешен! Файл начал загрузку. Прячем инпут.");
-                }
-                if (uploadAttempts % 3 === 0 && window.Android && window.Android.jsLog) {
-                    window.Android.jsLog("Файл загружается...");
-                }
-                return;
-            }
-            
-            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"], .attachment-preview, .sm-attachments__attach-preview, [class*="attachment-item"], [class*="attach-item"]');
-            
-            if (doneLinks.length > 0 || uploadAttempts > 20) {
-                if (window.Android && window.Android.jsLog) window.Android.jsLog("Загрузка завершена или сработал таймаут. Запускаем отправку.");
-                clearInterval(checkInterval); 
-                setTimeout(ensureSent, 500); 
-            }
+            uploadCheckCount++;
+            if (uploadCheckCount > 120) { clearInterval(checkInterval); return; }
+            var stillUploading = document.querySelectorAll('.sm-attachments__progress-bar, .sm-attachments__upload-icon');
+            var doneLinks = document.querySelectorAll('a[href*="/attach/get/"]');
+            if (stillUploading.length > 0) { return; }
+            if (doneLinks.length > 0) { clearInterval(checkInterval); setTimeout(ensureSent, 400); }
         }, 400);
     """.trimIndent()
 
