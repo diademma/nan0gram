@@ -199,6 +199,7 @@ class MessengerJsInterface(
             if (window._n0gSending) return;
             window._n0gSending = true;
             function doSend() {
+                console.log('[Upload] Нажимаем кнопку Отправить!');
                 var btn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('input[type="submit"]');
                 if (btn) { btn.disabled = false; btn.click(); }
                 window._n0gStealthUpload = false;
