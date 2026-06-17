@@ -136,8 +136,6 @@ class MessengerJsInterface(
         function ensureSent() {
             if (window._n0gSending) return;
             window._n0gSending = true;
-            var toEl = document.querySelector('.sm-auto-complete__input') || document.querySelector('input[name="to"]');
-            var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
             function doSend() {
                 var btn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]') || document.querySelector('input[type="submit"]');
                 if (btn) btn.click();
@@ -145,13 +143,13 @@ class MessengerJsInterface(
                 setTimeout(function() { window._n0gSending = false; }, 8000);
                 try { if(window.Android && window.Android.onMediaSent) window.Android.onMediaSent(); } catch(e){}
             }
-            if (toEl) {
-                var val = toEl.value.trim();
-                if (val === '270232@ukr.net' && !hasChip) {
-                    doSend();
-                } else if (hasChip) {
-                    doSend();
-                } else {
+            var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
+            if (isTouch) {
+                doSend();
+            } else {
+                var toEl = document.querySelector('.sm-auto-complete__input');
+                var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
+                if (toEl && !hasChip) {
                     try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
                     toEl.dispatchEvent(new Event('input',{bubbles:true}));
                     toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
@@ -165,9 +163,9 @@ class MessengerJsInterface(
                             setTimeout(doSend, 400);
                         }
                     }, 150);
+                } else {
+                    doSend();
                 }
-            } else {
-                doSend();
             }
         }
     """.trimIndent()
@@ -332,25 +330,29 @@ class MessengerJsInterface(
         lastSubmitMs = System.currentTimeMillis()   // ← ВНЕ ui.post — немедленно!
         ui.post {
             val js = """
-                (function(){
-                    var btn = document.querySelector('.sm-header__send')
-                        || document.querySelector('button[type="submit"]')
-                        || document.querySelector('[data-id="send"]')
-                        || document.querySelector('[aria-label="Відправити"]')
-                        || document.querySelector('[aria-label="Отправить"]')
-                        || document.querySelector('input[type="submit"]');
-                                        var toEl = document.querySelector('.sm-auto-complete__input') || document.querySelector('input[name="to"]');
-                    var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
-                    var alreadyFilled = (toEl && toEl.value && toEl.value.indexOf('270232@ukr.net') !== -1);
-                    if (toEl && !hasChip && !alreadyFilled) {
-                        try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
-                        toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                        toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                        toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                        setTimeout(function() { if (btn) btn.click(); }, 120);
-                    } else { if (btn) btn.click(); }
-                })();
-            """.trimIndent()
+                    (function(){
+                        var btn = document.querySelector('.sm-header__send')
+                            || document.querySelector('button[type="submit"]')
+                            || document.querySelector('[data-id="send"]')
+                            || document.querySelector('[aria-label="Відправити"]')
+                            || document.querySelector('[aria-label="Отправить"]')
+                            || document.querySelector('input[type="submit"]');
+                        var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
+                        if (isTouch) {
+                            if (btn) btn.click();
+                        } else {
+                            var toEl = document.querySelector('.sm-auto-complete__input');
+                            var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
+                            if (toEl && !hasChip) {
+                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
+                                toEl.dispatchEvent(new Event('input',{bubbles:true}));
+                                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                                setTimeout(function() { if (btn) btn.click(); }, 120);
+                            } else { if (btn) btn.click(); }
+                        }
+                    })();
+                """.trimIndent()
             getUkrnetWebView()?.evaluateJavascript(js, null)
             scope.launch {
                 delay(1500)
