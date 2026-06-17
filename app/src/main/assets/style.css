@@ -1571,3 +1571,53 @@ html, body, #root {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+/* --- Telegram-like Media Cap & Overlays --- */
+.message:has(.msg-album-container):not(:has([style*="pre-wrap"])) {
+  padding: 4px;
+  border-radius: 12px;
+}
+.album-row:only-child .album-img {
+  max-width: 280px;
+  max-height: 320px;
+  width: auto;
+  height: auto;
+  min-width: 140px;
+  min-height: 120px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.message:has(.video-thumb-wrapper):not(:has([style*="pre-wrap"])) {
+  padding: 4px;
+  border-radius: 12px;
+}
+.video-thumb-wrapper {
+  max-width: 280px;
+  max-height: 320px;
+  width: auto;
+  height: auto;
+  min-width: 140px;
+  min-height: 120px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.message:has(.msg-album-container):not(:has([style*="pre-wrap"])) .msg-bottom-flow,
+.message:has(.video-thumb-wrapper):not(:has([style*="pre-wrap"])) .msg-bottom-flow {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 3px 8px;
+  border-radius: 10px;
+  z-index: 5;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.message:has(.msg-album-container):not(:has([style*="pre-wrap"])) .msg-meta,
+.message:has(.video-thumb-wrapper):not(:has([style*="pre-wrap"])) .msg-meta {
+  color: rgba(255, 255, 255, 0.9) !important;
+  margin-top: 0 !important;
+}
+.message:has(.msg-album-container):not(:has([style*="pre-wrap"])) .msg-meta span,
+.message:has(.video-thumb-wrapper):not(:has([style*="pre-wrap"])) .msg-meta span {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
