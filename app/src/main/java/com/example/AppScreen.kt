@@ -13,6 +13,9 @@ import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.ByteArrayOutputStream
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -57,6 +60,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import java.io.File
@@ -113,15 +120,53 @@ fun createStealthCopy(context: Context, originalUri: Uri): Uri? {
     }
 }
 
-// Утилита перевода выбранного медиафайла в Base64 для красивого превью в мессенджере
+// Утилита асинхронного сжатия и перевода медиафайла в Base64 для красивого превью в мессенджере
 fun uriToBase64(context: Context, uri: Uri): String {
     return try {
-        val inputStream = context.contentResolver.openInputStream(uri) ?: return ""
-        val bytes = inputStream.readBytes()
-        inputStream.close()
         val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return ""
+        
+        if (mimeType.startsWith("video")) {
+            val bytes = inputStream.readBytes()
+            inputStream.close()
+            val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            return "data:$mimeType;base64,$b64"
+        }
+        
+        // Первый проход: читаем только размеры изображения (0 ОЗУ)
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        BitmapFactory.decodeStream(inputStream, null, options)
+        inputStream.close()
+        
+        // Ограничиваем максимальную сторону картинки для превью до 800px
+        val maxDimension = 800
+        var scale = 1
+        if (options.outHeight > maxDimension || options.outWidth > maxDimension) {
+            val halfHeight = options.outHeight / 2
+            val halfWidth = options.outWidth / 2
+            while ((halfHeight / scale) >= maxDimension && (halfWidth / scale) >= maxDimension) {
+                scale *= 2
+            }
+        }
+        
+        // Второй проход: загружаем уже уменьшенное изображение
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = scale
+        }
+        val secondStream = context.contentResolver.openInputStream(uri) ?: return ""
+        val bitmap = BitmapFactory.decodeStream(secondStream, null, decodeOptions) ?: return ""
+        secondStream.close()
+        
+        // Сжимаем Bitmap в JPEG с качеством 70% для экстремальной экономии ОЗУ и CPU
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+        val bytes = outputStream.toByteArray()
+        bitmap.recycle() // Немедленно очищаем нативную память
+        
         val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-        "data:$mimeType;base64,$b64"
+        "data:image/jpeg;base64,$b64"
     } catch (e: Exception) {
         ""
     }
@@ -200,6 +245,7 @@ private fun WebViewLayer(
     log: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var ukrnetFilePathCallback by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
     
     var ukrnetWebViewInstance by remember { mutableStateOf<WebView?>(null) }
@@ -230,18 +276,35 @@ private fun WebViewLayer(
             val typeStr = if (isVideo) "video" else "photo"
             messengerWebViewInstance?.evaluateJavascript("if(window.nan0gram && window.nan0gram.submitStealthFile) window.nan0gram.submitStealthFile('$typeStr');", null)
             
-            // 2. Генерируем красивую копию для мгновенного отображения в Мессенджере
-            val b64 = uriToBase64(context, firstUri)
-            if (b64.isNotEmpty()) {
+            // 2. Генерируем красивую копию для мгновенного отображения в Мессенджере (асинхронно в IO-потоке)
+            scope.launch(Dispatchers.IO) {
                 val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                 val chatData = JSONObject().apply {
-                    put("base64", b64)
                     put("time", timeStr)
+                    if (isVideo) {
+                        val b64 = uriToBase64(context, firstUri)
+                        if (b64.isNotEmpty()) {
+                            put("base64", b64)
+                            put("isVideo", true)
+                        }
+                    } else {
+                        // Это фото (кодируем асинхронно все выбранные картинки для локального превью альбома)
+                        val b64List = org.json.JSONArray()
+                        for (imgUri in selectedUris) {
+                            val b64 = uriToBase64(context, imgUri)
+                            if (b64.isNotEmpty()) {
+                                b64List.put(b64)
+                            }
+                        }
+                        put("base64s", b64List)
+                    }
                 }
                 val escaped = chatData.toString().replace("\\", "\\\\").replace("\"", "\\\"")
-                messengerWebViewInstance?.evaluateJavascript(
-                    "window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \"$escaped\" }));", null
-                )
+                withContext(Dispatchers.Main) {
+                    messengerWebViewInstance?.evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \"$escaped\" }));", null
+                    )
+                }
             }
         } else {
             ukrnetFilePathCallback?.onReceiveValue(null)
