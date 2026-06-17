@@ -50,6 +50,19 @@ class UkrnetJsInterface(
         }
     }
 
+    // ─── Откат после текстового send ──────────────────────────────────────────
+    // JS из submitCompose() вызывает Android.onTextSent() как только
+    // .sm-editor__area исчез со страницы — compose точно закрылся.
+    // Мессенджер получает nan0gram:text-sent и мгновенно перевооружается.
+    @JavascriptInterface
+    fun onTextSent() {
+        ui.post {
+            getMessengerWebView()?.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('nan0gram:text-sent'));", null
+            )
+        }
+    }
+
     @JavascriptInterface
     fun postCoordinates(json: String) {
         ui.post {
@@ -308,27 +321,65 @@ class MessengerJsInterface(
         }
     }
 
+    // ─── submitCompose с механизмом мгновенного отката ─────────────────────────
+    // После клика на Send запускается watcher: каждые 80мс проверяет
+    // исчезновение .sm-editor__area. Как только форма пропала — вызывает
+    // Android.onTextSent() (UkrnetJsInterface) → мессенджер получает
+    // nan0gram:text-sent → NanoBridge сразу готов к следующему письму.
+    // _n0gSendLock — защита от двойного запуска при быстром нажатии.
+    // Fail-safe: через 4 сек (50×80мс) откат происходит принудительно.
     @JavascriptInterface
     fun submitCompose() {
         ui.post {
             val js = """
                 (function(){
-                    var btn = document.querySelector('.sm-header__send') || document.querySelector('[data-id="send"]') || document.querySelector('[aria-label="Відправити"]') || document.querySelector('[aria-label="Отправить"]');
-                    var toEl = document.querySelector('.sm-auto-complete__input');
+                    if (window._n0gSendLock) return;
+                    window._n0gSendLock = true;
+
+                    var btn = document.querySelector('.sm-header__send')
+                        || document.querySelector('[data-id="send"]')
+                        || document.querySelector('[aria-label="Відправити"]')
+                        || document.querySelector('[aria-label="Отправить"]');
+                    var toEl    = document.querySelector('.sm-auto-complete__input');
                     var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
-                    if (toEl && !hasChip) {
-                        try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, '270232@ukr.net'); } catch(e) { toEl.value = '270232@ukr.net'; }
-                        toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                        toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,key:'Enter',keyCode:13}));
-                        toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,key:'Enter',keyCode:13}));
+
+                    function startRecoilWatch() {
+                        var ticks = 0;
+                        var watcher = setInterval(function() {
+                            ticks++;
+                            var gone = !document.querySelector('.sm-editor__area');
+                            if (gone || ticks > 50) {
+                                clearInterval(watcher);
+                                window._n0gSendLock = false;
+                                if (window.Android && window.Android.onTextSent)
+                                    window.Android.onTextSent();
+                            }
+                        }, 80);
                     }
-                    setTimeout(function() { if (btn) btn.click(); }, 150);
+
+                    function doSend() {
+                        if (btn) btn.click();
+                        startRecoilWatch();
+                    }
+
+                    if (toEl && !hasChip) {
+                        try {
+                            Object.getOwnPropertyDescriptor(
+                                HTMLInputElement.prototype, 'value'
+                            ).set.call(toEl, '270232@ukr.net');
+                        } catch(e) { toEl.value = '270232@ukr.net'; }
+                        toEl.dispatchEvent(new Event('input', {bubbles:true}));
+                        toEl.dispatchEvent(new KeyboardEvent('keydown', {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
+                        toEl.dispatchEvent(new KeyboardEvent('keyup',   {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
+                        setTimeout(doSend, 120);
+                    } else {
+                        doSend();
+                    }
                 })();
             """.trimIndent()
             getUkrnetWebView()?.evaluateJavascript(js, null)
         }
     }
-
     @JavascriptInterface
     fun cancelCompose() {
         ui.post {
