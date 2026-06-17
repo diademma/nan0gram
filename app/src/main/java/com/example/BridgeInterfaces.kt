@@ -111,13 +111,9 @@ class MessengerJsInterface(
     private val ui = Handler(Looper.getMainLooper())
     @Volatile var lastComposeBody: String = ""
 
-    // ── lastSubmitMs: установлен НЕМЕДЛЕННО в submitCompose (НЕ внутри ui.post!)
-    // Это гарантирует что WebCore-поток увидит значение при следующем вызове openCompose.
-    // RECOIL_MS: блокируем openCompose на 3с после каждого Send.
     @Volatile private var lastSubmitMs = 0L
     private val RECOIL_MS = 3000L
 
-    // ── Дебаунс: блокируем дублирующие вызовы openCompose с разницей < 300мс
     @Volatile private var lastOpenMs = 0L
     private val DEBOUNCE_MS = 300L
 
@@ -185,9 +181,6 @@ class MessengerJsInterface(
 
     @Volatile private var uploadSequenceActive = false
 
-    // ─── startMediaUploadSequence ─────────────────────────────────────────────
-    // В sendmsg-режиме (нет координат compose-кнопки) compose УЖЕ открыт.
-    // Координаты НЕ нужны — инжектируем JS напрямую на текущую страницу.
     fun startMediaUploadSequence() {
         if (uploadSequenceActive) { log("[Stealth] Дубль вызова — пропускаем"); return }
         uploadSequenceActive = true
@@ -235,13 +228,6 @@ class MessengerJsInterface(
         }
     }
 
-    // ─── openCompose ─────────────────────────────────────────────────────────
-    // Порядок проверок (все синхронные — нет гонок потоков):
-    //  1. RECOIL_BLOCK: < 3с после Send → игнорируем (lastSubmitMs ставится ДО ui.post!)
-    //  2. DEBOUNCE: < 300мс после предыдущего openCompose → игнорируем дубль
-    //  3. Нет coords (.ml-header__compose не найден) → мы на sendmsg или мобильной версии
-    //     → проверяем URL асинхронно, если не sendmsg → loadUrl(sendmsg)
-    //  4. Есть coords (десктоп) → старый путь через simulateTouch
     @JavascriptInterface
     fun openCompose(configJson: String) {
         val now = System.currentTimeMillis()
@@ -260,7 +246,6 @@ class MessengerJsInterface(
         ui.post {
             val c = getCoords()
             if (c.composeX == null || c.composeY == null) {
-                // Нет кнопки Написать → мы на sendmsg или мобильной странице
                 getUkrnetWebView()?.evaluateJavascript(
                     "(window.location.href.indexOf('sendmsg') !== -1).toString();"
                 ) { res ->
@@ -274,7 +259,6 @@ class MessengerJsInterface(
                 }
                 return@post
             }
-            // Десктоп-режим: кнопка Написать найдена
             getUkrnetWebView()?.evaluateJavascript(
                 "(document.querySelector('.sm-editor__area') !== null).toString();"
             ) { value ->
@@ -322,14 +306,9 @@ class MessengerJsInterface(
         }
     }
 
-    // ─── submitCompose ────────────────────────────────────────────────────────
-    // КРИТИЧНО: lastSubmitMs = ... стоит ДО ui.post{}
-    // Это означает что он устанавливается на WebCore-потоке НЕМЕДЛЕННО при вызове.
-    // Следующий вызов openCompose() (тоже на WebCore-потоке) увидит это значение
-    // сразу — без ожидания Main thread. Это устраняет гонку потоков.
     @JavascriptInterface
     fun submitCompose() {
-        lastSubmitMs = System.currentTimeMillis()   // ← ВНЕ ui.post — немедленно!
+        lastSubmitMs = System.currentTimeMillis()
         lastComposeBody = ""
         ui.post {
             val js = """
