@@ -109,7 +109,7 @@ class MessengerJsInterface(
 ) {
     lateinit var scope: CoroutineScope
     private val ui = Handler(Looper.getMainLooper())
-    @Volatile var lastComposeBody: String = """
+    @Volatile var lastComposeBody: String = ""
 
     // ── lastSubmitMs: установлен НЕМЕДЛЕННО в submitCompose (НЕ внутри ui.post!)
     // Это гарантирует что WebCore-поток увидит значение при следующем вызове openCompose.
@@ -333,29 +333,29 @@ class MessengerJsInterface(
         lastComposeBody = ""
         ui.post {
             val js = """
-                    (function(){
-                        var btn = document.querySelector('.sm-header__send')
-                            || document.querySelector('button[type="submit"]')
-                            || document.querySelector('[data-id="send"]')
-                            || document.querySelector('[aria-label="Відправити"]')
-                            || document.querySelector('[aria-label="Отправить"]')
-                            || document.querySelector('input[type="submit"]');
-                        var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
-                        if (isTouch) {
-                            if (btn) btn.click();
-                        } else {
-                            var toEl = document.querySelector('.sm-auto-complete__input');
-                            var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
-                            if (toEl && !hasChip) {
-                                try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
-                                toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                                toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                                toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                                setTimeout(function() { if (btn) btn.click(); }, 120);
-                            } else { if (btn) btn.click(); }
-                        }
-                    })();
-                """.trimIndent()
+                (function(){
+                    var btn = document.querySelector('.sm-header__send')
+                        || document.querySelector('button[type="submit"]')
+                        || document.querySelector('[data-id="send"]')
+                        || document.querySelector('[aria-label="Відправити"]')
+                        || document.querySelector('[aria-label="Отправить"]')
+                        || document.querySelector('input[type="submit"]');
+                    var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
+                    if (isTouch) {
+                        if (btn) btn.click();
+                    } else {
+                        var toEl = document.querySelector('.sm-auto-complete__input');
+                        var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
+                        if (toEl && !hasChip) {
+                            try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
+                            toEl.dispatchEvent(new Event('input',{bubbles:true}));
+                            toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                            toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                            setTimeout(function() { if (btn) btn.click(); }, 120);
+                        } else { if (btn) btn.click(); }
+                    }
+                })();
+            """.trimIndent()
             getUkrnetWebView()?.evaluateJavascript(js, null)
             scope.launch {
                 delay(1500)
