@@ -216,12 +216,12 @@ class MessengerJsInterface(
             uploadCheckCount++;
             if (uploadCheckCount > 60) { clearInterval(window._n0gUploadInt); setTimeout(ensureSent, 500); return; }
             
-            // Ищем любые индикаторы загрузки (спиннеры, прогресс-бары)
-            var uploadingEls = document.querySelectorAll('[class*="progress"], [class*="spinner"], [class*="uploading"], [class*="loading"]');
-            var isUploading = false;
-            for(var i=0; i<uploadingEls.length; i++) {
-                if(uploadingEls[i].offsetWidth > 0 || uploadingEls[i].offsetHeight > 0) { isUploading = true; break; }
-            }
+            // 🎯 Точные селекторы из DOM-анализа:
+            var isUploading = document.querySelectorAll('.sm-attachments__progress-state').length > 0;
+            
+            // 🎯 Ждем исчезновения лоадера автосохранения (черновика):
+            var isSaving = document.querySelectorAll('.sm-header__loader').length > 0;
+            if (isSaving) { isUploading = true; }
             
             // Если кнопка заблокирована - 100% еще грузит
             var sendBtn = document.querySelector('.sm-header__send') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]');
