@@ -189,7 +189,7 @@ fun AppScreen(
     coroutineScope: CoroutineScope,
     log: (String) -> Unit
 ) {
-    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+    Scaffold(containerColor = Color(0xFF130E19), modifier = Modifier.fillMaxSize()) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
