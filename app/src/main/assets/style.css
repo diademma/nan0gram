@@ -1871,3 +1871,13 @@ html, body, #root {
   border-color: rgba(167, 115, 209, 0.25) !important;
   box-shadow: 0 4px 20px rgba(167, 115, 209, 0.08) !important;
 }
+/* --- Gear Icon Color & Pointer Events --- */
+.sidebar-gear-btn {
+  color: rgba(255, 255, 255, 0.75) !important;
+  opacity: 1 !important;
+}
+
+/* Заставляем клики пролетать сквозь SVG-векторы на интерактивные кнопки */
+.input-icon svg, .sidebar-gear-btn svg, .header-actions svg {
+  pointer-events: none !important;
+}
