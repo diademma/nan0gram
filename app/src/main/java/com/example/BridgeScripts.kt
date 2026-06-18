@@ -1,3 +1,4 @@
+
 package com.example
 
 // ════════════════ ДОМ-селекторы веб-версии Ukr.net ═════════════════════════
@@ -23,19 +24,35 @@ object UkrnetSelectors {
     const val READ_BODY = ".rm-body__content"
     const val READ_SUBJECT = ".readmsg__subject"
     const val BACK_BUTTON = ".rm-header__list"
+
+    // Вспомогательные и резервные селекторы (вынесенные хардкоды)
+    const val ATTACH_BUTTON_FALLBACK = "[class*='attach']"
+    const val SEND_BUTTON_FALLBACK_SUBMIT = "button[type='submit']"
+    const val SEND_BUTTON_FALLBACK_DATA = "[data-id='send']"
+    const val SEND_BUTTON_FALLBACK_INPUT = "input[type='submit']"
+    const val SEND_BUTTON_FALLBACK_ARIA_UA = "[aria-label='Відправити']"
+    const val SEND_BUTTON_FALLBACK_ARIA_RU = "[aria-label='Отправить']"
+    
+    const val TO_INPUT_FALLBACK_NAME = "input[name='to']"
+    const val TO_INPUT_FALLBACK_EMAIL = "input[type='email']"
+    const val TO_INPUT_FALLBACK_PLACEHOLDER = "input[placeholder]"
+    
+    const val SUBJECT_INPUT_FALLBACK_NAME = "input[name='subject']"
+    const val SUBJECT_INPUT_FALLBACK_PLACEHOLDER = "input[placeholder*='ема']"
+    
+    const val BODY_AREA_FALLBACK_EDITABLE = "[contenteditable='true']"
+    const val BODY_AREA_FALLBACK_NAME = "textarea[name='body']"
+    const val BODY_AREA_FALLBACK_TAG = "textarea"
+
+    const val ATTACH_CHIP_FALLBACK_ITEM = ".sm-auto-complete__item"
+    const val ATTACH_CHIP_FALLBACK_TOKEN = ".sm-auto-complete__token"
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BRIDGE SCRIPTS  — JS-строки, инъектируемые в ukrnetWebView
-// Этот файл почти не меняется. Новые JS-скрипты добавляй сюда же.
-// Максимум 700 строк — если больше, выделяй тематический файл
-// (например, BridgeReaderScripts.kt для логики чтения писем).
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ─── Мониторинг авторизации ────────────────────────────────────────────────
-// Запускается в цикле пока isBgServiceActive == true.
-// Сигналит Kotlin через Android.postMessage когда mail.ukr.net открылся.
-
 internal val MONITORING_JS = """
     try {
         if (!window.nan0gramBridgeInjected) {
@@ -58,9 +75,6 @@ internal val MONITORING_JS = """
 """.trimIndent()
 
 // ─── DOM-сканер координат ──────────────────────────────────────────────────
-// Запускается после логина. Находит CSS-координаты кнопок compose/send/etc.
-// Результат → Android.postCoordinates(json).
-
 internal val SCANNING_JS = """
     (function() {
         function getCoords(el) {
@@ -82,10 +96,6 @@ internal val SCANNING_JS = """
 """.trimIndent()
 
 // ─── Ридер входящих писем ──────────────────────────────────────────────────
-// Машина состояний: IDLE → READING → RETURNING → IDLE.
-// Находит непрочитанные письма с эмодзи в теме (💬 nan0gram маркер),
-// открывает, извлекает тело и сигналит → Android.onIncomingMessage.
-
 internal val READING_JS = """
     (function() {
         try {
@@ -155,10 +165,6 @@ internal val READING_JS = """
 """.trimIndent()
 
 // ─── Focus-patch для openCompose ───────────────────────────────────────────
-// Временно отключает HTMLElement.prototype.focus в ukrnet
-// чтобы форма compose не могла украсть IME у мессенджера.
-// Вставляется ПЕРЕД кликом на кнопку «Написать», снимается в fillJs.
-
 internal val FOCUS_PATCH_JS = """
     if (!window._n0OrigFocus) {
         window._n0OrigFocus = HTMLElement.prototype.focus;
@@ -174,17 +180,11 @@ internal val FOCUS_PATCH_JS = """
 """.trimIndent()
 
 // ─── Заполнение полей compose + снятие focus-patch ────────────────────────
-// Вставляется ПОСЛЕ simulateTouch на кнопку «Написать».
-// Ждёт появления полей (setInterval 80ms), заполняет нативным setter,
-// снимает focus-patch, вызывает Android.onComposeReady().
-// Параметры %TO% и %SUBJECT% заменяются в Kotlin перед инъекцией.
-
 internal val COMPOSE_FILL_JS = """
     (function(to, subject) {
         var attempts = 0;
         var t = setInterval(function() {
             attempts++;
-            // Kill-switch: стелс-режим активен — не заполняем и не вызываем onComposeReady
             if (window._n0gStealthUpload) { clearInterval(t); return; }
             var toEl   = document.querySelector('${UkrnetSelectors.TO_INPUT}');
             var subjEl = document.querySelector('${UkrnetSelectors.SUBJECT_INPUT}');
@@ -216,14 +216,6 @@ internal val COMPOSE_FILL_JS = """
 """.trimIndent()
 
 // ─── Заполнение полей touch/sendmsg ──────────────────────────────────────────
-// Вставляется из onPageFinished когда URL содержит "sendmsg".
-// AppScreen.kt сбрасывает window._n0gFilled = false перед каждой вставкой
-// чтобы гарантировать заполнение при каждой новой загрузке страницы.
-//
-// КРИТИЧНО: НЕ вызывает onComposeReady() — иначе мессенджер снова
-// вызовет openCompose(), что приведёт к двойному заполнению поля To
-// (два адреса 270232@ukr.net) и случайному тексту в строке ввода.
-
 internal val SENDMSG_FILL_JS = """
     (function() {
         if (window._n0gFilled) return;
@@ -232,10 +224,10 @@ internal val SENDMSG_FILL_JS = """
             count++;
             if (count > 60) { clearInterval(t); return; }
 
-            var toEl = document.querySelector('input[name="to"]')
-                || document.querySelector('input[type="email"]')
+            var toEl = document.querySelector('${UkrnetSelectors.TO_INPUT_FALLBACK_NAME}')
+                || document.querySelector('${UkrnetSelectors.TO_INPUT_FALLBACK_EMAIL}')
                 || document.querySelector('${UkrnetSelectors.TO_INPUT}')
-                || document.querySelector('input[placeholder]');
+                || document.querySelector('${UkrnetSelectors.TO_INPUT_FALLBACK_PLACEHOLDER}');
 
             if (!toEl) return;
             clearInterval(t);
@@ -253,9 +245,9 @@ internal val SENDMSG_FILL_JS = """
             toEl.dispatchEvent(new KeyboardEvent('keydown', {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
             toEl.dispatchEvent(new KeyboardEvent('keyup',   {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
 
-            var subjEl = document.querySelector('input[name="subject"]')
+            var subjEl = document.querySelector('${UkrnetSelectors.SUBJECT_INPUT_FALLBACK_NAME}')
                 || document.querySelector('${UkrnetSelectors.SUBJECT_INPUT}')
-                || document.querySelector('input[placeholder*="ема"]');
+                || document.querySelector('${UkrnetSelectors.SUBJECT_INPUT_FALLBACK_PLACEHOLDER}');
             if (subjEl) {
                 try {
                     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
@@ -264,9 +256,6 @@ internal val SENDMSG_FILL_JS = """
                 subjEl.dispatchEvent(new Event('input',  {bubbles:true}));
                 subjEl.dispatchEvent(new Event('change', {bubbles:true}));
             }
-            // НЕ вызываем onComposeReady() — это разрывает петлю обратной связи:
-            // onComposeReady → nan0gram:compose-ready → messenger → openCompose()
-            // → двойное заполнение → два адреса в To → мусорный текст в input
         }, 100);
     })();
 """.trimIndent()
