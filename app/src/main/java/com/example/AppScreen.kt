@@ -355,7 +355,6 @@ private fun WebViewLayer(
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
                             if (url.isSendMsgUrl()) {
-                                view?.evaluateJavascript("window._n0gFilled = false;", null)
                                 view?.evaluateJavascript(SENDMSG_FILL_JS, null)
                                 log("[Compose] sendmsg загружен — заполняем поля")
                                 val bufferedBody = messengerInterface.lastComposeBody
