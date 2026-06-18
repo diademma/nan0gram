@@ -1580,6 +1580,8 @@ html, body, #root {
   overflow: hidden;
   width: 100%;
   margin-bottom: 4px;
+  min-width: 240px; /* Минимальная ширина альбома (Белая линия) */
+  max-width: 350px; /* Максимальная ширина альбома (Красная линия) */
 }
 
 .album-row {
@@ -1592,7 +1594,7 @@ html, body, #root {
 .album-img {
   flex: 1 1 0%;
   min-width: 0;
-  height: 140px; /* Высота по умолчанию для многострочных альбомов (например, 5-8 фото) */
+  height: 140px;
   object-fit: cover;
   cursor: pointer;
   display: block;
@@ -1603,19 +1605,18 @@ html, body, #root {
   opacity: 0.95;
 }
 
-/* Когда в альбоме только одна строка и в ней 2+ картинки (например, альбомы из 2 или 3 фото) */
 .album-row:only-child:not(:has(.album-img:only-child)) .album-img {
-  height: 180px; /* Делаем шире и кинематографичнее */
+  height: 180px;
 }
 
 /* Одиночное фото (без подписи) */
 .album-row:only-child .album-img:only-child {
   flex: none !important;
-  max-width: 280px;
+  max-width: 350px; /* Максимальная ширина (Красная линия) */
   max-height: 320px;
   width: auto;
   height: auto;
-  min-width: 140px;
+  min-width: 200px; /* Слегка уменьшенный порог для одиночных узких фото, чтобы избежать сильного кропа */
   min-height: 120px;
   border-radius: 10px;
   object-fit: cover;
@@ -1632,11 +1633,10 @@ html, body, #root {
 }
 
 .video-thumb-wrapper {
-  max-width: 280px;
-  max-height: 320px;
+  min-width: 240px; /* Минимальная ширина видео (Белая линия) */
+  max-width: 350px; /* Максимальная ширина видео (Красная линия) */
   width: auto;
   height: auto;
-  min-width: 140px;
   min-height: 120px;
   border-radius: 10px;
   object-fit: cover;
@@ -1699,11 +1699,13 @@ html, body, #root {
   max-width: 100% !important;
   height: 200px !important;
   object-fit: cover !important;
+  min-width: 100% !important;
 }
 .message:has([style*="pre-wrap"]) .video-thumb-wrapper {
   width: 100% !important;
   max-width: 100% !important;
   height: 200px !important;
+  min-width: 100% !important;
 }
 .message:has([style*="pre-wrap"]) .video-thumb {
   width: 100% !important;
@@ -1711,12 +1713,12 @@ html, body, #root {
   object-fit: cover !important;
 }
 
-/* 🎯 ШИРОКИЙ ЭКРАН (ПЛАНШЕТ/ПК): Ограничиваем максимальную ширину бабла с фото/видео до 380px */
+/* 🎯 ШИРОКИЙ ЭКРАН (ПЛАНШЕТ/ПК): Ограничиваем максимальную ширину бабла с фото/видео */
 @media(min-width: 768px) {
   .message:has(.msg-album-container) {
-    max-width: 380px !important;
+    max-width: 350px !important; /* Соответствует красной линии */
   }
   .message:has(.video-thumb-wrapper) {
-    max-width: 380px !important;
+    max-width: 350px !important; /* Соответствует красной линии */
   }
 }
