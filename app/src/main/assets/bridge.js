@@ -409,7 +409,7 @@
 
     window.document.addEventListener('pointerdown', function(e) {
         var btn = e.target.closest('.send-mic-btn');
-        if (btn && btn.textContent.indexOf('➤') !== -1) {
+        if (btn) {
             var input = document.querySelector('.msg-input');
             if (input && input.value.trim() && window.nan0gram && window.nan0gram.submitCompose) {
                 window.nan0gram.submitCompose(input.value.trim());
