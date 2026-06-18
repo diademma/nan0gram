@@ -18,7 +18,8 @@ class UkrnetJsInterface(
     private val onFirstCoordsLogged: () -> Unit,
     private val getMessengerWebView: () -> WebView?,
     private val isLoginHandled: () -> Boolean,
-    private val getCurrentCoords: () -> DomCoords
+    private val getCurrentCoords: () -> DomCoords,
+    private val clearComposeBody: () -> Unit = {}
 ) {
     private val ui = Handler(Looper.getMainLooper())
 
@@ -48,6 +49,7 @@ class UkrnetJsInterface(
     @JavascriptInterface
     fun onMediaSent() {
         ui.post {
+            clearComposeBody()
             getMessengerWebView()?.evaluateJavascript(
                 "if(window.nan0gram) window.nan0gram._composeOpen = false; window.dispatchEvent(new CustomEvent('nan0gram:media-sent'));", null
             )
