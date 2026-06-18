@@ -1740,7 +1740,7 @@ html, body, #root {
 .app-title {
   font-size: 20px !important;
   font-weight: 800 !important;
-  color: rgba(255, 255, 255, 0.8) !important; /* На 20-25% мягче (не такой резкий белый) */
+  color: rgba(255, 255, 255, 0.8) !important;
   text-transform: lowercase !important;
   position: relative !important;
   letter-spacing: 1px !important;
@@ -1761,54 +1761,132 @@ html, body, #root {
 
 .app-title::before {
   left: 2px !important;
-  text-shadow: -1px 0 rgba(255, 0, 193, 0.75) !important; /* Слегка смягченный неоновый розовый */
-  animation: nan0-glitch-1 3s infinite linear alternate-reverse !important; /* 3 секунды вместо 4 для большей частоты */
+  text-shadow: -1px 0 rgba(255, 0, 193, 0.75) !important;
+  animation: nan0-glitch-1 8s infinite linear alternate-reverse !important; /* Длительность 8 секунд для слоумо */
 }
 
 .app-title::after {
   left: -2px !important;
-  text-shadow: -1px 0 rgba(0, 255, 249, 0.75), 0 1px rgba(0, 255, 249, 0.75) !important; /* Смягченный бирюзовый */
-  animation: nan0-glitch-2 3s infinite linear alternate-reverse !important; /* 3 секунды вместо 4 для большей частоты */
+  text-shadow: -1px 0 rgba(0, 255, 249, 0.75), 0 1px rgba(0, 255, 249, 0.75) !important;
+  animation: nan0-glitch-2 8s infinite linear alternate-reverse !important; /* Длительность 8 секунд для слоумо */
 }
 
 @keyframes nan0-glitch-1 {
-  0%, 70%, 100% {
+  /* 0% - 15%: Стартовый покой */
+  0%, 15% {
     clip-path: inset(100% 0 0 0);
   }
-  72% {
-    clip-path: inset(15% 0 70% 0); /* Шаги по 4% делают кадры глитча более осязаемыми и медленными */
+  /* Первая медленная вспышка с микропаузами (16% - 28%) */
+  16% {
+    clip-path: inset(15% 0 70% 0);
   }
-  76% {
+  20% {
+    clip-path: inset(15% 0 70% 0); /* ЗАМОРОЗКА кадра на 320мс */
+  }
+  22% {
     clip-path: inset(45% 0 40% 0);
   }
-  80% {
+  26% {
+    clip-path: inset(45% 0 40% 0); /* ЗАМОРОЗКА кадра на 320мс */
+  }
+  28% {
+    clip-path: inset(100% 0 0 0); /* Возврат к покою */
+  }
+  /* 28% - 50%: Длинная фаза тишины (2.2 секунды) */
+  28%, 50% {
+    clip-path: inset(100% 0 0 0);
+  }
+  /* Вторая тяжелая затяжная помеха (51% - 65%) */
+  51% {
     clip-path: inset(75% 0 10% 0);
   }
-  84% {
+  56% {
+    clip-path: inset(75% 0 10% 0); /* Длинная ЗАМОРОЗКА на 400мс */
+  }
+  58% {
     clip-path: inset(5% 0 85% 0);
   }
-  88% {
+  62% {
+    clip-path: inset(5% 0 85% 0); /* ЗАМОРОЗКА на 320мс */
+  }
+  65% {
+    clip-path: inset(100% 0 0 0);
+  }
+  /* 65% - 80%: Средняя фаза тишины (1.2 секунды) */
+  65%, 80% {
+    clip-path: inset(100% 0 0 0);
+  }
+  /* Третья короткая слоумо вспышка (81% - 92%) */
+  81% {
     clip-path: inset(30% 0 55% 0);
+  }
+  85% {
+    clip-path: inset(30% 0 55% 0); /* ЗАМОРОЗКА на 320мс */
+  }
+  92% {
+    clip-path: inset(100% 0 0 0);
+  }
+  100% {
+    clip-path: inset(100% 0 0 0);
   }
 }
 
 @keyframes nan0-glitch-2 {
-  0%, 70%, 100% {
+  /* Смещенная по времени асимметричная шкала для второго канала */
+  0%, 18% {
     clip-path: inset(100% 0 0 0);
   }
-  73% {
+  /* Первая вспышка */
+  19% {
     clip-path: inset(60% 0 25% 0);
   }
-  77% {
+  22% {
+    clip-path: inset(60% 0 25% 0); /* ЗАМОРОЗКА */
+  }
+  24% {
     clip-path: inset(20% 0 65% 0);
   }
-  81% {
+  27% {
+    clip-path: inset(20% 0 65% 0); /* ЗАМОРОЗКА */
+  }
+  29% {
+    clip-path: inset(100% 0 0 0);
+  }
+  /* Тишина */
+  29%, 53% {
+    clip-path: inset(100% 0 0 0);
+  }
+  /* Вторая вспышка */
+  54% {
     clip-path: inset(80% 0 5% 0);
   }
-  85% {
+  58% {
+    clip-path: inset(80% 0 5% 0); /* ЗАМОРОЗКА */
+  }
+  60% {
     clip-path: inset(10% 0 80% 0);
   }
-  89% {
+  64% {
+    clip-path: inset(10% 0 80% 0); /* ЗАМОРОЗКА */
+  }
+  66% {
+    clip-path: inset(100% 0 0 0);
+  }
+  /* Тишина */
+  66%, 83% {
+    clip-path: inset(100% 0 0 0);
+  }
+  /* Третья вспышка */
+  84% {
     clip-path: inset(50% 0 35% 0);
+  }
+  89% {
+    clip-path: inset(50% 0 35% 0); /* ЗАМОРОЗКА */
+  }
+  93% {
+    clip-path: inset(100% 0 0 0);
+  }
+  100% {
+    clip-path: inset(100% 0 0 0);
   }
 }
