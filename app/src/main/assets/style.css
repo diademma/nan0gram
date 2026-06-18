@@ -1824,3 +1824,50 @@ html, body, #root {
     clip-path: inset(100% 0 0 0);
   }
 }
+/* --- Widescreen Sidebar Glassmorphism & Background --- */
+.sidebar {
+  position: relative !important;
+  background: transparent !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.sidebar::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  background-image: var(--wallpaper-url, url('https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=1000&auto=format&fit=crop')) !important;
+  background-size: cover !important;
+  background-position: left center !important;
+  filter: blur(var(--sidebar-blur, 20px)) brightness(var(--sidebar-brightness, 0.5)) !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+  transition: filter 0.2s ease !important;
+}
+
+.chat-list {
+  padding: 12px 0 !important;
+}
+
+/* Glassmorphism Chat Cards (Стеклянные плашки по макету Джемини) */
+.chat-item {
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(5px) !important;
+  -webkit-backdrop-filter: blur(5px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
+  border-radius: 16px !important;
+  margin: 10px 14px !important; /* Красивое расстояние между карточками */
+  padding: 12px 14px !important;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease !important;
+}
+
+.chat-item:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  transform: scale(1.01) !important;
+}
+
+.chat-item.active {
+  background: rgba(167, 115, 209, 0.12) !important; /* Мягкое фиолетовое свечение активной карточки */
+  border-color: rgba(167, 115, 209, 0.25) !important;
+  box-shadow: 0 4px 20px rgba(167, 115, 209, 0.08) !important;
+}
