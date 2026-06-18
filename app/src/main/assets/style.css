@@ -1722,3 +1722,17 @@ html, body, #root {
     max-width: 350px !important; /* Соответствует красной линии */
   }
 }
+/* --- Expanded Hit Area for Reaction Pill --- */
+.reaction-pill {
+  position: relative !important;
+}
+.reaction-pill::after {
+  content: "" !important;
+  position: absolute !important;
+  top: -8px !important;
+  bottom: -8px !important;
+  left: -12px !important;
+  right: -12px !important;
+  cursor: pointer !important;
+  z-index: 10 !important;
+}
