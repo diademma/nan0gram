@@ -138,7 +138,6 @@ class MessengerJsInterface(
         }
     }
 
-    // Подготовка прозрачного слоя УкрНета поверх экрана для перехвата физического касания
     @JavascriptInterface
     fun prepareForDirectAttach() {
         ui.post {
@@ -148,7 +147,7 @@ class MessengerJsInterface(
                 log("[Stealth] Сканируем координаты кнопки-скрепки...")
                 ukr.evaluateJavascript("""
                     (function(){
-                        var el = document.querySelector('${UkrnetSelectors.ATTACH_BUTTON}') || document.querySelector('${UkrnetSelectors.ATTACH_BUTTON_FALLBACK}');
+                        var el = document.querySelector("${UkrnetSelectors.ATTACH_BUTTON}") || document.querySelector("${UkrnetSelectors.ATTACH_BUTTON_FALLBACK}");
                         if (!el) return 'not_found';
                         var r = el.getBoundingClientRect();
                         return JSON.stringify({
@@ -198,10 +197,10 @@ class MessengerJsInterface(
             window._n0gSending = true;
             function doSend() {
                 console.log('[Upload] Нажимаем кнопку Отправить!');
-                var btn = document.querySelector('${UkrnetSelectors.SEND_BUTTON}') 
-                    || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_SUBMIT}') 
-                    || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_DATA}') 
-                    || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_INPUT}');
+                var btn = document.querySelector("${UkrnetSelectors.SEND_BUTTON}") 
+                    || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_SUBMIT}") 
+                    || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_DATA}") 
+                    || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_INPUT}");
                 if (btn) { btn.disabled = false; btn.click(); }
                 window._n0gStealthUpload = false;
                 setTimeout(function() { window._n0gSending = false; }, 8000);
@@ -218,13 +217,13 @@ class MessengerJsInterface(
             uploadCheckCount++;
             if (uploadCheckCount > 60) { clearInterval(window._n0gUploadInt); setTimeout(ensureSent, 500); return; }
             
-            var isUploading = document.querySelectorAll('${UkrnetSelectors.ATTACH_PROGRESS}').length > 0;
-            var isSaving = document.querySelectorAll('${UkrnetSelectors.LOADER}').length > 0;
+            var isUploading = document.querySelectorAll("${UkrnetSelectors.ATTACH_PROGRESS}").length > 0;
+            var isSaving = document.querySelectorAll("${UkrnetSelectors.LOADER}").length > 0;
             if (isSaving) { isUploading = true; }
             
-            var sendBtn = document.querySelector('${UkrnetSelectors.SEND_BUTTON}') 
-                || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_SUBMIT}') 
-                || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_DATA}');
+            var sendBtn = document.querySelector("${UkrnetSelectors.SEND_BUTTON}") 
+                || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_SUBMIT}") 
+                || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_DATA}");
             if (sendBtn && sendBtn.disabled) { isUploading = true; }
             
             if (isUploading) { return; }
@@ -308,10 +307,10 @@ class MessengerJsInterface(
             val esc = encodedText.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
             val js = """
                 (function(text) {
-                    var el = document.querySelector('${UkrnetSelectors.BODY_AREA}')
-                        || document.querySelector('[contenteditable="true"]')
-                        || document.querySelector('textarea[name="body"]')
-                        || document.querySelector('textarea');
+                    var el = document.querySelector("${UkrnetSelectors.BODY_AREA}")
+                        || document.querySelector("[contenteditable='true']")
+                        || document.querySelector("textarea[name='body']")
+                        || document.querySelector("textarea");
                     if (!el) return;
                     el.innerHTML = '';
                     if (el.getAttribute('contenteditable') === 'true') { el.innerText = text; }
@@ -331,18 +330,18 @@ class MessengerJsInterface(
         ui.post {
             val js = """
                 (function(){
-                    var btn = document.querySelector('${UkrnetSelectors.SEND_BUTTON}')
-                        || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_SUBMIT}')
-                        || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_DATA}')
-                        || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_ARIA_UA}')
-                        || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_ARIA_RU}')
-                        || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_INPUT}');
+                    var btn = document.querySelector("${UkrnetSelectors.SEND_BUTTON}")
+                        || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_SUBMIT}")
+                        || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_DATA}")
+                        || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_ARIA_UA}")
+                        || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_ARIA_RU}")
+                        || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_INPUT}");
                     var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
                     if (isTouch) {
                         if (btn) btn.click();
                     } else {
-                        var toEl = document.querySelector('${UkrnetSelectors.TO_INPUT}');
-                        var hasChip = document.querySelector('${UkrnetSelectors.ATTACH_CHIP_FALLBACK_ITEM}, ${UkrnetSelectors.ATTACH_CHIP_FALLBACK_TOKEN}');
+                        var toEl = document.querySelector("${UkrnetSelectors.TO_INPUT}");
+                        var hasChip = document.querySelector("${UkrnetSelectors.ATTACH_CHIP_FALLBACK_ITEM}, ${UkrnetSelectors.ATTACH_CHIP_FALLBACK_TOKEN}");
                         if (toEl && !hasChip) {
                             try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
                             toEl.dispatchEvent(new Event('input',{bubbles:true}));
@@ -365,7 +364,7 @@ class MessengerJsInterface(
     fun cancelCompose() {
         ui.post {
             scope.launch {
-                val js = "(function(){ var btn = document.querySelector('" + UkrnetSelectors.CANCEL_BUTTON + "') || document.querySelector('[aria-label=\"Відмінити\"]') || document.querySelector('[aria-label=\"Отменить\"]'); if (btn) { btn.click(); return 'ok'; } history.back(); return 'fallback'; })();"
+                val js = """(function(){ var btn = document.querySelector("${UkrnetSelectors.CANCEL_BUTTON}") || document.querySelector("[aria-label='Відмінити']") || document.querySelector("[aria-label='Отменить']"); if (btn) { btn.click(); return 'ok'; } history.back(); return 'fallback'; })();""".trimIndent()
                 getUkrnetWebView()?.evaluateJavascript(js, null)
             }
         }
