@@ -1736,3 +1736,73 @@ html, body, #root {
   cursor: pointer !important;
   z-index: 10 !important;
 }
+/* --- Cyber Glitch Title for nan0gram --- */
+.app-title {
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  color: #fff !important;
+  text-transform: lowercase !important;
+  position: relative !important;
+  letter-spacing: 1px !important;
+  user-select: none !important;
+}
+
+.app-title::before,
+.app-title::after {
+  content: "nan0gram" !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: var(--bg-sidebar-header) !important;
+  color: #fff !important;
+}
+
+.app-title::before {
+  left: 2px !important;
+  text-shadow: -1px 0 #ff00c1 !important;
+  animation: nan0-glitch-1 4s infinite linear alternate-reverse !important;
+}
+
+.app-title::after {
+  left: -2px !important;
+  text-shadow: -1px 0 #00fff9, 0 1px #00fff9 !important;
+  animation: nan0-glitch-2 4s infinite linear alternate-reverse !important;
+}
+
+@keyframes nan0-glitch-1 {
+  0%, 85%, 100% {
+    clip-path: inset(100% 0 0 0);
+  }
+  86% {
+    clip-path: inset(15% 0 70% 0);
+  }
+  88% {
+    clip-path: inset(45% 0 40% 0);
+  }
+  90% {
+    clip-path: inset(75% 0 10% 0);
+  }
+  92% {
+    clip-path: inset(5% 0 85% 0);
+  }
+}
+
+@keyframes nan0-glitch-2 {
+  0%, 85%, 100% {
+    clip-path: inset(100% 0 0 0);
+  }
+  87% {
+    clip-path: inset(60% 0 25% 0);
+  }
+  89% {
+    clip-path: inset(20% 0 65% 0);
+  }
+  91% {
+    clip-path: inset(80% 0 5% 0);
+  }
+  93% {
+    clip-path: inset(10% 0 80% 0);
+  }
+}
