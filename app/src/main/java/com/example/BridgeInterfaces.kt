@@ -1,3 +1,4 @@
+
 package com.example
 
 import android.os.Handler
@@ -147,7 +148,7 @@ class MessengerJsInterface(
                 log("[Stealth] Сканируем координаты кнопки-скрепки...")
                 ukr.evaluateJavascript("""
                     (function(){
-                        var el = document.querySelector('${UkrnetSelectors.ATTACH_BUTTON}') || document.querySelector('[class*="attach"]');
+                        var el = document.querySelector('${UkrnetSelectors.ATTACH_BUTTON}') || document.querySelector('${UkrnetSelectors.ATTACH_BUTTON_FALLBACK}');
                         if (!el) return 'not_found';
                         var r = el.getBoundingClientRect();
                         return JSON.stringify({
@@ -169,15 +170,12 @@ class MessengerJsInterface(
                             
                             log("[Stealth] Скрепка найдена на X=$x, Y=$y. Активируем скрытый тап...")
                             
-                            // Даем фокус УкрНету временно БЕЗ вывода на передний план!
                             ukr.isFocusable = true
                             ukr.isFocusableInTouchMode = true
                             ukr.requestFocus()
                             
-                            // Симулируем тап напрямую в скрытый УкрНет
                             simulateTouch(ukr, x, y, stealFocus = false, log = log)
                             
-                            // Возвращаем фокус мессенджеру чуть позже
                             ui.postDelayed({
                                 ukr.isFocusable = false
                                 ukr.isFocusableInTouchMode = false
@@ -200,7 +198,10 @@ class MessengerJsInterface(
             window._n0gSending = true;
             function doSend() {
                 console.log('[Upload] Нажимаем кнопку Отправить!');
-                var btn = document.querySelector('${UkrnetSelectors.SEND_BUTTON}') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]') || document.querySelector('input[type="submit"]');
+                var btn = document.querySelector('${UkrnetSelectors.SEND_BUTTON}') 
+                    || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_SUBMIT}') 
+                    || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_DATA}') 
+                    || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_INPUT}');
                 if (btn) { btn.disabled = false; btn.click(); }
                 window._n0gStealthUpload = false;
                 setTimeout(function() { window._n0gSending = false; }, 8000);
@@ -217,20 +218,17 @@ class MessengerJsInterface(
             uploadCheckCount++;
             if (uploadCheckCount > 60) { clearInterval(window._n0gUploadInt); setTimeout(ensureSent, 500); return; }
             
-            // 🎯 Точные селекторы из DOM-анализа:
             var isUploading = document.querySelectorAll('${UkrnetSelectors.ATTACH_PROGRESS}').length > 0;
-            
-            // 🎯 Ждем исчезновения лоадера автосохранения (черновика):
             var isSaving = document.querySelectorAll('${UkrnetSelectors.LOADER}').length > 0;
             if (isSaving) { isUploading = true; }
             
-            // Если кнопка заблокирована - 100% еще грузит
-            var sendBtn = document.querySelector('${UkrnetSelectors.SEND_BUTTON}') || document.querySelector('button[type="submit"]') || document.querySelector('[data-id="send"]');
+            var sendBtn = document.querySelector('${UkrnetSelectors.SEND_BUTTON}') 
+                || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_SUBMIT}') 
+                || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_DATA}');
             if (sendBtn && sendBtn.disabled) { isUploading = true; }
             
             if (isUploading) { return; }
             
-            // Если индикаторов нет, и прошло хотя бы 1.5 сек с начала (даем время на старт загрузки)
             if (uploadCheckCount > 3) {
                 clearInterval(window._n0gUploadInt);
                 setTimeout(ensureSent, 600);
@@ -334,17 +332,17 @@ class MessengerJsInterface(
             val js = """
                 (function(){
                     var btn = document.querySelector('${UkrnetSelectors.SEND_BUTTON}')
-                        || document.querySelector('button[type="submit"]')
-                        || document.querySelector('[data-id="send"]')
-                        || document.querySelector('[aria-label="Відправити"]')
-                        || document.querySelector('[aria-label="Отправить"]')
-                        || document.querySelector('input[type="submit"]');
+                        || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_SUBMIT}')
+                        || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_DATA}')
+                        || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_ARIA_UA}')
+                        || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_ARIA_RU}')
+                        || document.querySelector('${UkrnetSelectors.SEND_BUTTON_FALLBACK_INPUT}');
                     var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
                     if (isTouch) {
                         if (btn) btn.click();
                     } else {
                         var toEl = document.querySelector('${UkrnetSelectors.TO_INPUT}');
-                        var hasChip = document.querySelector('.sm-auto-complete__item, .sm-auto-complete__token');
+                        var hasChip = document.querySelector('${UkrnetSelectors.ATTACH_CHIP_FALLBACK_ITEM}, ${UkrnetSelectors.ATTACH_CHIP_FALLBACK_TOKEN}');
                         if (toEl && !hasChip) {
                             try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
                             toEl.dispatchEvent(new Event('input',{bubbles:true}));
