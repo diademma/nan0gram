@@ -166,6 +166,27 @@ fun uriToBase64(context: Context, uri: Uri): String {
     }
 }
 
+private fun getVideoThumbnailBase64(context: Context, uri: Uri): String {
+    val retriever = android.media.MediaMetadataRetriever()
+    return try {
+        retriever.setDataSource(context, uri)
+        val bitmap = retriever.getFrameAtTime(1000000, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            ?: retriever.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            ?: return ""
+        val outputStream = java.io.ByteArrayOutputStream()
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 75, outputStream)
+        val bytes = outputStream.toByteArray()
+        bitmap.recycle()
+        android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+    } catch (e: Exception) {
+        ""
+    } finally {
+        try {
+            retriever.release()
+        } catch (_: Exception) {}
+    }
+}
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun AppScreen(
@@ -299,6 +320,10 @@ private fun WebViewLayer(
                         if (b64.isNotEmpty()) {
                             put("base64", b64)
                             put("isVideo", true)
+                            val thumbB64 = getVideoThumbnailBase64(context, firstUri)
+                            if (thumbB64.isNotEmpty()) {
+                                put("videoThumbnail", "data:image/jpeg;base64,$thumbB64")
+                            }
                         }
                     } else {
                         val b64List = org.json.JSONArray()
