@@ -341,10 +341,10 @@ private fun WebViewLayer(
                                     val esc = bufferedBody.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
                                     val js = """
                                         (function(text) {
-                                            var el = document.querySelector('${UkrnetSelectors.BODY_AREA}')
-                                                || document.querySelector('${UkrnetSelectors.BODY_AREA_FALLBACK_EDITABLE}')
-                                                || document.querySelector('${UkrnetSelectors.BODY_AREA_FALLBACK_NAME}')
-                                                || document.querySelector('${UkrnetSelectors.BODY_AREA_FALLBACK_TAG}');
+                                            var el = document.querySelector("${UkrnetSelectors.BODY_AREA}")
+                                                || document.querySelector("${UkrnetSelectors.BODY_AREA_FALLBACK_EDITABLE}")
+                                                || document.querySelector("${UkrnetSelectors.BODY_AREA_FALLBACK_NAME}")
+                                                || document.querySelector("${UkrnetSelectors.BODY_AREA_FALLBACK_TAG}");
                                             if (!el) return;
                                             el.innerHTML = '';
                                             if (el.getAttribute('contenteditable') === 'true') { el.innerText = text; }
