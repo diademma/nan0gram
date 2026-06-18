@@ -453,7 +453,7 @@ private fun WebViewLayer(
                                     
                                     document.addEventListener('touchstart', function(e) {
                                         var t = e.target.closest('.input-icon');
-                                        if (t && (t.textContent.indexOf('📎') !== -1 || t.textContent.indexOf('🎬') !== -1)) {
+                                        if (t) {
                                             window._n0gStealthPending = true;
                                             triggerStealthAttach();
                                         }
@@ -461,7 +461,7 @@ private fun WebViewLayer(
 
                                     document.addEventListener('mousedown', function(e) {
                                         var t = e.target.closest('.input-icon');
-                                        if (t && (t.textContent.indexOf('📎') !== -1 || t.textContent.indexOf('🎬') !== -1)) {
+                                        if (t) {
                                             window._n0gStealthPending = true;
                                             triggerStealthAttach();
                                         }
@@ -469,7 +469,7 @@ private fun WebViewLayer(
 
                                     document.addEventListener('click', function(e) {
                                         var t = e.target.closest('.input-icon');
-                                        if (t && (t.textContent.indexOf('📎') !== -1 || t.textContent.indexOf('🎬') !== -1)) {
+                                        if (t) {
                                             e.preventDefault();
                                             e.stopPropagation();
                                         }
