@@ -304,7 +304,16 @@ class MessengerJsInterface(
     fun setComposeBody(encodedText: String) {
         lastComposeBody = encodedText
         ui.post {
-            val esc = encodedText.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+            // ПУЛЕНЕПРОБИВАЕМОЕ ЭКРАНИРОВАНИЕ
+            val esc = encodedText
+                .replace("\\", "\\\\")
+                .replace("'", "\\'")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "")
+                .replace("\u2028", "")
+                .replace("\u2029", "")
+
             val js = """
                 (function(text) {
                     var el = document.querySelector("${UkrnetSelectors.BODY_AREA}")
