@@ -1738,7 +1738,7 @@ html, body, #root {
 }
 /* --- Cyber Glitch Title for nan0gram --- */
 .app-title {
-  font-size: 20px !important;
+  font-size: 23px !important; /* Увеличено на 3px (около 2-3 мм) */
   font-weight: 800 !important;
   color: rgba(255, 255, 255, 0.8) !important;
   text-transform: lowercase !important;
@@ -1761,67 +1761,62 @@ html, body, #root {
 
 .app-title::before {
   left: 2px !important;
-  text-shadow: -1px 0 rgba(255, 0, 193, 0.75) !important;
-  animation: nan0-glitch-1 8s infinite linear alternate-reverse !important; /* Длительность 8 секунд для слоумо */
+  text-shadow: -1px 0 rgba(219, 39, 119, 0.8) !important; /* Нежный красно-фиолетовый (Velvet Rose) */
+  animation: nan0-glitch-1 8s infinite linear alternate-reverse !important;
 }
 
 .app-title::after {
   left: -2px !important;
-  text-shadow: -1px 0 rgba(0, 255, 249, 0.75), 0 1px rgba(0, 255, 249, 0.75) !important;
-  animation: nan0-glitch-2 8s infinite linear alternate-reverse !important; /* Длительность 8 секунд для слоумо */
+  text-shadow: -1px 0 rgba(168, 85, 247, 0.8), 0 1px rgba(168, 85, 247, 0.8) !important; /* Мягкий аметистово-фиолетовый */
+  animation: nan0-glitch-2 8s infinite linear alternate-reverse !important;
 }
 
 @keyframes nan0-glitch-1 {
-  /* 0% - 15%: Стартовый покой */
   0%, 15% {
     clip-path: inset(100% 0 0 0);
   }
-  /* Первая медленная вспышка с микропаузами (16% - 28%) */
   16% {
     clip-path: inset(15% 0 70% 0);
   }
   20% {
-    clip-path: inset(15% 0 70% 0); /* ЗАМОРОЗКА кадра на 320мс */
+    clip-path: inset(15% 0 70% 0);
   }
   22% {
     clip-path: inset(45% 0 40% 0);
   }
   26% {
-    clip-path: inset(45% 0 40% 0); /* ЗАМОРОЗКА кадра на 320мс */
+    clip-path: inset(45% 0 40% 0);
   }
   28% {
-    clip-path: inset(100% 0 0 0); /* Возврат к покою */
+    clip-path: inset(100% 0 0 0);
   }
-  /* 28% - 50%: Длинная фаза тишины (2.2 секунды) */
   28%, 50% {
     clip-path: inset(100% 0 0 0);
   }
-  /* Вторая тяжелая затяжная помеха (51% - 65%) */
   51% {
     clip-path: inset(75% 0 10% 0);
   }
   56% {
-    clip-path: inset(75% 0 10% 0); /* Длинная ЗАМОРОЗКА на 400мс */
+    clip-path: inset(75% 0 10% 0);
   }
   58% {
     clip-path: inset(5% 0 85% 0);
   }
   62% {
-    clip-path: inset(5% 0 85% 0); /* ЗАМОРОЗКА на 320мс */
+    clip-path: inset(5% 0 85% 0);
   }
   65% {
     clip-path: inset(100% 0 0 0);
   }
-  /* 65% - 80%: Средняя фаза тишины (1.2 секунды) */
   65%, 80% {
     clip-path: inset(100% 0 0 0);
   }
-  /* Третья короткая слоумо вспышка (81% - 92%) */
+  /* Короткая вспышка в конце */
   81% {
     clip-path: inset(30% 0 55% 0);
   }
   85% {
-    clip-path: inset(30% 0 55% 0); /* ЗАМОРОЗКА на 320мс */
+    clip-path: inset(30% 0 55% 0);
   }
   92% {
     clip-path: inset(100% 0 0 0);
@@ -1832,56 +1827,50 @@ html, body, #root {
 }
 
 @keyframes nan0-glitch-2 {
-  /* Смещенная по времени асимметричная шкала для второго канала */
   0%, 18% {
     clip-path: inset(100% 0 0 0);
   }
-  /* Первая вспышка */
   19% {
     clip-path: inset(60% 0 25% 0);
   }
   22% {
-    clip-path: inset(60% 0 25% 0); /* ЗАМОРОЗКА */
+    clip-path: inset(60% 0 25% 0);
   }
   24% {
     clip-path: inset(20% 0 65% 0);
   }
   27% {
-    clip-path: inset(20% 0 65% 0); /* ЗАМОРОЗКА */
+    clip-path: inset(20% 0 65% 0);
   }
   29% {
     clip-path: inset(100% 0 0 0);
   }
-  /* Тишина */
   29%, 53% {
     clip-path: inset(100% 0 0 0);
   }
-  /* Вторая вспышка */
   54% {
     clip-path: inset(80% 0 5% 0);
   }
   58% {
-    clip-path: inset(80% 0 5% 0); /* ЗАМОРОЗКА */
+    clip-path: inset(80% 0 5% 0);
   }
   60% {
     clip-path: inset(10% 0 80% 0);
   }
   64% {
-    clip-path: inset(10% 0 80% 0); /* ЗАМОРОЗКА */
+    clip-path: inset(10% 0 80% 0);
   }
   66% {
     clip-path: inset(100% 0 0 0);
   }
-  /* Тишина */
   66%, 83% {
     clip-path: inset(100% 0 0 0);
   }
-  /* Третья вспышка */
   84% {
     clip-path: inset(50% 0 35% 0);
   }
   89% {
-    clip-path: inset(50% 0 35% 0); /* ЗАМОРОЗКА */
+    clip-path: inset(50% 0 35% 0);
   }
   93% {
     clip-path: inset(100% 0 0 0);
