@@ -241,6 +241,28 @@ private fun WebViewLayer(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var ukrnetFilePathCallback by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
+    var messengerFilePathCallback by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
+
+    val messengerFileChooserLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri = result.data?.data
+        val clipData = result.data?.clipData
+        val selectedUris = mutableListOf<Uri>()
+        if (uri != null) {
+            selectedUris.add(uri)
+        } else if (clipData != null) {
+            for (i in 0 until clipData.itemCount) {
+                selectedUris.add(clipData.getItemAt(i).uri)
+            }
+        }
+        if (selectedUris.isNotEmpty()) {
+            messengerFilePathCallback?.onReceiveValue(selectedUris.toTypedArray())
+        } else {
+            messengerFilePathCallback?.onReceiveValue(null)
+        }
+        messengerFilePathCallback = null
+    }
     
     var ukrnetWebViewInstance by remember { mutableStateOf<WebView?>(null) }
     var messengerWebViewInstance by remember { mutableStateOf<WebView?>(null) }
@@ -505,7 +527,22 @@ private fun WebViewLayer(
                             filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?,
                             fileChooserParams: FileChooserParams?
                         ): Boolean {
-                            filePathCallbackParams?.onReceiveValue(null)
+                            if (messengerFilePathCallback != null) {
+                                filePathCallbackParams?.onReceiveValue(null)
+                                return true
+                            }
+                            messengerFilePathCallback = filePathCallbackParams
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+                                    addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                                    type = "image/*"
+                                }
+                                messengerFileChooserLauncher.launch(intent)
+                            } catch (e: Exception) {
+                                messengerFilePathCallback?.onReceiveValue(null)
+                                messengerFilePathCallback = null
+                                return false
+                            }
                             return true
                         }
                     }
