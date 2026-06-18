@@ -372,6 +372,9 @@
                 if (data.base64) {
                     if (data.isVideo) {
                         msgObj.video = data.base64;
+                        if (data.videoThumbnail) {
+                            msgObj.videoThumbnail = data.videoThumbnail;
+                        }
                     } else if (data.base64.startsWith("data:audio")) {
                         msgObj.audio = data.base64;
                     } else {
