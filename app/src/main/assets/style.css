@@ -1572,19 +1572,44 @@ html, body, #root {
   }
 }
 /* --- Telegram-like Media Cap & Overlays --- */
-.message:has(.msg-album-container):not(:has([style*="pre-wrap"])) {
-  padding: 4px;
-  border-radius: 12px;
+.msg-album-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 10px;
+  overflow: hidden;
+  width: 100%;
+  margin-bottom: 4px;
 }
+
+.album-row {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  width: 100%;
+}
+
 .album-img {
-  flex: 1;
+  flex: 1 1 0%;
   min-width: 0;
-  height: 120px;
+  height: 140px; /* Высота по умолчанию для многострочных альбомов (например, 5-8 фото) */
   object-fit: cover;
   cursor: pointer;
   display: block;
+  transition: opacity 0.15s ease;
 }
-.album-row:only-child .album-img {
+
+.album-img:hover {
+  opacity: 0.95;
+}
+
+/* Когда в альбоме только одна строка и в ней 2+ картинки (например, альбомы из 2 или 3 фото) */
+.album-row:only-child:not(:has(.album-img:only-child)) .album-img {
+  height: 180px; /* Делаем шире и кинематографичнее */
+}
+
+/* Одиночное фото (без подписи) */
+.album-row:only-child .album-img:only-child {
   flex: none !important;
   max-width: 280px;
   max-height: 320px;
@@ -1595,10 +1620,17 @@ html, body, #root {
   border-radius: 10px;
   object-fit: cover;
 }
+
+.message:has(.msg-album-container):not(:has([style*="pre-wrap"])) {
+  padding: 4px;
+  border-radius: 12px;
+}
+
 .message:has(.video-thumb-wrapper):not(:has([style*="pre-wrap"])) {
   padding: 4px;
   border-radius: 12px;
 }
+
 .video-thumb-wrapper {
   max-width: 280px;
   max-height: 320px;
@@ -1633,8 +1665,7 @@ html, body, #root {
   color: rgba(255, 255, 255, 0.9) !important;
 }
 
-/* 🎯 РЕАКЦИИ: Если есть реакция, отменяем наложение даты поверх фото,
-   чтобы реакция и дата ложились аккуратно под фото на дно бабла, не перекрывая картинку */
+/* 🎯 РЕАКЦИИ: Если есть реакция, отменяем наложение даты поверх фото */
 .message:has(.reactions-container) {
   padding: 4px 4px 6px 4px !important;
 }
@@ -1658,13 +1689,12 @@ html, body, #root {
   margin-top: 0 !important;
 }
 
-/* 🎯 ПОДПИСЬ К ФОТО: Если в бабле с фото есть текст подписи (style*="pre-wrap"),
-   растягиваем одиночное фото на всю ширину бабла (100%) с аккуратным кропом (cover), как в ТГ */
+/* 🎯 ПОДПИСЬ К ФОТО: Если в бабле с фото есть текст подписи (style*="pre-wrap") */
 .message:has([style*="pre-wrap"]) .msg-album-container {
   max-width: 100% !important;
   width: 100% !important;
 }
-.message:has([style*="pre-wrap"]) .album-row:only-child .album-img {
+.message:has([style*="pre-wrap"]) .album-row:only-child .album-img:only-child {
   width: 100% !important;
   max-width: 100% !important;
   height: 200px !important;
@@ -1681,8 +1711,7 @@ html, body, #root {
   object-fit: cover !important;
 }
 
-/* 🎯 ШИРОКИЙ ЭКРАН (ПЛАНШЕТ/ПК): Ограничиваем максимальную ширину бабла с фото/видео до 380px (до оранжевой линии),
-   чтобы картинка с длинной подписью не раздувалась на пол-экрана */
+/* 🎯 ШИРОКИЙ ЭКРАН (ПЛАНШЕТ/ПК): Ограничиваем максимальную ширину бабла с фото/видео до 380px */
 @media(min-width: 768px) {
   .message:has(.msg-album-container) {
     max-width: 380px !important;
