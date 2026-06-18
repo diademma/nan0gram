@@ -1881,3 +1881,48 @@ html, body, #root {
 .input-icon svg, .sidebar-gear-btn svg, .header-actions svg {
   pointer-events: none !important;
 }
+/* --- Video Thumbnail & Play Overlay styling --- */
+.video-thumb-wrapper {
+  position: relative !important;
+  display: block !important;
+  width: 260px !important; /* Идеальная пропорциональная ширина */
+  height: 180px !important; /* Высота под уровень альбомов */
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  background: #000 !important;
+  cursor: pointer !important;
+}
+
+.video-thumb {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important; /* Убирает растягивание, аккуратно кропает по рамке */
+  display: block !important;
+  border-radius: 10px !important;
+}
+
+.video-play-overlay {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(0, 0, 0, 0.45) !important; /* Полупрозрачное затемнение кадра */
+  color: #fff !important;
+  transition: background 0.2s ease, transform 0.2s ease !important;
+  z-index: 2 !important;
+}
+
+.video-play-overlay i {
+  font-size: 28px !important; /* Размер кнопки запуска */
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3)) !important;
+  transition: transform 0.15s ease !important;
+}
+
+.video-thumb-wrapper:hover .video-play-overlay {
+  background: rgba(0, 0, 0, 0.3) !important; /* Осветляем затемнение при наведении */
+}
+
+.video-thumb-wrapper:hover .video-play-overlay i {
+  transform: scale(1.15) !important; /* Кнопка слегка увеличивается */
+}
