@@ -476,7 +476,8 @@ private fun WebViewLayer(
                         databaseEnabled    = true
                         allowFileAccess    = true
                         allowContentAccess = true
-                    }
+                        mediaPlaybackRequiresUserGesture = false
+                        }
                     addJavascriptInterface(messengerInterface, "Android")
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
