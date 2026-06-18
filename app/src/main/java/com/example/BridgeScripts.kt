@@ -25,7 +25,7 @@ object UkrnetSelectors {
     const val READ_SUBJECT = ".readmsg__subject"
     const val BACK_BUTTON = ".rm-header__list"
 
-    // Вспомогательные и резервные селекторы (вынесенные хардкоды)
+    // Вспомогательные и резервные селекторы
     const val ATTACH_BUTTON_FALLBACK = "[class*='attach']"
     const val SEND_BUTTON_FALLBACK_SUBMIT = "button[type='submit']"
     const val SEND_BUTTON_FALLBACK_DATA = "[data-id='send']"
@@ -84,11 +84,11 @@ internal val SCANNING_JS = """
             return { x: Math.round(r.left + r.width/2), y: Math.round(r.top + r.height/2) };
         }
         var result = {
-            compose: getCoords(document.querySelector('${UkrnetSelectors.COMPOSE_BUTTON}')),
-            to:      getCoords(document.querySelector('${UkrnetSelectors.TO_INPUT}')),
-            subject: getCoords(document.querySelector('${UkrnetSelectors.SUBJECT_INPUT}')),
-            body:    getCoords(document.querySelector('${UkrnetSelectors.BODY_AREA}')),
-            send:    getCoords(document.querySelector('${UkrnetSelectors.SEND_BUTTON}'))
+            compose: getCoords(document.querySelector("${UkrnetSelectors.COMPOSE_BUTTON}")),
+            to:      getCoords(document.querySelector("${UkrnetSelectors.TO_INPUT}")),
+            subject: getCoords(document.querySelector("${UkrnetSelectors.SUBJECT_INPUT}")),
+            body:    getCoords(document.querySelector("${UkrnetSelectors.BODY_AREA}")),
+            send:    getCoords(document.querySelector("${UkrnetSelectors.SEND_BUTTON}"))
         };
         if (window.Android && window.Android.postCoordinates)
             window.Android.postCoordinates(JSON.stringify(result));
@@ -111,10 +111,10 @@ internal val READING_JS = """
                 try { localStorage.setItem('nan0gram_ids', JSON.stringify(Array.from(window.nProcessed))); } catch(e){}
             }
             function isMsgUnread(item) {
-                var view = item.querySelector('${UkrnetSelectors.MAIL_ITEM_VIEW}');
+                var view = item.querySelector("${UkrnetSelectors.MAIL_ITEM_VIEW}");
                 if (view && (view.classList.contains('unread') || view.classList.contains('mli-view_unread'))) return true;
                 if (item.classList.contains('unread') || item.classList.contains('ml-item_unread')) return true;
-                var titleEl = item.querySelector('${UkrnetSelectors.MAIL_ITEM_TITLE}');
+                var titleEl = item.querySelector("${UkrnetSelectors.MAIL_ITEM_TITLE}");
                 if (titleEl) {
                     var w = window.getComputedStyle(titleEl).fontWeight;
                     if (w === 'bold' || parseInt(w) >= 600) return true;
@@ -123,18 +123,18 @@ internal val READING_JS = """
             }
             if (window.location.href.indexOf('login') !== -1) return;
             if (window.nState === 'IDLE') {
-                var items = document.querySelectorAll('${UkrnetSelectors.MAIL_ITEM}');
+                var items = document.querySelectorAll("${UkrnetSelectors.MAIL_ITEM}");
                 for (var i = items.length - 1; i >= 0; i--) {
                     var item = items[i];
                     var id = item.id;
                     if (!id || window.nProcessed.has(id)) continue;
-                    var titleEl = item.querySelector('${UkrnetSelectors.MAIL_ITEM_TITLE}');
+                    var titleEl = item.querySelector("${UkrnetSelectors.MAIL_ITEM_TITLE}");
                             var titleText = titleEl ? (titleEl.innerText || '') : '';
                             var isTarget = titleText.indexOf('Re[') !== -1 || /\p{Emoji}/u.test(titleText);
                             if (isTarget && isMsgUnread(item)) {
                         window.nState = 'READING';
                         window.nTargetId = id;
-                        var link = item.querySelector('${UkrnetSelectors.MAIL_ITEM_LINK}') || item;
+                        var link = item.querySelector("${UkrnetSelectors.MAIL_ITEM_LINK}") || item;
                         link.click();
                         return;
                     } else {
@@ -142,9 +142,9 @@ internal val READING_JS = """
                     }
                 }
             } else if (window.nState === 'READING') {
-                var bodyEl    = document.querySelector('${UkrnetSelectors.READ_BODY}');
-                var subjectEl = document.querySelector('${UkrnetSelectors.READ_SUBJECT}');
-                var backBtn   = document.querySelector('${UkrnetSelectors.BACK_BUTTON}');
+                var bodyEl    = document.querySelector("${UkrnetSelectors.READ_BODY}");
+                var subjectEl = document.querySelector("${UkrnetSelectors.READ_SUBJECT}");
+                var backBtn   = document.querySelector("${UkrnetSelectors.BACK_BUTTON}");
                 if (bodyEl && backBtn) {
                     var bodyText    = bodyEl.innerText || bodyEl.textContent || '';
                     var subjectText = subjectEl ? (subjectEl.innerText || '') : '';
@@ -186,8 +186,8 @@ internal val COMPOSE_FILL_JS = """
         var t = setInterval(function() {
             attempts++;
             if (window._n0gStealthUpload) { clearInterval(t); return; }
-            var toEl   = document.querySelector('${UkrnetSelectors.TO_INPUT}');
-            var subjEl = document.querySelector('${UkrnetSelectors.SUBJECT_INPUT}');
+            var toEl   = document.querySelector("${UkrnetSelectors.TO_INPUT}");
+            var subjEl = document.querySelector("${UkrnetSelectors.SUBJECT_INPUT}");
             if (attempts > 40 || (toEl && subjEl)) {
                 clearInterval(t);
                 if (!toEl || !subjEl) return;
@@ -224,10 +224,10 @@ internal val SENDMSG_FILL_JS = """
             count++;
             if (count > 60) { clearInterval(t); return; }
 
-            var toEl = document.querySelector('${UkrnetSelectors.TO_INPUT_FALLBACK_NAME}')
-                || document.querySelector('${UkrnetSelectors.TO_INPUT_FALLBACK_EMAIL}')
-                || document.querySelector('${UkrnetSelectors.TO_INPUT}')
-                || document.querySelector('${UkrnetSelectors.TO_INPUT_FALLBACK_PLACEHOLDER}');
+            var toEl = document.querySelector("${UkrnetSelectors.TO_INPUT_FALLBACK_NAME}")
+                || document.querySelector("${UkrnetSelectors.TO_INPUT_FALLBACK_EMAIL}")
+                || document.querySelector("${UkrnetSelectors.TO_INPUT}")
+                || document.querySelector("${UkrnetSelectors.TO_INPUT_FALLBACK_PLACEHOLDER}");
 
             if (!toEl) return;
             clearInterval(t);
@@ -245,9 +245,9 @@ internal val SENDMSG_FILL_JS = """
             toEl.dispatchEvent(new KeyboardEvent('keydown', {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
             toEl.dispatchEvent(new KeyboardEvent('keyup',   {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
 
-            var subjEl = document.querySelector('${UkrnetSelectors.SUBJECT_INPUT_FALLBACK_NAME}')
-                || document.querySelector('${UkrnetSelectors.SUBJECT_INPUT}')
-                || document.querySelector('${UkrnetSelectors.SUBJECT_INPUT_FALLBACK_PLACEHOLDER}');
+            var subjEl = document.querySelector("${UkrnetSelectors.SUBJECT_INPUT_FALLBACK_NAME}")
+                || document.querySelector("${UkrnetSelectors.SUBJECT_INPUT}")
+                || document.querySelector("${UkrnetSelectors.SUBJECT_INPUT_FALLBACK_PLACEHOLDER}");
             if (subjEl) {
                 try {
                     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
