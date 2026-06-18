@@ -338,7 +338,16 @@ private fun WebViewLayer(
                                 log("[Compose] sendmsg загружен — заполняем поля")
                                 val bufferedBody = messengerInterface.lastComposeBody
                                 if (bufferedBody.isNotEmpty()) {
-                                    val esc = bufferedBody.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+                                    // ПУЛЕНЕПРОБИВАЕМОЕ ЭКРАНИРОВАНИЕ
+                                    val esc = bufferedBody
+                                        .replace("\\", "\\\\")
+                                        .replace("'", "\\'")
+                                        .replace("\"", "\\\"")
+                                        .replace("\n", "\\n")
+                                        .replace("\r", "")
+                                        .replace("\u2028", "")
+                                        .replace("\u2029", "")
+                                        
                                     val js = """
                                         (function(text) {
                                             var el = document.querySelector("${UkrnetSelectors.BODY_AREA}")
