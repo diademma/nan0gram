@@ -54,7 +54,9 @@ class MainActivity : ComponentActivity() {
         }
 
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
 
         setContent {
 
