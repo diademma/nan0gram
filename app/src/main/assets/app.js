@@ -22,22 +22,6 @@ Error generating stack: `+e.message+`
                   f.jsx("input",{type:"range",min:0,max:90,value:sidebarDarkness,onChange:M=>setSidebarDarkness(Number(M.target.value)),className:"opacity-slider"}),
                   f.jsxs("span",{className:"opacity-value",children:[sidebarDarkness,"%"]})
                 ]})
-              ]}),
-              f.jsxs("div",{className:"theme-section",children:[
-                f.jsx("div",{className:"theme-section-title",children:"Размытие сайдбара"}),
-                f.jsxs("div",{className:"opacity-row",children:[
-                  f.jsx("span",{className:"opacity-label",children:"Размытие"}),
-                  f.jsx("input",{type:"range",min:0,max:40,value:sidebarBlur,onChange:M=>setSidebarBlur(Number(M.target.value)),className:"opacity-slider"}),
-                  f.jsxs("span",{className:"opacity-value",children:[sidebarBlur,"px"]})
-                ]})
-              ]}),
-              f.jsxs("div",{className:"theme-section",children:[
-                f.jsx("div",{className:"theme-section-title",children:"Затемнение сайдбара"}),
-                f.jsxs("div",{className:"opacity-row",children:[
-                  f.jsx("span",{className:"opacity-label",children:"Темнота"}),
-                  f.jsx("input",{type:"range",min:0,max:90,value:sidebarDarkness,onChange:M=>setSidebarDarkness(Number(M.target.value)),className:"opacity-slider"}),
-                  f.jsxs("span",{className:"opacity-value",children:[sidebarDarkness,"%"]})
-                ]})
               ]}),]}),f.jsxs("div",{className:"theme-section",children:[f.jsx("div",{className:"theme-section-title",children:"Цветовая гамма"}),f.jsx("div",{className:"color-scheme-grid",children:pd.map(S=>f.jsxs("button",{className:`scheme-btn${_.schemeId===S.id?" active":""}`,onClick:()=>K(S),title:S.label,children:[f.jsx("div",{className:"scheme-preview",style:{background:S.gradient}}),f.jsx("div",{className:"scheme-name",children:S.label}),_.schemeId===S.id&&f.jsx("div",{className:"scheme-check",children:"✓"})]},S.id))})]})]})]})}function k0({defaultTheme:m,onSave:G,onClose:U}){
         const [o,_] = T.useState("main");
         const [O,K] = T.useState(m);const [sidebarBlur, setSidebarBlur] = T.useState(() => Number(localStorage.getItem("nan0gram_sidebar_blur") || "20"));const [sidebarDarkness, setSidebarDarkness] = T.useState(() => Number(localStorage.getItem("nan0gram_sidebar_darkness") || "50"));
@@ -92,22 +76,6 @@ Error generating stack: `+e.message+`
                   f.jsx("input",{type:"range",min:30,max:100,value:Math.round(O.opacity*100),onChange:M=>K(S=>({...S,opacity:Number(M.target.value)/100})),className:"opacity-slider"}),
                   f.jsxs("span",{className:"opacity-value",children:[Math.round(O.opacity*100),"%"]})
                 ]}),
-              f.jsxs("div",{className:"theme-section",children:[
-                f.jsx("div",{className:"theme-section-title",children:"Размытие сайдбара"}),
-                f.jsxs("div",{className:"opacity-row",children:[
-                  f.jsx("span",{className:"opacity-label",children:"Размытие"}),
-                  f.jsx("input",{type:"range",min:0,max:40,value:sidebarBlur,onChange:M=>setSidebarBlur(Number(M.target.value)),className:"opacity-slider"}),
-                  f.jsxs("span",{className:"opacity-value",children:[sidebarBlur,"px"]})
-                ]})
-              ]}),
-              f.jsxs("div",{className:"theme-section",children:[
-                f.jsx("div",{className:"theme-section-title",children:"Затемнение сайдбара"}),
-                f.jsxs("div",{className:"opacity-row",children:[
-                  f.jsx("span",{className:"opacity-label",children:"Темнота"}),
-                  f.jsx("input",{type:"range",min:0,max:90,value:sidebarDarkness,onChange:M=>setSidebarDarkness(Number(M.target.value)),className:"opacity-slider"}),
-                  f.jsxs("span",{className:"opacity-value",children:[sidebarDarkness,"%"]})
-                ]})
-              ]}),
               f.jsxs("div",{className:"theme-section",children:[
                 f.jsx("div",{className:"theme-section-title",children:"Размытие сайдбара"}),
                 f.jsxs("div",{className:"opacity-row",children:[
