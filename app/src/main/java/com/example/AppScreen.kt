@@ -1,3 +1,4 @@
+
 package com.example
 
 import android.annotation.SuppressLint
@@ -99,13 +100,11 @@ private fun WebView?.forceSendMsg(log: (String) -> Unit, source: String) {
     }
 }
 
-// Стелс-кэш для скрытой передачи файлов между WebView
 object StealthCache {
     var pendingUris: Array<Uri>? = null
     var pendingSysBlock: String? = null
 }
 
-// Утилита копирования медиафайла в скрытый системный .bin
 fun createStealthCopy(context: Context, originalUri: Uri): Uri? {
     return try {
         val inputStream = context.contentResolver.openInputStream(originalUri) ?: return null
@@ -120,7 +119,6 @@ fun createStealthCopy(context: Context, originalUri: Uri): Uri? {
     }
 }
 
-// Утилита асинхронного сжатия и перевода медиафайла в Base64 для красивого превью в мессенджере
 fun uriToBase64(context: Context, uri: Uri): String {
     return try {
         val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
@@ -133,14 +131,12 @@ fun uriToBase64(context: Context, uri: Uri): String {
             return "data:$mimeType;base64,$b64"
         }
         
-        // Первый проход: читаем только размеры изображения (0 ОЗУ)
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true
         }
         BitmapFactory.decodeStream(inputStream, null, options)
         inputStream.close()
         
-        // Ограничиваем максимальную сторону картинки для превью до 800px
         val maxDimension = 800
         var scale = 1
         if (options.outHeight > maxDimension || options.outWidth > maxDimension) {
@@ -151,7 +147,6 @@ fun uriToBase64(context: Context, uri: Uri): String {
             }
         }
         
-        // Второй проход: загружаем уже уменьшенное изображение
         val decodeOptions = BitmapFactory.Options().apply {
             inSampleSize = scale
         }
@@ -159,11 +154,10 @@ fun uriToBase64(context: Context, uri: Uri): String {
         val bitmap = BitmapFactory.decodeStream(secondStream, null, decodeOptions) ?: return ""
         secondStream.close()
         
-        // Сжимаем Bitmap в JPEG с качеством 70% для экстремальной экономии ОЗУ и CPU
         val outputStream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
         val bytes = outputStream.toByteArray()
-        bitmap.recycle() // Немедленно очищаем нативную память
+        bitmap.recycle()
         
         val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
         "data:image/jpeg;base64,$b64"
@@ -251,7 +245,6 @@ private fun WebViewLayer(
     var ukrnetWebViewInstance by remember { mutableStateOf<WebView?>(null) }
     var messengerWebViewInstance by remember { mutableStateOf<WebView?>(null) }
     
-    // Прямой перехватчик файлов УкрНета (без шифрования, оригинальный нативный аплоад)
     val ukrnetFileChooserLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -267,7 +260,6 @@ private fun WebViewLayer(
         }
         
         if (selectedUris.isNotEmpty()) {
-            // 1. Отдаем файлы УкрНету напрямую для стандартного быстрого аплоада
             ukrnetFilePathCallback?.onReceiveValue(selectedUris.toTypedArray())
             log("[Stealth] Файлы переданы напрямую в УкрНет для нативной загрузки.")
             
@@ -276,7 +268,6 @@ private fun WebViewLayer(
             val typeStr = if (isVideo) "video" else "photo"
             messengerWebViewInstance?.evaluateJavascript("if(window.nan0gram && window.nan0gram.submitStealthFile) window.nan0gram.submitStealthFile('$typeStr');", null)
             
-            // 2. Генерируем красивую копию для мгновенного отображения в Мессенджере (асинхронно в IO-потоке)
             scope.launch(Dispatchers.IO) {
                 val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                 val chatData = JSONObject().apply {
@@ -288,7 +279,6 @@ private fun WebViewLayer(
                             put("isVideo", true)
                         }
                     } else {
-                        // Это фото (кодируем асинхронно все выбранные картинки для локального превью альбома)
                         val b64List = org.json.JSONArray()
                         for (imgUri in selectedUris) {
                             val b64 = uriToBase64(context, imgUri)
@@ -312,13 +302,11 @@ private fun WebViewLayer(
         }
         ukrnetFilePathCallback = null
         
-        // Возвращаем мессенджер на передний план
         ukrnetWebViewInstance?.isFocusable = false
         ukrnetWebViewInstance?.isFocusableInTouchMode = false
         messengerWebViewInstance?.bringToFront()
         messengerWebViewInstance?.requestFocus()
 
-        // После любого выбора файла мягко возвращаем УкрНет на sendmsg.
         ukrnetWebViewInstance.forceSendMsg(log, "file chooser result")
     }
 
@@ -353,10 +341,10 @@ private fun WebViewLayer(
                                     val esc = bufferedBody.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
                                     val js = """
                                         (function(text) {
-                                            var el = document.querySelector('.sm-editor__area')
-                                                || document.querySelector('[contenteditable="true"]')
-                                                || document.querySelector('textarea[name="body"]')
-                                                || document.querySelector('textarea');
+                                            var el = document.querySelector('${UkrnetSelectors.BODY_AREA}')
+                                                || document.querySelector('${UkrnetSelectors.BODY_AREA_FALLBACK_EDITABLE}')
+                                                || document.querySelector('${UkrnetSelectors.BODY_AREA_FALLBACK_NAME}')
+                                                || document.querySelector('${UkrnetSelectors.BODY_AREA_FALLBACK_TAG}');
                                             if (!el) return;
                                             el.innerHTML = '';
                                             if (el.getAttribute('contenteditable') === 'true') { el.innerText = text; }
@@ -401,7 +389,6 @@ private fun WebViewLayer(
                             }
                             ukrnetFilePathCallback = filePathCallbackParams
                             try {
-                                // Форсируем открытие красивого Photo Picker (BottomSheet)
                                 val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
                                     addCategory(android.content.Intent.CATEGORY_OPENABLE)
                                     type = "image/*"
@@ -517,7 +504,7 @@ private fun WebViewLayer(
                 }
                 onMessengerViewReady(mWebView)
                 messengerWebViewInstance = mWebView
-                messengerInterface.getMessengerWebView = { mWebView } // Привязываем ссылку на мессенджер в рантайме
+                messengerInterface.getMessengerWebView = { mWebView }
                 addView(mWebView, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
             }
         },
