@@ -80,6 +80,7 @@ class MainActivity : ComponentActivity() {
             }
 
             var isBgServiceActive  by remember { mutableStateOf(true) }
+            var messengerInterfaceRef by remember { mutableStateOf<MessengerJsInterface?>(null) }
             var hasHandledLogin    by remember { mutableStateOf(false) }
             var isLogPanelExpanded by remember { mutableStateOf(false) }
             var uiAlpha            by remember { mutableStateOf(0.95f) }
@@ -112,7 +113,8 @@ class MainActivity : ComponentActivity() {
                     onFirstCoordsLogged = { },
                     getMessengerWebView = { messengerWebView },
                     isLoginHandled      = { hasHandledLogin },
-                    getCurrentCoords    = { coords }
+                    getCurrentCoords    = { coords },
+                    clearComposeBody    = { messengerInterfaceRef?.lastComposeBody = "" }
                 )
             }
 
@@ -132,7 +134,10 @@ class MainActivity : ComponentActivity() {
                     getUkrnetWebView  = { ukrnetWebView },
                     getCoords         = { coords },
                     androidId         = androidId  // Передаем ID в мост
-                ).also { it.scope = coroutineScope }
+                ).also {
+                    it.scope = coroutineScope
+                    messengerInterfaceRef = it
+                }
             }
 
             BridgeEffects(
