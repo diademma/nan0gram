@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;200;300&display=swap');
 :root {
   --bg-sidebar: #1e1525;
   --bg-sidebar-header: #1b1422;
@@ -1738,13 +1739,21 @@ html, body, #root {
 }
 /* --- Cyber Glitch Title for nan0gram --- */
 .app-title {
-  font-size: 23px !important; /* Увеличено на 3px (около 2-3 мм) */
-  font-weight: 800 !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 23px !important;
+  font-weight: 200 !important; /* Ультратонкий изящный шрифт */
   color: rgba(255, 255, 255, 0.8) !important;
   text-transform: lowercase !important;
   position: relative !important;
-  letter-spacing: 1px !important;
+  letter-spacing: 0.5px !important;
   user-select: none !important;
+  font-variant-numeric: slashed-zero !important; /* Аппаратный зачеркнутый ноль */
+  font-feature-settings: "zero" 1 !important;
+  /* Аура (мягкая проекция глитча на стену) */
+  filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.35)) !important;
+  /* Аппаратное ускорение: выгружаем анимацию на GPU (0% нагрузки на CPU) */
+  will-change: clip-path, filter !important;
+  transform: translate3d(0, 0, 0) !important;
 }
 
 .app-title::before,
@@ -1757,125 +1766,61 @@ html, body, #root {
   height: 100% !important;
   background: var(--bg-sidebar-header) !important;
   color: rgba(255, 255, 255, 0.8) !important;
+  font-variant-numeric: slashed-zero !important;
+  font-feature-settings: "zero" 1 !important;
+  will-change: clip-path !important;
 }
 
 .app-title::before {
   left: 2px !important;
-  text-shadow: -1px 0 rgba(219, 39, 119, 0.8) !important; /* Нежный красно-фиолетовый (Velvet Rose) */
+  text-shadow: -1px 0 rgba(219, 39, 119, 0.85) !important; /* Нежный фиолетово-малиновый */
   animation: nan0-glitch-1 8s infinite linear alternate-reverse !important;
 }
 
 .app-title::after {
   left: -2px !important;
-  text-shadow: -1px 0 rgba(168, 85, 247, 0.8), 0 1px rgba(168, 85, 247, 0.8) !important; /* Мягкий аметистово-фиолетовый */
+  text-shadow: -1px 0 rgba(168, 85, 247, 0.85), 0 1px rgba(168, 85, 247, 0.85) !important; /* Нежный аметистовый */
   animation: nan0-glitch-2 8s infinite linear alternate-reverse !important;
 }
 
 @keyframes nan0-glitch-1 {
-  0%, 15% {
+  0%, 75%, 100% {
     clip-path: inset(100% 0 0 0);
   }
-  16% {
+  76% {
     clip-path: inset(15% 0 70% 0);
   }
-  20% {
-    clip-path: inset(15% 0 70% 0);
+  80% {
+    clip-path: inset(15% 0 70% 0); /* Заморозка кадра */
   }
-  22% {
+  82% {
     clip-path: inset(45% 0 40% 0);
   }
-  26% {
-    clip-path: inset(45% 0 40% 0);
+  86% {
+    clip-path: inset(45% 0 40% 0); /* Заморозка кадра */
   }
-  28% {
-    clip-path: inset(100% 0 0 0);
-  }
-  28%, 50% {
-    clip-path: inset(100% 0 0 0);
-  }
-  51% {
-    clip-path: inset(75% 0 10% 0);
-  }
-  56% {
-    clip-path: inset(75% 0 10% 0);
-  }
-  58% {
-    clip-path: inset(5% 0 85% 0);
-  }
-  62% {
-    clip-path: inset(5% 0 85% 0);
-  }
-  65% {
-    clip-path: inset(100% 0 0 0);
-  }
-  65%, 80% {
-    clip-path: inset(100% 0 0 0);
-  }
-  /* Короткая вспышка в конце */
-  81% {
-    clip-path: inset(30% 0 55% 0);
-  }
-  85% {
-    clip-path: inset(30% 0 55% 0);
-  }
-  92% {
-    clip-path: inset(100% 0 0 0);
-  }
-  100% {
+  88% {
     clip-path: inset(100% 0 0 0);
   }
 }
 
 @keyframes nan0-glitch-2 {
-  0%, 18% {
+  0%, 78%, 100% {
     clip-path: inset(100% 0 0 0);
   }
-  19% {
+  79% {
     clip-path: inset(60% 0 25% 0);
   }
-  22% {
-    clip-path: inset(60% 0 25% 0);
-  }
-  24% {
-    clip-path: inset(20% 0 65% 0);
-  }
-  27% {
-    clip-path: inset(20% 0 65% 0);
-  }
-  29% {
-    clip-path: inset(100% 0 0 0);
-  }
-  29%, 53% {
-    clip-path: inset(100% 0 0 0);
-  }
-  54% {
-    clip-path: inset(80% 0 5% 0);
-  }
-  58% {
-    clip-path: inset(80% 0 5% 0);
-  }
-  60% {
-    clip-path: inset(10% 0 80% 0);
-  }
-  64% {
-    clip-path: inset(10% 0 80% 0);
-  }
-  66% {
-    clip-path: inset(100% 0 0 0);
-  }
-  66%, 83% {
-    clip-path: inset(100% 0 0 0);
+  82% {
+    clip-path: inset(60% 0 25% 0); /* Заморозка кадра */
   }
   84% {
-    clip-path: inset(50% 0 35% 0);
+    clip-path: inset(20% 0 65% 0);
+  }
+  87% {
+    clip-path: inset(20% 0 65% 0); /* Заморозка кадра */
   }
   89% {
-    clip-path: inset(50% 0 35% 0);
-  }
-  93% {
-    clip-path: inset(100% 0 0 0);
-  }
-  100% {
     clip-path: inset(100% 0 0 0);
   }
 }
