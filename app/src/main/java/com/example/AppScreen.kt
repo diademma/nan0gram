@@ -365,7 +365,7 @@ private fun WebViewLayer(
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
                             if (url.isSendMsgUrl()) {
-                                view?.evaluateJavascript(BridgeScripts.SENDMSG_FILL_JS, null)
+                                view?.evaluateJavascript(SENDMSG_FILL_JS, null)
                                 val bufferedBody = messengerInterface.lastComposeBody
                                 if (bufferedBody.isNotEmpty()) {
                                     val esc = bufferedBody.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "").replace("\u2028", "").replace("\u2029", "")
