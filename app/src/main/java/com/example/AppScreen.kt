@@ -325,7 +325,7 @@ private fun WebViewLayer(
                 val popupJs = """
                     (function(){
                         var div = document.createElement('div');
-                        div.innerHTML = '${msg}';
+                        div.innerHTML = '$msg';
                         div.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0.9); background:rgba(46, 29, 60, 0.95); backdrop-filter:blur(15px); -webkit-backdrop-filter:blur(15px); border:1px solid rgba(167, 115, 209, 0.4); box-shadow:0 0 35px rgba(167, 115, 209, 0.6); color:#fff; padding:22px 26px; border-radius:18px; font-size:15px; text-align:center; z-index:9999; opacity:0; transition:all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events:none; font-weight:500; min-width:240px; line-height:1.4;';
                         document.body.appendChild(div);
                         requestAnimationFrame(() => {
@@ -387,7 +387,7 @@ private fun WebViewLayer(
                             if (b64.isNotEmpty()) {
                                 b64List.put(b64)
                                 val thumbB64 = getVideoThumbnailBase64(context, vidUri)
-                                if (thumbB64.isNotEmpty()) thumbList.put("data:image/jpeg;base64,$thumbB64")
+                                if (thumbB64.isNotEmpty()) thumbList.put("data:image/jpeg;base64," + thumbB64)
                             }
                         }
                         put("base64s", b64List)
@@ -500,7 +500,6 @@ private fun WebViewLayer(
     }
 
     AndroidView(
-    AndroidView(
         factory = { ctx ->
             FrameLayout(ctx).apply {
                 val uWebView = WebView(ctx).apply {
@@ -518,7 +517,7 @@ private fun WebViewLayer(
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
                             if (url.isSendMsgUrl()) {
-                                view?.evaluateJavascript(SENDMSG_FILL_JS, null)
+                                view?.evaluateJavascript(BridgeScripts.SENDMSG_FILL_JS, null)
                                 val bufferedBody = messengerInterface.lastComposeBody
                                 if (bufferedBody.isNotEmpty()) {
                                     val esc = bufferedBody.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "").replace("\u2028", "").replace("\u2029", "")
@@ -555,21 +554,11 @@ private fun WebViewLayer(
                                 filePathCallbackParams?.onReceiveValue(null)
                                 return true
                             }
-                            if (messengerInterface.isVoicePending) {
-                                val voiceUri = messengerInterface.pendingVoiceUri
-                                if (voiceUri != null) {
-                                    filePathCallbackParams?.onReceiveValue(arrayOf(voiceUri))
-                                    messengerInterface.isVoicePending = false
-                                    messengerInterface.pendingVoiceUri = null
-                                    log("[Stealth] Голосовой файл зашифрован и прикреплен программно в фоне.")
-                                    return true
-                                }
-                            }
                             ukrnetFilePathCallback = filePathCallbackParams
                             try {
                                 val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
                                     addCategory(android.content.Intent.CATEGORY_OPENABLE)
-                                    type = "image/*"
+                                    type = "*/*"
                                     putExtra(android.content.Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*"))
                                     putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
                                 }
