@@ -123,7 +123,7 @@ class MessengerJsInterface(
     @Volatile var pendingMediaKey: String = ""
 
     @JavascriptInterface
-    fun getPendingMediaKey(): String {
+    fun retrievePendingMediaKey(): String {
         return pendingMediaKey
     }
     @Volatile var getMessengerWebView: (() -> WebView?)? = null
