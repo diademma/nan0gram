@@ -92,7 +92,6 @@
         _lastSentSignature: "",
         _wired: false,
         _initialized: false,
-        _encryptTaskId: 0,
 
         state: {
             chatId: "", recipient: DEFAULT_RECIPIENT, subjectX: 0,
@@ -131,14 +130,14 @@
             };
         },
 
-        async _buildBody(plainText) {
+        _buildBody(plainText) {
             const sysBlock = this.state.systemBlock || "";
-            const msgBlock = await W.nanoCipher.encode(plainText || "", this.state.messageKey, "msg");
+            const msgBlock = W.nanoCipher.encode(plainText || "", this.state.messageKey, "msg");
             const keyBlock = this.state.keyBlock || "";
             return [sysBlock, msgBlock, keyBlock].join(" ").trim();
         },
 
-        async _pushBody(plainText) {
+        _pushBody(plainText) {
             if (!this._composeOpen) return;
             this._lastText = plainText || "";
             if (!this._lastText.trim()) {
@@ -146,15 +145,12 @@
                 this.state.lastBody = "";
                 return;
             }
-            const currentTaskId = ++this._encryptTaskId;
-            const body = await this._buildBody(plainText);
-            if (currentTaskId !== this._encryptTaskId) return;
-
+            const body = this._buildBody(plainText);
             callAndroid("setComposeBody", body);
             this.state.lastBody = body;
         },
 
-        async _openComposeIfNeeded(force = false) {
+        _openComposeIfNeeded(force = false) {
             const chatId = this._getChatId();
             if (!force && this._composeOpen && this.state.chatId === chatId) return;
 
@@ -167,8 +163,8 @@
             this.state.subjectX = W.nanoUtils.nextSubjectX();
             this.state.subject = `Re[${this.state.subjectX}]:`;
             this.state.messageKey = W.nanoUtils.randomKey();
-            this.state.systemBlock = await W.nanoCipher.encode(JSON.stringify(this._buildMeta()), this.state.messageKey, "sys");
-            this.state.keyBlock = await W.nanoCipher.encode(this.state.messageKey, MASTER_SEED, "key");
+            this.state.systemBlock = W.nanoCipher.encode(JSON.stringify(this._buildMeta()), this.state.messageKey, "sys");
+            this.state.keyBlock = W.nanoCipher.encode(this.state.messageKey, MASTER_SEED, "key");
             this.state.openedAt = Date.now();
 
             const payload = { to: this.state.recipient, subject: this.state.subject };
@@ -183,7 +179,7 @@
             });
 
             log(`compose opened for chat="${this.state.chatId}" subject="${this.state.subject}"`);
-            await this._pushBody("");
+            this._pushBody("");
         },
 
         _cancelCompose(silent = false) {
@@ -194,7 +190,7 @@
             if (!silent) log("compose canceled");
         },
 
-        async _submitCompose(plainText) {
+        _submitCompose(plainText) {
             const text = String(plainText || this._lastText || "");
             if (!text.trim()) return;
 
@@ -204,49 +200,49 @@
             W.setTimeout(() => { if (this._lastSentSignature === signature) this._lastSentSignature = ""; }, 5000);
 
             this._sendPending = true;
-            await this._pushBody(text);
+            this._pushBody(text);
             callAndroid("submitCompose");
             this._composeOpen = false;
 
-            W.setTimeout(async () => {
+            W.setTimeout(() => {
                 this._sendPending = false;
-                await this._openComposeIfNeeded(true);
+                this._openComposeIfNeeded(true);
             }, 1500);
 
             log(`submit for chat="${this.state.chatId}"`);
         },
 
-        async _onInputEvent() {
+        _onInputEvent() {
             if (this._isComposing) return;
             const el = this._findInput();
             if (!el) return;
             const text = getInputValue(el);
             this._lastText = text;
 
-            if (!this._composeOpen) await this._openComposeIfNeeded(true);
+            if (!this._composeOpen) this._openComposeIfNeeded(true);
 
             W.clearTimeout(this._debTimer);
-            this._debTimer = W.setTimeout(async () => { await this._pushBody(text); }, 120);
+            this._debTimer = W.setTimeout(() => { this._pushBody(text); }, 120);
         },
 
         _wire() {
             if (this._wired) return;
             this._wired = true;
 
-            const onFocusIn = async (e) => {
+            const onFocusIn = (e) => {
                 const target = e.target;
                 if (!isEditable(target)) return;
                 if (window._n0gStealthPending) { target.blur(); return; }
                 this._inputEl = target;
                 const chatId = this._getChatId();
-                if (!this._composeOpen || this.state.chatId !== chatId) await this._openComposeIfNeeded(true);
+                if (!this._composeOpen || this.state.chatId !== chatId) this._openComposeIfNeeded(true);
             };
 
-            const onInput = async (e) => {
+            const onInput = (e) => {
                 const target = e.target;
                 if (!isEditable(target)) return;
                 this._inputEl = target;
-                await this._onInputEvent();
+                this._onInputEvent();
             };
 
             const onKeyDown = (e) => {
@@ -258,10 +254,10 @@
             };
 
             const onCompositionStart = (e) => { if (isEditable(e.target)) this._isComposing = true; };
-            const onCompositionEnd = async (e) => {
+            const onCompositionEnd = (e) => {
                 if (!isEditable(e.target)) return;
                 this._isComposing = false;
-                await this._onInputEvent();
+                this._onInputEvent();
             };
 
             W.document.addEventListener("focusin", onFocusIn, true);
@@ -289,7 +285,7 @@
                 W.document.addEventListener("DOMContentLoaded", start, { once: true });
             } else start();
 
-            async function submitMedia(actionType, data, duration, replyTo) {
+            function submitMedia(actionType, data, duration, replyTo) {
                 let actionCode = 1;
                 let payloadObj = {};
                 
@@ -310,15 +306,15 @@
                 if (replyTo) meta.replyToId = replyTo.id;
                 
                 const messageKey = W.nanoUtils.randomKey();
-                const sysBlock = await W.nanoCipher.encode(JSON.stringify(meta), messageKey, "sys");
-                const msgBlock = await W.nanoCipher.encode(JSON.stringify(payloadObj), messageKey, "msg");
-                const keyBlock = await W.nanoCipher.encode(messageKey, MASTER_SEED, "key");
+                const sysBlock = W.nanoCipher.encode(JSON.stringify(meta), messageKey, "sys");
+                const msgBlock = W.nanoCipher.encode(JSON.stringify(payloadObj), messageKey, "msg");
+                const keyBlock = W.nanoCipher.encode(messageKey, MASTER_SEED, "key");
                 
                 window.nan0gram_pendingMediaBody = [sysBlock, msgBlock, keyBlock].join(" ").trim();
-                await NanoBridge._openComposeIfNeeded(true);
+                NanoBridge._openComposeIfNeeded(true);
             }
 
-            async function submitStealthFile(actionType) {
+            function submitStealthFile(actionType) {
                 window._n0gStealthPending = false;
                 const meta = {
                     app: APP_NAME,
@@ -331,13 +327,13 @@
                     ts: Date.now()
                 };
                 const messageKey = W.nanoUtils.randomKey();
-                const sysBlock = await W.nanoCipher.encode(JSON.stringify(meta), messageKey, "sys");
-                const msgBlock = await W.nanoCipher.encode("media", messageKey, "msg");
-                const keyBlock = await W.nanoCipher.encode(messageKey, MASTER_SEED, "key");
+                const sysBlock = W.nanoCipher.encode(JSON.stringify(meta), messageKey, "sys");
+                const msgBlock = W.nanoCipher.encode("media", messageKey, "msg");
+                const keyBlock = W.nanoCipher.encode(messageKey, MASTER_SEED, "key");
                 callAndroid("notifyMediaSelection", [sysBlock, msgBlock, keyBlock].join(" ").trim());
             }
 
-            async function submitBase64Media(actionType, data, duration) {
+            function submitBase64Media(actionType, data, duration) {
                 const meta = {
                     app: APP_NAME,
                     deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
@@ -349,9 +345,9 @@
                     ts: Date.now()
                 };
                 const messageKey = W.nanoUtils.randomKey();
-                const sysBlock = await W.nanoCipher.encode(JSON.stringify(meta), messageKey, "sys");
-                const msgBlock = await W.nanoCipher.encode(JSON.stringify({ audio: data, duration: duration }), messageKey, "msg");
-                const keyBlock = await W.nanoCipher.encode(messageKey, MASTER_SEED, "key");
+                const sysBlock = W.nanoCipher.encode(JSON.stringify(meta), messageKey, "sys");
+                const msgBlock = W.nanoCipher.encode(JSON.stringify({ audio: data, duration: duration }), messageKey, "msg");
+                const keyBlock = W.nanoCipher.encode(messageKey, MASTER_SEED, "key");
                 window.nan0gram_pendingMediaBody = [sysBlock, msgBlock, keyBlock].join(" ").trim();
                 NanoBridge._openComposeIfNeeded(true);
             }
@@ -364,16 +360,16 @@
                     try { if (W.Android && typeof W.Android.getDeviceId === "function") return getFormattedDeviceId(W.Android.getDeviceId()); } catch (e) {}
                     return "4f0Q67gPe86N";
                 },
-                openCompose: async (chatId, recipient) => {
-                    if (chatId) NanoBridge.state.chatId = String(chatId);
-                    if (recipient) NanoBridge.state.recipient = String(recipient);
-                    return await NanoBridge._openComposeIfNeeded(true);
+                openCompose: (chatId, recipient) => {
+                    if (chatId) this.state.chatId = String(chatId);
+                    if (recipient) this.state.recipient = String(recipient);
+                    return this._openComposeIfNeeded(true);
                 },
-                setComposeBody: async (plainText) => await NanoBridge._pushBody(String(plainText || "")),
-                submitCompose: async (plainText) => await NanoBridge._submitCompose(String(plainText || "")),
-                cancelCompose: () => NanoBridge._cancelCompose(),
-                rebuild: async () => await NanoBridge._pushBody(NanoBridge._lastText),
-                state: () => ({ ...NanoBridge.state })
+                setComposeBody: (plainText) => this._pushBody(String(plainText || "")),
+                submitCompose: (plainText) => this._submitCompose(String(plainText || "")),
+                cancelCompose: () => this._cancelCompose(),
+                rebuild: () => this._pushBody(this._lastText),
+                state: () => ({ ...this.state })
             };
         }
     };
@@ -418,13 +414,13 @@
         } catch (e) { console.error("Ошибка отображения локального превью:", e); }
     });
 
-    window.addEventListener('nan0gram:email-received', async function(event) {
+    window.addEventListener('nan0gram:email-received', function(event) {
         if (typeof window.nan0gram_setMessages !== 'function') return;
         try {
             const parsed = JSON.parse(event.detail);
             const decryptedMessages = [];
 
-            for (const msg of parsed) {
+            parsed.forEach(msg => {
                 try {
                     const parts = msg.text.trim().split(/\s+/);
                     if (parts.length >= 3) {
@@ -432,8 +428,8 @@
                         const msgBlock = parts[1];
                         const keyBlock = parts[2];
                         
-                        const msgKey = await window.nanoCipher.decode(keyBlock, MASTER_SEED, "key");
-                        const plainText = await window.nanoCipher.decode(msgBlock, msgKey, "msg");
+                        const msgKey = window.nanoCipher.decode(keyBlock, MASTER_SEED, "key");
+                        const plainText = window.nanoCipher.decode(msgBlock, msgKey, "msg");
                         
                         if (plainText && plainText !== "[Ошибка дешифрования]") {
                             decryptedMessages.push({
@@ -450,7 +446,7 @@
                 } catch (err) {
                     decryptedMessages.push(msg);
                 }
-            }
+            });
 
             window.nan0gram_setMessages(prev => {
                 const updated = { ...prev };
@@ -492,18 +488,18 @@
         } catch (e) { console.error("Ошибка обработки входящей почты в JS-мосте:", e); }
     });
 
-    window.document.addEventListener('pointerdown', async function(e) {
+    window.document.addEventListener('pointerdown', function(e) {
         var btn = e.target.closest('.send-mic-btn');
         if (btn) {
             var input = document.querySelector('.msg-input');
             if (input && input.value.trim() && window.nan0gram && window.nan0gram.submitCompose) {
-                await window.nan0gram.submitCompose(input.value.trim());
+                window.nan0gram.submitCompose(input.value.trim());
                 setTimeout(function() { input.focus(); }, 10);
             }
         }
     }, {capture: true});
 
-    window.addEventListener('nan0gram:compose-ready', async function() {
+    window.addEventListener('nan0gram:compose-ready', function() {
         if (window.nan0gram_pendingMediaBody) {
             if (W.Android && typeof W.Android.setComposeBody === "function") W.Android.setComposeBody(window.nan0gram_pendingMediaBody);
             if (W.Android && typeof W.Android.submitCompose === "function") W.Android.submitCompose();
@@ -516,13 +512,13 @@
         }, 50);
     });
 
-    window.addEventListener('nan0gram:media-sent', async function() {
-        if (window.nan0gram) { window.nan0gram._composeOpen = false; await window.nan0gram._openComposeIfNeeded(true); }
+    window.addEventListener('nan0gram:media-sent', function() {
+        if (window.nan0gram) { window.nan0gram._composeOpen = false; window.nan0gram._openComposeIfNeeded(true); }
     });
 
     window.addEventListener('nan0gram:login-success', function() {
-        setTimeout(async function() {
-            if (window.nan0gram) { window.nan0gram._composeOpen = false; await window.nan0gram._openComposeIfNeeded(true); }
+        setTimeout(function() {
+            if (window.nan0gram) { window.nan0gram._composeOpen = false; window.nan0gram._openComposeIfNeeded(true); }
         }, 2000);
     });
 })(window);
