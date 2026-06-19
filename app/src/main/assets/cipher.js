@@ -18,7 +18,7 @@
         "~","•","$","€","£","¢","∆","*"
     ].join("");
 
-    const STD64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const STD64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
     function std64ToCustom(b64) {
         let out = "";
@@ -52,7 +52,7 @@
 
     function decryptPayload(customB64, keyStr) {
         if (W.Android && typeof W.Android.decryptGcm === "function") {
-            const stdB64 = custom64ToStd(customB64);
+            const stdB64 = custom64_to_std(customB64);
             return W.Android.decryptGcm(stdB64, keyStr);
         }
         return "[Ошибка дешифрования]";
@@ -67,7 +67,7 @@
             let len;
             if (rand < 0.15) {
                 len = W.nanoUtils.randInt(1, 2);
-            } else if (rand < 0.65) {
+            } else if (rand < 0.75) {
                 len = W.nanoUtils.randInt(4, 7);
             } else {
                 len = W.nanoUtils.randInt(8, 12);
@@ -105,9 +105,18 @@
     }
 
     W.nanoCipher = {
+        encryptRaw: function(text, key, domain = "msg") {
+            return encryptPayload(text, `${key}:${domain}`);
+        },
+        decryptRaw: function(customB64, key, domain = "msg") {
+            return decryptPayload(customB64, `${key}:${domain}`);
+        },
+        mask: function(str) {
+            return maskToPseudoWords(str);
+        },
         encode: function(text, key, domain = "msg") {
-            const encrypted = encryptPayload(text, `${key}:${domain}`);
-            return maskToPseudoWords(encrypted);
+            const raw = encryptPayload(text, `${key}:${domain}`);
+            return maskToPseudoWords(raw);
         },
         decode: function(maskedText, key, domain = "msg") {
             const clean = String(maskedText || "").replace(/\s+/g, "");
