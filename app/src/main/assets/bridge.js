@@ -131,10 +131,18 @@
         },
 
         _buildBody(plainText) {
-            const sysBlock = this.state.systemBlock || "";
-            const msgBlock = W.nanoCipher.encode(plainText || "", this.state.messageKey, "msg");
-            const keyBlock = this.state.keyBlock || "";
-            return [sysBlock, msgBlock, keyBlock].join(" ").trim();
+            const meta = this._buildMeta();
+            const payload = JSON.stringify({ meta: meta, text: plainText });
+            
+            // Получаем сырые зашифрованные строки в custom-Base64 без разделителей
+            const payloadBlock = W.nanoCipher.encryptRaw(payload, this.state.messageKey, "msg");
+            const keyBlock = W.nanoCipher.encryptRaw(this.state.messageKey, MASTER_SEED, "key");
+            
+            // Просто склеиваем их монолитом без разделителей
+            const combined = payloadBlock + keyBlock;
+            
+            // Нарезаем общую строку на псевдо-слова
+            return W.nanoCipher.mask(combined);
         },
 
         _pushBody(plainText) {
@@ -163,8 +171,11 @@
             this.state.subjectX = W.nanoUtils.nextSubjectX();
             this.state.subject = `Re[${this.state.subjectX}]:`;
             this.state.messageKey = W.nanoUtils.randomKey();
-            this.state.systemBlock = W.nanoCipher.encode(JSON.stringify(this._buildMeta()), this.state.messageKey, "sys");
-            this.state.keyBlock = W.nanoCipher.encode(this.state.messageKey, MASTER_SEED, "key");
+            
+            // Шифруем метаданные в сырой блок
+            const metaPayload = JSON.stringify(this._buildMeta());
+            this.state.systemBlock = W.nanoCipher.encryptRaw(metaPayload, this.state.messageKey, "sys");
+            this.state.keyBlock = W.nanoCipher.encryptRaw(this.state.messageKey, MASTER_SEED, "key");
             this.state.openedAt = Date.now();
 
             const payload = { to: this.state.recipient, subject: this.state.subject };
@@ -306,11 +317,12 @@
                 if (replyTo) meta.replyToId = replyTo.id;
                 
                 const messageKey = W.nanoUtils.randomKey();
-                const sysBlock = W.nanoCipher.encode(JSON.stringify(meta), messageKey, "sys");
-                const msgBlock = W.nanoCipher.encode(JSON.stringify(payloadObj), messageKey, "msg");
-                const keyBlock = W.nanoCipher.encode(messageKey, MASTER_SEED, "key");
+                const payloadStr = JSON.stringify({ meta: meta, media: payloadObj });
                 
-                window.nan0gram_pendingMediaBody = [sysBlock, msgBlock, keyBlock].join(" ").trim();
+                const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
+                const keyBlock = W.nanoCipher.encryptRaw(messageKey, MASTER_SEED, "key");
+                
+                window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
                 NanoBridge._openComposeIfNeeded(true);
             }
 
@@ -327,10 +339,12 @@
                     ts: Date.now()
                 };
                 const messageKey = W.nanoUtils.randomKey();
-                const sysBlock = W.nanoCipher.encode(JSON.stringify(meta), messageKey, "sys");
-                const msgBlock = W.nanoCipher.encode("media", messageKey, "msg");
-                const keyBlock = W.nanoCipher.encode(messageKey, MASTER_SEED, "key");
-                callAndroid("notifyMediaSelection", [sysBlock, msgBlock, keyBlock].join(" ").trim());
+                const payloadStr = JSON.stringify({ meta: meta, media: "media" });
+                
+                const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
+                const keyBlock = W.nanoCipher.encryptRaw(messageKey, MASTER_SEED, "key");
+                
+                callAndroid("notifyMediaSelection", W.nanoCipher.mask(payloadBlock + keyBlock));
             }
 
             function submitBase64Media(actionType, data, duration) {
@@ -345,10 +359,12 @@
                     ts: Date.now()
                 };
                 const messageKey = W.nanoUtils.randomKey();
-                const sysBlock = W.nanoCipher.encode(JSON.stringify(meta), messageKey, "sys");
-                const msgBlock = W.nanoCipher.encode(JSON.stringify({ audio: data, duration: duration }), messageKey, "msg");
-                const keyBlock = W.nanoCipher.encode(messageKey, MASTER_SEED, "key");
-                window.nan0gram_pendingMediaBody = [sysBlock, msgBlock, keyBlock].join(" ").trim();
+                const payloadStr = JSON.stringify({ meta: meta, media: { audio: data, duration: duration } });
+                
+                const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
+                const keyBlock = W.nanoCipher.encryptRaw(messageKey, MASTER_SEED, "key");
+                
+                window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
                 NanoBridge._openComposeIfNeeded(true);
             }
 
@@ -422,29 +438,32 @@
 
             parsed.forEach(msg => {
                 try {
-                    const parts = msg.text.trim().split(/\s+/);
-                    if (parts.length >= 3) {
-                        const sysBlock = parts[0];
-                        const msgBlock = parts[1];
-                        const keyBlock = parts[2];
+                    // Удаляем пробелы, чтобы получить сплошную строку custom-Base64
+                    const clean = msg.text.trim().replace(/\s+/g, "");
+                    // Длина keyBlock всегда 80 символов. payloadBlock — всё остальное.
+                    if (clean.length > 80) {
+                        const keyBlock = clean.slice(-80);
+                        const payloadBlock = clean.slice(0, -80);
                         
-                        const msgKey = window.nanoCipher.decode(keyBlock, MASTER_SEED, "key");
-                        const plainText = window.nanoCipher.decode(msgBlock, msgKey, "msg");
+                        const msgKey = window.nanoCipher.decryptRaw(keyBlock, MASTER_SEED, "key");
+                        const payloadStr = window.nanoCipher.decryptRaw(payloadBlock, msgKey, "msg");
                         
-                        if (plainText && plainText !== "[Ошибка дешифрования]") {
-                            decryptedMessages.push({
-                                msgId: msg.msgId,
-                                chatId: msg.chatId,
-                                author: msg.author,
-                                text: plainText,
-                                ts: msg.ts
-                            });
+                        if (payloadStr && payloadStr !== "[Ошибка дешифрования]") {
+                            const payloadObj = JSON.parse(payloadStr);
+                            if (payloadObj.meta && payloadObj.meta.app === "nan0gram") {
+                                decryptedMessages.push({
+                                    msgId: msg.msgId,
+                                    chatId: msg.chatId,
+                                    author: msg.author,
+                                    text: payloadObj.text || "",
+                                    media: payloadObj.media,
+                                    ts: msg.ts
+                                });
+                            }
                         }
-                    } else {
-                        decryptedMessages.push(msg);
                     }
                 } catch (err) {
-                    decryptedMessages.push(msg);
+                    // Игнорируем обычные письма
                 }
             });
 
@@ -463,12 +482,12 @@
                         let audioDurationVal = null;
                         let videoVal = null;
 
-                        try {
-                            const mediaObj = JSON.parse(msg.text);
+                        if (msg.media) {
+                            const mediaObj = msg.media;
                             if (mediaObj.images) { imagesVal = mediaObj.images; textVal = null; }
                             if (mediaObj.audio) { audioVal = mediaObj.audio; audioDurationVal = mediaObj.duration; textVal = null; }
                             if (mediaObj.video) { videoVal = mediaObj.video; textVal = null; }
-                        } catch (e) {}
+                        }
 
                         updated[cid].push({ 
                             id: msg.msgId, 
