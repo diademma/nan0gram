@@ -3,7 +3,6 @@
 
     W.APP_NAME = "nan0gram";
     W.DEFAULT_RECIPIENT = "270232@ukr.net";
-    W.MASTER_SEED = "nan0gram::master-seed-v1";
     W.STORAGE = {
         lastSubjectX: "nan0gram_last_subject_x",
         session: "nan0gram_session_v1"
@@ -18,7 +17,7 @@
         "~","•","$","€","£","¢","∆","*"
     ].join("");
 
-    const STD64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    const STD64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     function std64ToCustom(b64) {
         let out = "";
@@ -52,7 +51,7 @@
 
     function decryptPayload(customB64, keyStr) {
         if (W.Android && typeof W.Android.decryptGcm === "function") {
-            const stdB64 = custom64_to_std(customB64);
+            const stdB64 = custom64ToStd(customB64);
             return W.Android.decryptGcm(stdB64, keyStr);
         }
         return "[Ошибка дешифрования]";
@@ -67,7 +66,7 @@
             let len;
             if (rand < 0.15) {
                 len = W.nanoUtils.randInt(1, 2);
-            } else if (rand < 0.75) {
+            } else if (rand < 0.65) {
                 len = W.nanoUtils.randInt(4, 7);
             } else {
                 len = W.nanoUtils.randInt(8, 12);
