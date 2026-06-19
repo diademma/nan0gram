@@ -342,25 +342,29 @@
             }
 
             function submitBase64Media(actionType, data, duration) {
-                const meta = {
-                    app: APP_NAME,
-                    deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
-                    senderName: localStorage.getItem("nan0gram_username") || "Я",
-                    to: NanoBridge.state.recipient,
-                    chatId: NanoBridge.state.chatId,
-                    action: 2,
-                    subjectX: NanoBridge.state.subjectX,
-                    ts: Date.now()
-                };
-                const messageKey = W.nanoUtils.randomKey();
-                const payloadStr = JSON.stringify({ meta: meta, media: { audio: data, duration: duration } });
-                
-                const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-                const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
-                
-                window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
-                NanoBridge._openComposeIfNeeded(true);
+        if (actionType === "voice") {
+            if (W.Android && typeof W.Android.submitVoiceFile === "function") {
+                W.Android.submitVoiceFile(data, duration);
             }
+            const meta = {
+                app: APP_NAME,
+                deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
+                senderName: localStorage.getItem("nan0gram_username") || "Я",
+                to: NanoBridge.state.recipient,
+                chatId: NanoBridge.state.chatId,
+                action: 2,
+                subjectX: NanoBridge.state.subjectX,
+                ts: Date.now()
+            };
+            const messageKey = window.nan0gram_pendingMediaKey || W.nanoUtils.randomKey();
+            const payloadStr = JSON.stringify({ meta: meta, media: "media" });
+            const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
+            const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
+            window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
+            NanoBridge._openComposeIfNeeded(true);
+            return;
+        }
+    }
 
             W.nan0gram = {
                 submitStealthFile: submitStealthFile,
