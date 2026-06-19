@@ -17,7 +17,7 @@
         "~","•","$","€","£","¢","∆","*"
     ].join("");
 
-    const STD64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const STD64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
     function std64ToCustom(b64) {
         let out = "";
@@ -55,6 +55,14 @@
             return W.Android.decryptGcm(stdB64, keyStr);
         }
         return "[Ошибка дешифрования]";
+    }
+
+    function encryptKeyWithRsa(aesKey, serverPublicKeyB64) {
+        if (W.Android && typeof W.Android.encryptRsa === "function") {
+            const b64 = W.Android.encryptRsa(aesKey, serverPublicKeyB64);
+            return std64ToCustom(b64);
+        }
+        return "";
     }
 
     function maskToPseudoWords(str) {
@@ -109,6 +117,9 @@
         },
         decryptRaw: function(customB64, key, domain = "msg") {
             return decryptPayload(customB64, `${key}:${domain}`);
+        },
+        encryptKeyRsa: function(aesKey, publicKeyB64) {
+            return encryptKeyWithRsa(aesKey, publicKeyB64);
         },
         mask: function(str) {
             return maskToPseudoWords(str);
