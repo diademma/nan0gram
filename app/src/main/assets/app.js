@@ -55,29 +55,54 @@ Error generating stack: `+e.message+`
 
         if (o === "appearance") {
               const el={in:`rgba(${O.inRgb},${O.opacity})`,out:`rgba(${O.outRgb},${O.opacity})`};
-              const hexToRgb = (hex) => {
-                  const bigint = parseInt(hex.slice(1), 16);
-                  const r = (bigint >> 16) & 255;
-                  const g = (bigint >> 8) & 255;
-                  const b = bigint & 255;
-                  return [r, g, b];
+              // Конвертер HSL -> RGB для идеальных оттенков чата
+              const hslToRgb = (h, s, l) => {
+                  let r, g, b;
+                  if(s === 0) { r = g = b = l; }
+                  else {
+                      const hue2rgb = (p, q, t) => {
+                          if(t < 0) t += 1;
+                          if(t > 1) t -= 1;
+                          if(t < 1/6) return p + (q - p) * 6 * t;
+                          if(t < 1/2) return q;
+                          if(t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                          return p;
+                      };
+                      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                      const p = 2 * l - q;
+                      r = hue2rgb(p, q, h + 1/3);
+                      g = hue2rgb(p, q, h);
+                      b = hue2rgb(p, q, h - 1/3);
+                  }
+                  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
               };
-              const rgbToHex = (r, g, b) => {
-                  return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-              };
-              const handleColorChange = (e) => {
-                  const hex = e.target.value;
-                  const [r, g, b] = hexToRgb(hex);
+              const handleHueChange = (e) => {
+                  const hue = Number(e.target.value);
+                  // Задаем идеальную насыщенность (75%) и яркость (45%) для баблов сообщений
+                  const [r, g, b] = hslToRgb(hue / 360, 0.75, 0.45);
                   const outRgbStr = `${r},${g},${b}`;
                   const inRgbStr = `${Math.round(r * 0.6)},${Math.round(g * 0.6)},${Math.round(b * 0.6)}`;
                   K(prev => ({
                       ...prev,
                       schemeId: "custom",
                       outRgb: outRgbStr,
-                      inRgb: inRgbStr
+                      inRgb: inRgbStr,
+                      customHue: hue
                   }));
               };
               return f.jsxs("div",{className:"settings-panel",children:[
+                f.jsx("style", {dangerouslySetInnerHTML: {__html: `
+                    .hue-slider::-webkit-slider-thumb {
+                        -webkit-appearance: none;
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 50%;
+                        background: #ffffff;
+                        border: 2px solid #ccc;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+                        cursor: pointer;
+                    }
+                `}}),
                 f.jsxs("div",{className:"settings-header",children:[
                   f.jsx("button",{className:"theme-back-btn",onClick:()=>_("main"),children:"←"}),
                   f.jsx("span",{style:{fontWeight:600,fontSize:16},children:"Оформление"}),
@@ -111,46 +136,44 @@ Error generating stack: `+e.message+`
                     f.jsx("div",{className:"theme-section-title",children:"Цвет Бабла (сообщения)"}),
                     f.jsxs("div",{
                         style:{
-                            position:"relative",
                             display:"flex",
-                            alignItems:"center",
-                            background:"rgba(255,255,255,0.04)",
+                            flexDirection:"column",
+                            gap:"16px",
+                            background:"#15101b",
+                            border:"1px solid rgba(255,255,255,0.05)",
                             borderRadius:"16px",
-                            padding:"12px 16px",
-                            justifyContent:"space-between",
-                            transition:"background 0.2s"
+                            padding:"16px",
                         },
                         children:[
-                            f.jsxs("div",{style:{display:"flex",flexDirection:"column",gap:"2px"},children:[
-                                f.jsx("span",{style:{fontSize:"15px",color:"#fff",fontWeight:500},children:"Свой оттенок"}),
-                                f.jsx("span",{style:{fontSize:"12px",color:"#8b7d98"},children:"Палитра RGB"})
-                            ]}),
-                            f.jsxs("div",{style:{position:"relative",width:"36px",height:"36px",display:"flex",alignItems:"center",justifyContent:"center"},children:[
+                            f.jsxs("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between"},children:[
+                                f.jsx("span",{style:{fontSize:"14px",color:"#fff",fontWeight:500},children:"Оттенок (Hue)"}),
                                 f.jsx("div",{
                                     style:{
-                                        position:"absolute",inset:0,borderRadius:"50%",
-                                        background:"conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
-                                        WebkitMaskImage:"radial-gradient(circle, transparent 50%, black 52%)",
-                                        maskImage:"radial-gradient(circle, transparent 50%, black 52%)"
-                                    }
-                                }),
-                                f.jsx("div",{
-                                    style:{
-                                        width:"20px",height:"20px",borderRadius:"50%",
+                                        width:"28px",
+                                        height:"28px",
+                                        borderRadius:"50%",
                                         background:`rgb(${O.outRgb})`,
-                                        boxShadow:"0 2px 10px rgba(0,0,0,0.5)"
+                                        border:"2px solid rgba(255,255,255,0.8)",
+                                        boxShadow:"0 2px 8px rgba(0,0,0,0.5)"
                                     }
                                 })
                             ]}),
                             f.jsx("input",{
-                                id:"customColorPicker",
-                                type:"color",
-                                value:(() => {
-                                    const parts = O.outRgb.split(",");
-                                    return rgbToHex(Number(parts[0]), Number(parts[1]), Number(parts[2]));
-                                })(),
-                                onChange:handleColorChange,
-                                style:{opacity:0,position:"absolute",inset:0,width:"100%",height:"100%",cursor:"pointer"}
+                                type:"range",
+                                min:0,
+                                max:360,
+                                value: O.customHue || 260,
+                                onChange: handleHueChange,
+                                className: "hue-slider",
+                                style:{
+                                    width:"100%",
+                                    WebkitAppearance:"none",
+                                    height:"14px",
+                                    borderRadius:"8px",
+                                    background:"linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
+                                    outline:"none",
+                                    margin: 0
+                                }
                             })
                         ]
                     })
