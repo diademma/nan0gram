@@ -1926,3 +1926,11 @@ html, body, #root {
 .video-thumb-wrapper:hover .video-play-overlay i {
   transform: scale(1.15) !important; /* Кнопка слегка увеличивается */
 }
+
+
+/* 🎯 Ограничение ширины пузырей сообщений для телефонов и планшетов (до оранжевой линии) */
+@media(max-width: 1024px) {
+  .message {
+    max-width: 72% !important;
+  }
+}
