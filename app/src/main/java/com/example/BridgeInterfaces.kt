@@ -1,4 +1,3 @@
-
 package com.example
 
 import android.os.Handler
@@ -127,6 +126,63 @@ class MessengerJsInterface(
     private val DEBOUNCE_MS = 300L
 
     @JavascriptInterface
+    fun encryptGcm(plainText: String, keyStr: String): String {
+        return try {
+            val keyBytes = keyStr.toByteArray(Charsets.UTF_8)
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            val keyBytes32 = digest.digest(keyBytes)
+            val secretKey = javax.crypto.spec.SecretKeySpec(keyBytes32, "AES")
+            
+            val iv = ByteArray(12)
+            java.security.SecureRandom().nextBytes(iv)
+            
+            val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+            val spec = javax.crypto.spec.GCMParameterSpec(128, iv)
+            cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, secretKey, spec)
+            
+            val ciphertext = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
+            
+            val combined = ByteArray(iv.size + ciphertext.size)
+            System.arraycopy(iv, 0, combined, 0, iv.size)
+            System.arraycopy(ciphertext, 0, combined, iv.size, ciphertext.size)
+            
+            android.util.Base64.encodeToString(combined, android.util.Base64.NO_WRAP)
+        } catch (e: Exception) {
+            log("[Crypto Error] Encryption failed: ${e.message}")
+            ""
+        }
+    }
+
+    @JavascriptInterface
+    fun decryptGcm(combinedBase64: String, keyStr: String): String {
+        return try {
+            val combined = android.util.Base64.decode(combinedBase64, android.util.Base64.NO_WRAP)
+            if (combined.size < 12) return "[Ошибка дешифрования]"
+            
+            val iv = ByteArray(12)
+            System.arraycopy(combined, 0, iv, 0, 12)
+            
+            val ciphertext = ByteArray(combined.size - 12)
+            System.arraycopy(combined, 12, ciphertext, 0, ciphertext.size)
+            
+            val keyBytes = keyStr.toByteArray(Charsets.UTF_8)
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            val keyBytes32 = digest.digest(keyBytes)
+            val secretKey = javax.crypto.spec.SecretKeySpec(keyBytes32, "AES")
+            
+            val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+            val spec = javax.crypto.spec.GCMParameterSpec(128, iv)
+            cipher.init(javax.crypto.Cipher.DECRYPT_MODE, secretKey, spec)
+            
+            val decrypted = cipher.doFinal(ciphertext)
+            String(decrypted, Charsets.UTF_8)
+        } catch (e: Exception) {
+            log("[Crypto Error] Decryption failed: ${e.message}")
+            "[Ошибка дешифрования]"
+        }
+    }
+
+    @JavascriptInterface
     fun getDeviceId(): String { return androidId }
 
     @JavascriptInterface
@@ -149,7 +205,7 @@ class MessengerJsInterface(
                 log("[Stealth] Сканируем координаты кнопки-скрепки...")
                 ukr.evaluateJavascript("""
                     (function(){
-                        var el = document.querySelector("${UkrnetSelectors.ATTACH_BUTTON}") || document.querySelector("${UkrnetSelectors.ATTACH_BUTTON_FALLBACK}");
+                        var el = document.querySelector("input[type='file']") || document.querySelector("button.sm-header__attach") || document.querySelector("[class*='attach']");
                         if (!el) return 'not_found';
                         var r = el.getBoundingClientRect();
                         return JSON.stringify({
@@ -199,10 +255,10 @@ class MessengerJsInterface(
             window._n0gSending = true;
             function doSend() {
                 console.log('[Upload] Нажимаем кнопку Отправить!');
-                var btn = document.querySelector("${UkrnetSelectors.SEND_BUTTON}") 
-                    || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_SUBMIT}") 
-                    || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_DATA}") 
-                    || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_INPUT}");
+                var btn = document.querySelector(".sm-header__send") 
+                    || document.querySelector("button[type='submit']") 
+                    || document.querySelector("[data-id='send']") 
+                    || document.querySelector("input[type='submit']");
                 if (btn) { btn.disabled = false; btn.click(); }
                 window._n0gStealthUpload = false;
                 setTimeout(function() { window._n0gSending = false; }, 8000);
@@ -219,13 +275,13 @@ class MessengerJsInterface(
             uploadCheckCount++;
             if (uploadCheckCount > 60) { clearInterval(window._n0gUploadInt); setTimeout(ensureSent, 500); return; }
             
-            var isUploading = document.querySelectorAll("${UkrnetSelectors.ATTACH_PROGRESS}").length > 0;
-            var isSaving = document.querySelectorAll("${UkrnetSelectors.LOADER}").length > 0;
+            var isUploading = document.querySelectorAll(".sm-attachments__progress-state").length > 0;
+            var isSaving = document.querySelectorAll(".sm-header__loader").length > 0;
             if (isSaving) { isUploading = true; }
             
-            var sendBtn = document.querySelector("${UkrnetSelectors.SEND_BUTTON}") 
-                || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_SUBMIT}") 
-                || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_DATA}");
+            var sendBtn = document.querySelector(".sm-header__send") 
+                || document.querySelector("button[type='submit']") 
+                || document.querySelector("[data-id='send']");
             if (sendBtn && sendBtn.disabled) { isUploading = true; }
             
             if (isUploading) { return; }
@@ -279,7 +335,7 @@ class MessengerJsInterface(
                 return@post
             }
             getUkrnetWebView()?.evaluateJavascript(
-                "(document.querySelector('${UkrnetSelectors.BODY_AREA}') !== null).toString();"
+                "(document.querySelector('.sm-editor__area') !== null).toString();"
             ) { value ->
                 val isOpen = value?.trim()?.replace("\"", "") == "true"
                 scope.launch {
@@ -306,7 +362,6 @@ class MessengerJsInterface(
     fun setComposeBody(encodedText: String) {
         lastComposeBody = encodedText
         ui.post {
-            // ПУЛЕНЕПРОБИВАЕМОЕ ЭКРАНИРОВАНИЕ
             val esc = encodedText
                 .replace("\\", "\\\\")
                 .replace("'", "\\'")
@@ -318,7 +373,7 @@ class MessengerJsInterface(
 
             val js = """
                 (function(text) {
-                    var el = document.querySelector("${UkrnetSelectors.BODY_AREA}")
+                    var el = document.querySelector(".sm-editor__area")
                         || document.querySelector("[contenteditable='true']")
                         || document.querySelector("textarea[name='body']")
                         || document.querySelector("textarea");
@@ -341,18 +396,18 @@ class MessengerJsInterface(
         ui.post {
             val js = """
                 (function(){
-                    var btn = document.querySelector("${UkrnetSelectors.SEND_BUTTON}")
-                        || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_SUBMIT}")
-                        || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_DATA}")
-                        || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_ARIA_UA}")
-                        || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_ARIA_RU}")
-                        || document.querySelector("${UkrnetSelectors.SEND_BUTTON_FALLBACK_INPUT}");
+                    var btn = document.querySelector(".sm-header__send")
+                        || document.querySelector("button[type='submit']")
+                        || document.querySelector("[data-id='send']")
+                        || document.querySelector("[aria-label='Відправити']")
+                        || document.querySelector("[aria-label='Отправить']")
+                        || document.querySelector("input[type='submit']");
                     var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
                     if (isTouch) {
                         if (btn) btn.click();
                     } else {
-                        var toEl = document.querySelector("${UkrnetSelectors.TO_INPUT}");
-                        var hasChip = document.querySelector("${UkrnetSelectors.ATTACH_CHIP_FALLBACK_ITEM}, ${UkrnetSelectors.ATTACH_CHIP_FALLBACK_TOKEN}");
+                        var toEl = document.querySelector(".sm-auto-complete__input");
+                        var hasChip = document.querySelector(".sm-auto-complete__item, .sm-auto-complete__token");
                         if (toEl && !hasChip) {
                             try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
                             toEl.dispatchEvent(new Event('input',{bubbles:true}));
@@ -375,7 +430,7 @@ class MessengerJsInterface(
     fun cancelCompose() {
         ui.post {
             scope.launch {
-                val js = """(function(){ var btn = document.querySelector("${UkrnetSelectors.CANCEL_BUTTON}") || document.querySelector("[aria-label='Відмінити']") || document.querySelector("[aria-label='Отменить']"); if (btn) { btn.click(); return 'ok'; } history.back(); return 'fallback'; })();""".trimIndent()
+                val js = """(function(){ var btn = document.querySelector(".sm-header__cancel") || document.querySelector("[aria-label='Відмінити']") || document.querySelector("[aria-label='Отменить']"); if (btn) { btn.click(); return 'ok'; } history.back(); return 'fallback'; })();"""
                 getUkrnetWebView()?.evaluateJavascript(js, null)
             }
         }
