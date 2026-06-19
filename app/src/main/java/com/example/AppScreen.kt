@@ -402,6 +402,16 @@ private fun WebViewLayer(
                                 filePathCallbackParams?.onReceiveValue(null)
                                 return true
                             }
+                            if (messengerInterface.isVoicePending) {
+                                val voiceUri = messengerInterface.pendingVoiceUri
+                                if (voiceUri != null) {
+                                    filePathCallbackParams?.onReceiveValue(arrayOf(voiceUri))
+                                    messengerInterface.isVoicePending = false
+                                    messengerInterface.pendingVoiceUri = null
+                                    log("[Stealth] Голосовой файл зашифрован и прикреплен программно в фоне.")
+                                    return true
+                                }
+                            }
                             ukrnetFilePathCallback = filePathCallbackParams
                             try {
                                 val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
