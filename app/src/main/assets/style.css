@@ -1545,7 +1545,7 @@ html, body, #root {
     display: block!important;
   }
   .message {
-    max-width: 88%;
+    max-width: 72%;
   }
   .profile-buttons {
     flex-wrap: wrap;
