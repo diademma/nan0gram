@@ -339,7 +339,7 @@
                 const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
                 const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
                 
-                callAndroid("notifyMediaSelection", W.nanoCipher.mask(payloadBlock + keyBlock));
+                callAndroid("notifyMediaSelection", W.nanoCipher.mask(payloadBlock + keyBlock), messageKey);
             }
 
             function submitBase64Media(actionType, data, duration) {
