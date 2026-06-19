@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.webkit.JavascriptInterface
@@ -9,6 +10,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import java.security.KeyPairGenerator
+import java.security.KeyFactory
+import java.security.spec.X509EncodedKeySpec
+import java.security.spec.PKCS8EncodedKeySpec
+import javax.crypto.KeyAgreement
 
 class UkrnetJsInterface(
     private val log: (String) -> Unit,
@@ -124,6 +130,77 @@ class MessengerJsInterface(
 
     @Volatile private var lastOpenMs = 0L
     private val DEBOUNCE_MS = 300L
+
+    // Системное зашифрованное хранилище ключей
+    private val prefs by lazy {
+        getUkrnetWebView()?.context?.getSharedPreferences("nan0gram_crypto_prefs", Context.MODE_PRIVATE)
+    }
+
+    @JavascriptInterface
+    fun getOrCreateKeyPair(): String {
+        return try {
+            val existingPub = prefs?.getString("own_public_key", null)
+            if (existingPub != null) return existingPub
+
+            // Генерируем пару ключей EC (secp256r1)
+            val kpg = KeyPairGenerator.getInstance("EC")
+            kpg.initialize(256)
+            val kp = kpg.generateKeyPair()
+
+            val pubBytes = kp.public.encoded
+            val privBytes = kp.private.encoded
+
+            val pubB64 = android.util.Base64.encodeToString(pubBytes, android.util.Base64.NO_WRAP)
+            val privB64 = android.util.Base64.encodeToString(privBytes, android.util.Base64.NO_WRAP)
+
+            prefs?.edit()?.apply {
+                putString("own_public_key", pubB64)
+                putString("own_private_key", privB64)
+                apply()
+            }
+            pubB64
+        } catch (e: Exception) {
+            log("[Crypto Error] KeyPair gen failed: ${e.message}")
+            ""
+        }
+    }
+
+    @JavascriptInterface
+    fun computeSharedSecret(remotePublicKeyB64: String): Boolean {
+        return try {
+            val privB64 = prefs?.getString("own_private_key", null) ?: return false
+            val privBytes = android.util.Base64.decode(privB64, android.util.Base64.NO_WRAP)
+            val pubBytes = android.util.Base64.decode(remotePublicKeyB64, android.util.Base64.NO_WRAP)
+
+            val kf = KeyFactory.getInstance("EC")
+            val privateKey = kf.generatePrivate(PKCS8EncodedKeySpec(privBytes))
+            val publicKey = kf.generatePublic(X509EncodedKeySpec(pubBytes))
+
+            // Согласование ключей Диффи-Хеллмана (ECDH)
+            val keyAgreement = KeyAgreement.getInstance("ECDH")
+            keyAgreement.init(privateKey)
+            keyAgreement.doPhase(publicKey, true)
+
+            val sharedSecret = keyAgreement.generateSecret()
+            
+            // Хэшируем общий секрет в стабильный 256-битный ключ AES
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            val aesKeyBytes = digest.digest(sharedSecret)
+            val aesKeyB64 = android.util.Base64.encodeToString(aesKeyBytes, android.util.Base64.NO_WRAP)
+
+            prefs?.edit()?.putString("shared_key", aesKeyB64)?.apply()
+            log("[Crypto] Рукопожатие ECDH успешно завершено!")
+            true
+        } catch (e: Exception) {
+            log("[Crypto Error] ECDH failed: ${e.message}")
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun getSavedSharedKey(): String {
+        return prefs?.getString("shared_key", "") ?: ""
+    }
 
     @JavascriptInterface
     fun encryptGcm(plainText: String, keyStr: String): String {
