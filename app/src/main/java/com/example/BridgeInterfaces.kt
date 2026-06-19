@@ -306,9 +306,9 @@ class MessengerJsInterface(
     private val UPLOAD_OBSERVER_JS = """
         if (window._n0gUploadInt) clearInterval(window._n0gUploadInt);
         var uploadCheckCount = 0;
+        var hasStarted = false;
         window._n0gUploadInt = setInterval(function() {
             uploadCheckCount++;
-            if (uploadCheckCount > 60) { clearInterval(window._n0gUploadInt); setTimeout(ensureSent, 500); return; }
             
             var isUploading = document.querySelectorAll(".sm-attachments__progress-state").length > 0;
             var isSaving = document.querySelectorAll(".sm-header__loader").length > 0;
@@ -319,11 +319,20 @@ class MessengerJsInterface(
                 || document.querySelector("[data-id='send']");
             if (sendBtn && sendBtn.disabled) { isUploading = true; }
             
-            if (isUploading) { return; }
+            if (isUploading) {
+                hasStarted = true;
+                return;
+            }
             
-            if (uploadCheckCount > 3) {
+            if (hasStarted) {
                 clearInterval(window._n0gUploadInt);
                 setTimeout(ensureSent, 600);
+                return;
+            }
+            
+            if (uploadCheckCount > 30) {
+                clearInterval(window._n0gUploadInt);
+                setTimeout(ensureSent, 500);
             }
         }, 500);
     """.trimIndent()
