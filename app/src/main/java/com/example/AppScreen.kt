@@ -105,6 +105,21 @@ object StealthCache {
     var pendingSysBlock: String? = null
 }
 
+fun getUriSize(context: Context, uri: Uri): Long {
+    try {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+            if (cursor.moveToFirst() && sizeIndex != -1) {
+                return cursor.getLong(sizeIndex)
+            }
+        }
+        context.contentResolver.openFileDescriptor(uri, "r")?.use { fd ->
+            return fd.statSize
+        }
+    } catch (e: Exception) {}
+    return 0L
+}
+
 fun getOriginalFileName(context: Context, uri: Uri): String {
     var result: String? = null
     if (uri.scheme == "content") {
@@ -265,29 +280,77 @@ private fun WebViewLayer(
     val messengerFileChooserLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.data
         val clipData = result.data?.clipData
-        val selectedUris = mutableListOf<Uri>()
-        if (uri != null) selectedUris.add(uri) else if (clipData != null) {
-            for (i in 0 until clipData.itemCount) selectedUris.add(clipData.getItemAt(i).uri)
-        }
-        if (selectedUris.isNotEmpty()) messengerFilePathCallback?.onReceiveValue(selectedUris.toTypedArray()) else messengerFilePathCallback?.onReceiveValue(null)
-        messengerFilePathCallback = null
-    }
-    
-    var ukrnetWebViewInstance by remember { mutableStateOf<WebView?>(null) }
-    var messengerWebViewInstance by remember { mutableStateOf<WebView?>(null) }
-    
-    val ukrnetFileChooserLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.data
-        val clipData = result.data?.clipData
-        val selectedUris = mutableListOf<Uri>()
-        if (uri != null) selectedUris.add(uri) else if (clipData != null) {
-            for (i in 0 until clipData.itemCount) selectedUris.add(clipData.getItemAt(i).uri)
+        val rawUris = mutableListOf<Uri>()
+        if (uri != null) rawUris.add(uri) else if (clipData != null) {
+            for (i in 0 until clipData.itemCount) rawUris.add(clipData.getItemAt(i).uri)
         }
         
-        if (selectedUris.isNotEmpty()) {
+        if (rawUris.isNotEmpty()) {
+            val isVideo = context.contentResolver.getType(rawUris.first())?.startsWith("video") == true
+            val maxCount = if (isVideo) 2 else 8
+            
+            var totalSize = 0L
+            val maxSizeBytes = 15 * 1024 * 1024L
+            val validUris = mutableListOf<Uri>()
+            var countLimited = false
+            var sizeLimited = false
+            var droppedCount = 0
+
+            for (u in rawUris) {
+                if (validUris.size >= maxCount) {
+                    countLimited = true
+                    droppedCount++
+                    continue
+                }
+                val size = getUriSize(context, u)
+                if (totalSize + size > maxSizeBytes) {
+                    sizeLimited = true
+                    droppedCount++
+                    continue
+                }
+                validUris.add(u)
+                totalSize += size
+            }
+
+            if (countLimited || sizeLimited) {
+                val msg = buildString {
+                    append("Упс! Сработали лимиты 🤫<br><br>")
+                    if (countLimited) append(if (isVideo) "Максимум 2 видео.<br>" else "Максимум 8 фото.<br>")
+                    if (sizeLimited) append("Превышен лимит размера (15 МБ).<br>")
+                    append("<br>Отсечено файлов: <b>${droppedCount}</b>")
+                }
+                val popupJs = """
+                    (function(){
+                        var div = document.createElement('div');
+                        div.innerHTML = '${msg}';
+                        div.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0.9); background:rgba(46, 29, 60, 0.95); backdrop-filter:blur(15px); -webkit-backdrop-filter:blur(15px); border:1px solid rgba(167, 115, 209, 0.4); box-shadow:0 0 35px rgba(167, 115, 209, 0.6); color:#fff; padding:22px 26px; border-radius:18px; font-size:15px; text-align:center; z-index:9999; opacity:0; transition:all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events:none; font-weight:500; min-width:240px; line-height:1.4;';
+                        document.body.appendChild(div);
+                        requestAnimationFrame(() => {
+                            div.style.opacity = '1';
+                            div.style.transform = 'translate(-50%, -50%) scale(1)';
+                        });
+                        setTimeout(() => {
+                            div.style.opacity = '0';
+                            div.style.transform = 'translate(-50%, -50%) scale(0.9)';
+                            setTimeout(() => div.remove(), 400);
+                        }, 5500);
+                    })();
+                """.trimIndent()
+                messengerWebViewInstance?.post { messengerWebViewInstance?.evaluateJavascript(popupJs, null) }
+            }
+
+            if (validUris.isEmpty()) {
+                messengerFilePathCallback?.onReceiveValue(null)
+                messengerFilePathCallback = null
+                ukrnetFilePathCallback?.onReceiveValue(null)
+                ukrnetFilePathCallback = null
+                messengerWebViewInstance?.post { messengerWebViewInstance?.evaluateJavascript("window._n0gStealthPending = false;", null) }
+                return@rememberLauncherForActivityResult
+            }
+
             val finalUris = mutableListOf<Uri>()
             val mediaKey = messengerInterface.pendingMediaKey
-            for (originalUri in selectedUris) {
+            for (originalUri in validUris) {
                 val processedUri = if (mediaKey.isNotEmpty()) {
                     createEncryptedStealthCopy(context, originalUri, mediaKey)
                 } else {
@@ -299,52 +362,68 @@ private fun WebViewLayer(
             
             if (finalUris.isNotEmpty()) {
                 ukrnetFilePathCallback?.onReceiveValue(finalUris.toTypedArray())
-                log("[Stealth] Все медиафайлы зашифрованы AES-GCM-256 (с оригинальными именами) и переданы.")
+                log("[Stealth] Файлы прошли проверку лимитов, зашифрованы и переданы.")
             } else {
                 ukrnetFilePathCallback?.onReceiveValue(null)
             }
+            ukrnetFilePathCallback = null
             
-            val firstUri = selectedUris.first()
-            val isVideo = context.contentResolver.getType(firstUri)?.startsWith("video") == true
             val typeStr = if (isVideo) "video" else "photo"
-            messengerWebViewInstance?.evaluateJavascript("if(window.nan0gram && window.nan0gram.submitStealthFile) window.nan0gram.submitStealthFile('$typeStr');", null)
+            messengerWebViewInstance?.post { messengerWebViewInstance?.evaluateJavascript("if(window.nan0gram && window.nan0gram.submitStealthFile) window.nan0gram.submitStealthFile('" + typeStr + "');", null) }
             
             scope.launch(Dispatchers.IO) {
                 val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                 val chatData = JSONObject().apply {
                     put("time", timeStr)
                     if (isVideo) {
-                        val b64 = uriToBase64(context, firstUri)
-                        if (b64.isNotEmpty()) {
-                            put("base64", b64)
-                            put("isVideo", true)
-                            val thumbB64 = getVideoThumbnailBase64(context, firstUri)
-                            if (thumbB64.isNotEmpty()) put("videoThumbnail", "data:image/jpeg;base64,$thumbB64")
+                        put("isVideo", true)
+                        val b64List = org.json.JSONArray()
+                        val thumbList = org.json.JSONArray()
+                        for (vidUri in validUris) {
+                            val b64 = uriToBase64(context, vidUri)
+                            if (b64.isNotEmpty()) {
+                                b64List.put(b64)
+                                val thumbB64 = getVideoThumbnailBase64(context, vidUri)
+                                if (thumbB64.isNotEmpty()) thumbList.put("data:image/jpeg;base64," + thumbB64)
+                            }
                         }
+                        put("base64s", b64List)
+                        put("thumbnails", thumbList)
                     } else {
                         val b64List = org.json.JSONArray()
-                        for (imgUri in selectedUris) {
+                        for (imgUri in validUris) {
                             val b64 = uriToBase64(context, imgUri)
                             if (b64.isNotEmpty()) b64List.put(b64)
                         }
                         put("base64s", b64List)
                     }
                 }
-                val escaped = chatData.toString().replace("\\", "\\\\").replace("\"", "\\\"")
+                
+                val escaped = chatData.toString().replace("\", "\\").replace("\"", "\\"")
                 withContext(Dispatchers.Main) {
-                    messengerWebViewInstance?.evaluateJavascript("window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \"$escaped\" }));", null)
+                    val jsDispatch = "window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \"" + escaped + "\" }));"
+                    messengerWebViewInstance?.evaluateJavascript(jsDispatch, null)
                 }
             }
+            
+            messengerFilePathCallback?.onReceiveValue(validUris.toTypedArray())
+            messengerFilePathCallback = null
+
         } else {
             ukrnetFilePathCallback?.onReceiveValue(null)
-            messengerWebViewInstance?.evaluateJavascript("window._n0gStealthPending = false;", null)
+            ukrnetFilePathCallback = null
+            messengerFilePathCallback?.onReceiveValue(null)
+            messengerFilePathCallback = null
+            messengerWebViewInstance?.post { messengerWebViewInstance?.evaluateJavascript("window._n0gStealthPending = false;", null) }
         }
-        ukrnetFilePathCallback = null
-        ukrnetWebViewInstance?.isFocusable = false
-        ukrnetWebViewInstance?.isFocusableInTouchMode = false
-        messengerWebViewInstance?.bringToFront()
-        messengerWebViewInstance?.requestFocus()
-        ukrnetWebViewInstance.forceSendMsg(log, "file chooser result")
+        
+        ukrnetWebViewInstance?.post {
+            ukrnetWebViewInstance?.isFocusable = false
+            ukrnetWebViewInstance?.isFocusableInTouchMode = false
+            messengerWebViewInstance?.bringToFront()
+            messengerWebViewInstance?.requestFocus()
+            ukrnetWebViewInstance?.forceSendMsg(log, "file chooser result")
+        }
     }
 
     AndroidView(
