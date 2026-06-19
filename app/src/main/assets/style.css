@@ -1929,8 +1929,8 @@ html, body, #root {
 
 
 /* 🎯 Ограничение ширины пузырей сообщений для телефонов и планшетов (до оранжевой линии) */
-@media(max-width: 1024px) {
+@media (orientation: portrait) {
   .message {
-    max-width: 72% !important;
+    max-width: 82% !important;
   }
 }
