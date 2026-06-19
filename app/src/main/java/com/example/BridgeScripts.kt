@@ -256,6 +256,12 @@ internal val SENDMSG_FILL_JS = """
                 subjEl.dispatchEvent(new Event('input',  {bubbles:true}));
                 subjEl.dispatchEvent(new Event('change', {bubbles:true}));
             }
-        }, 100);
-    })();
+        
+                setTimeout(function() {
+                    if (window.Android && window.Android.onComposeReady) {
+                        window.Android.onComposeReady();
+                    }
+                }, 150);
+            }, 100);
+        })();
 """.trimIndent()
