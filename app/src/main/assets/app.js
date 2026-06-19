@@ -111,39 +111,47 @@ Error generating stack: `+e.message+`
                     f.jsx("div",{className:"theme-section-title",children:"Цвет Бабла (сообщения)"}),
                     f.jsxs("div",{
                         style:{
+                            position:"relative",
                             display:"flex",
                             alignItems:"center",
-                            background:"#15101b",
-                            border:"1px solid rgba(255,255,255,0.1)",
-                            borderRadius:"12px",
-                            padding:"10px 16px",
-                            cursor:"pointer",
-                            justifyContent:"space-between"
+                            background:"rgba(255,255,255,0.04)",
+                            borderRadius:"16px",
+                            padding:"12px 16px",
+                            justifyContent:"space-between",
+                            transition:"background 0.2s"
                         },
-                        onClick:()=>document.getElementById("customColorPicker")?.click(),
                         children:[
-                            f.jsx("span",{style:{fontSize:"14px",color:"#fff"},children:"Выбрать любой оттенок..."}),
-                            f.jsxs("div",{style:{display:"flex",alignItems:"center",gap:"8px"},children:[
+                            f.jsxs("div",{style:{display:"flex",flexDirection:"column",gap:"2px"},children:[
+                                f.jsx("span",{style:{fontSize:"15px",color:"#fff",fontWeight:500},children:"Свой оттенок"}),
+                                f.jsx("span",{style:{fontSize:"12px",color:"#8b7d98"},children:"Палитра RGB"})
+                            ]}),
+                            f.jsxs("div",{style:{position:"relative",width:"36px",height:"36px",display:"flex",alignItems:"center",justifyContent:"center"},children:[
                                 f.jsx("div",{
                                     style:{
-                                        width:"24px",
-                                        height:"24px",
-                                        borderRadius:"50%",
-                                        background:`rgb(${O.outRgb})`,
-                                        border:"2px solid #fff"
+                                        position:"absolute",inset:0,borderRadius:"50%",
+                                        background:"conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
+                                        WebkitMaskImage:"radial-gradient(circle, transparent 50%, black 52%)",
+                                        maskImage:"radial-gradient(circle, transparent 50%, black 52%)"
                                     }
                                 }),
-                                f.jsx("input",{
-                                    id:"customColorPicker",
-                                    type:"color",
-                                    value:(() => {
-                                        const parts = O.outRgb.split(",");
-                                        return rgbToHex(Number(parts[0]), Number(parts[1]), Number(parts[2]));
-                                    })(),
-                                    onChange:handleColorChange,
-                                    style:{display:"none"}
+                                f.jsx("div",{
+                                    style:{
+                                        width:"20px",height:"20px",borderRadius:"50%",
+                                        background:`rgb(${O.outRgb})`,
+                                        boxShadow:"0 2px 10px rgba(0,0,0,0.5)"
+                                    }
                                 })
-                            ]})
+                            ]}),
+                            f.jsx("input",{
+                                id:"customColorPicker",
+                                type:"color",
+                                value:(() => {
+                                    const parts = O.outRgb.split(",");
+                                    return rgbToHex(Number(parts[0]), Number(parts[1]), Number(parts[2]));
+                                })(),
+                                onChange:handleColorChange,
+                                style:{opacity:0,position:"absolute",inset:0,width:"100%",height:"100%",cursor:"pointer"}
+                            })
                         ]
                     })
                   ]}),
