@@ -105,6 +105,59 @@ object StealthCache {
     var pendingSysBlock: String? = null
 }
 
+fun getOriginalFileName(context: Context, uri: Uri): String {
+    var result: String? = null
+    if (uri.scheme == "content") {
+        val cursor = context.contentResolver.query(uri, null, null, null, null)
+        try {
+            if (cursor != null && cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (index != -1) result = cursor.getString(index)
+            }
+        } catch (_: Exception) {} finally { cursor?.close() }
+    }
+    if (result == null) {
+        result = uri.path
+        val cut = result?.lastIndexOf('/')
+        if (cut != null && cut != -1) result = result.substring(cut + 1)
+    }
+    return result ?: "media_file"
+}
+
+fun createEncryptedStealthCopy(context: Context, originalUri: Uri, keyStr: String): Uri? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(originalUri) ?: return null
+        val originalName = getOriginalFileName(context, originalUri)
+        val baseName = if (originalName.contains(".")) originalName.substringBeforeLast(".") else originalName
+        val file = File(context.cacheDir, "${baseName}.bin")
+        
+        val keyBytes = "$keyStr:media".toByteArray(Charsets.UTF_8)
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        val keyBytes32 = digest.digest(keyBytes)
+        val secretKey = javax.crypto.spec.SecretKeySpec(keyBytes32, "AES")
+        
+        val iv = ByteArray(12)
+        java.security.SecureRandom().nextBytes(iv)
+        
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val spec = javax.crypto.spec.GCMParameterSpec(128, iv)
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, spec)
+        
+        val ciphertext = cipher.doFinal(inputStream.readBytes())
+        inputStream.close()
+        
+        val outputStream = FileOutputStream(file)
+        outputStream.write(iv)
+        outputStream.write(ciphertext)
+        outputStream.flush()
+        outputStream.close()
+        Uri.fromFile(file)
+    } catch (e: Exception) {
+        android.util.Log.e("nan0gram", "Encryption failed: ${e.message}")
+        null
+    }
+}
+
 fun createStealthCopy(context: Context, originalUri: Uri): Uri? {
     return try {
         val inputStream = context.contentResolver.openInputStream(originalUri) ?: return null
@@ -303,8 +356,25 @@ private fun WebViewLayer(
         }
         
         if (selectedUris.isNotEmpty()) {
-            ukrnetFilePathCallback?.onReceiveValue(selectedUris.toTypedArray())
-            log("[Stealth] Файлы переданы напрямую в УкрНет для нативной загрузки.")
+            val finalUris = mutableListOf<Uri>()
+            val mediaKey = messengerInterface.pendingMediaKey
+            for (originalUri in selectedUris) {
+                val processedUri = if (mediaKey.isNotEmpty()) {
+                    createEncryptedStealthCopy(context, originalUri, mediaKey)
+                } else {
+                    createStealthCopy(context, originalUri)
+                }
+                if (processedUri != null) {
+                    finalUris.add(processedUri)
+                }
+            }
+            messengerInterface.pendingMediaKey = ""
+            if (finalUris.isNotEmpty()) {
+                ukrnetFilePathCallback?.onReceiveValue(finalUris.toTypedArray())
+                log("[Stealth] Все выбранные медиафайлы зашифрованы AES-GCM-256 и переданы.")
+            } else {
+                ukrnetFilePathCallback?.onReceiveValue(null)
+            }
             
             val firstUri = selectedUris.first()
             val isVideo = context.contentResolver.getType(firstUri)?.startsWith("video") == true
