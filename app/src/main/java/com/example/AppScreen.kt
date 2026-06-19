@@ -1,4 +1,3 @@
-
 package com.example
 
 import android.annotation.SuppressLint
@@ -17,6 +16,16 @@ import android.widget.FrameLayout
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.io.FileInputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import javax.crypto.Cipher
+import javax.crypto.CipherOutputStream
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -67,11 +76,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
-import java.io.File
-import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import org.json.JSONObject
 
 private const val UKRNET_SENDMSG_URL = "https://mail.ukr.net/touch/u0/sendmsg/"
@@ -146,7 +150,7 @@ fun createEncryptedStealthCopy(context: Context, originalUri: Uri, keyStr: Strin
         val ciphertext = cipher.doFinal(inputStream.readBytes())
         inputStream.close()
         
-        val outputStream = FileOutputStream(file)
+        val outputStream = java.io.FileOutputStream(file)
         outputStream.write(iv)
         outputStream.write(ciphertext)
         outputStream.flush()
@@ -455,7 +459,6 @@ private fun WebViewLayer(
                                 log("[Compose] sendmsg загружен — заполняем поля")
                                 val bufferedBody = messengerInterface.lastComposeBody
                                 if (bufferedBody.isNotEmpty()) {
-                                    // ПУЛЕНЕПРОБИВАЕМОЕ ЭКРАНИРОВАНИЕ
                                     val esc = bufferedBody
                                         .replace("\\", "\\\\")
                                         .replace("'", "\\'")
@@ -548,12 +551,12 @@ private fun WebViewLayer(
                         allowFileAccess    = true
                         allowContentAccess = true
                         mediaPlaybackRequiresUserGesture = false
-                        }
+                    }
                     addJavascriptInterface(messengerInterface, "Android")
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
-                            view?.evaluateJavascript("""
+                            view?.evaluateJavascript(TQ
                                 (function(){
                                     if(window._n0gDirectPickerPatch)return;
                                     window._n0gDirectPickerPatch=true;
@@ -565,7 +568,12 @@ private fun WebViewLayer(
                                         setTimeout(function(){ _attachDebounce = false; }, 2000);
                                         
                                         if (window.Android && window.Android.prepareForDirectAttach) {
-                                            window.Android.prepareForDirectAttach();
+                                            var mk = "";
+                                            var arr = new Uint8Array(16);
+                                            window.crypto.getRandomValues(arr);
+                                            for(var i=0; i<16; i++) { mk += arr[i].toString(16).padStart(2,'0'); }
+                                            window.nan0gram_pendingMediaKey = mk;
+                                            window.Android.prepareForDirectAttach(mk);
                                         }
                                     }
                                     
@@ -593,9 +601,9 @@ private fun WebViewLayer(
                                         }
                                     }, true);
                                 })();
-                            """.trimIndent(), null)
+                            TQ.trimIndent(), null)
                             
-                            view?.evaluateJavascript("""
+                            view?.evaluateJavascript(TQ
                                 (function polyfillNan0gramFn(){
                                     if(window.nan0gram){
                                         if(!window.nan0gram._openComposeIfNeeded){
@@ -606,13 +614,12 @@ private fun WebViewLayer(
                                         setTimeout(polyfillNan0gramFn, 300);
                                     }
                                 })();
-                            """.trimIndent(), null)
+                            TQ.trimIndent(), null)
                         }
                     }
                     webChromeClient = object : WebChromeClient() {
                         override fun onConsoleMessage(m: ConsoleMessage?): Boolean {
-                            val level = m?.messageLevel()?.name ?: "LOG"
-                            log("[Local JS] [$level] ${m?.message()} (${m?.lineNumber()})")
+                            log("[Local JS] [${m?.messageLevel()?.name ?: "LOG"}] ${m?.message()} (${m?.lineNumber()})")
                             return true
                         }
                         override fun onPermissionRequest(request: android.webkit.PermissionRequest?) {
@@ -691,7 +698,7 @@ private fun LogPanel(
                     .pointerInput(Unit) { detectDragGesturesAfterLongPress { _, dragAmount -> dragX += dragAmount.x; dragY += dragAmount.y } }.clickable { onToggle(true) }.padding(horizontal = 12.dp, vertical = 8.dp)
                 ) { Text("🐞 Логи (${logList.size})", color = Color(0xFFD0BCFF), fontSize = 11.sp, fontWeight = FontWeight.Bold) }
         } else {
-            Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.55f).align(Alignment.TopCenter).background(Color(0xF90F0A15)).border(1.dp, Color(0xFFA773D1)).padding(6.dp)) {
+            Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.55f).align(Alignment.TopCenter).background(Color(0x90F0A15)).border(1.dp, Color(0xFFA773D1)).padding(6.dp)) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("nan0gram логи", color = Color(0xFFA773D1), fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp))
@@ -704,42 +711,16 @@ private fun LogPanel(
                         }
                     }
                     if (!isBgServiceActive) {
-                        DebugControls(uiAlpha, onUiAlphaChange, isParserEnabled, onParserToggle, coords, coroutineScope, log)
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(36.dp)) {
+                            Text("Видимость: ${(uiAlpha * 100).toInt()}%", color = Color(0xFFE0C3FC), fontSize = 11.sp, modifier = Modifier.width(130.dp))
+                            Slider(value = uiAlpha, onValueChange = onUiAlphaChange, valueRange = 0f..1f, modifier = Modifier.weight(1f))
+                        }
                     }
                     LazyColumn(state = logListState, modifier = Modifier.fillMaxWidth().weight(1f).background(Color(0xFF07040A)).padding(4.dp)) {
                         items(logList) { line -> Text(text = line, color = Color(0xFFC2FFD9), fontFamily = FontFamily.Monospace, fontSize = 10.sp, lineHeight = 12.sp, modifier = Modifier.padding(bottom = 2.dp)) }
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun DebugControls(
-    uiAlpha: Float, onUiAlphaChange: (Float) -> Unit, isParserEnabled: Boolean, onParserToggle: () -> Unit,
-    coords: DomCoords, coroutineScope: CoroutineScope, log: (String) -> Unit
-) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(36.dp)) {
-        Text("Видимость: ${(uiAlpha * 100).toInt()}%", color = Color(0xFFE0C3FC), fontSize = 11.sp, modifier = Modifier.width(130.dp))
-        Slider(value = uiAlpha, onValueChange = onUiAlphaChange, valueRange = 0f..1f, modifier = Modifier.weight(1f))
-    }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(30.dp)) {
-        Text("Радар входящих:", color = Color(0xFFE0C3FC), fontSize = 11.sp)
-        TextButton(
-            onClick = onParserToggle,
-            modifier = Modifier.background(if (isParserEnabled) Color(0x334CAF50) else Color(0x33F44336), shape = RoundedCornerShape(4.dp))
-        ) {
-            Text(text = if (isParserEnabled) "🎧 Радар: ВКЛ" else "🔇 Радар: ВЫКЛ", color = if (isParserEnabled) Color(0xFF81C784) else Color(0xFFE57373), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-    if (coords.composeX != null) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp).height(30.dp)
-        ) {
-            Text("Кнопка 'Написать' найдена ✓", color = Color(0xFF81C784), fontSize = 11.sp)
         }
     }
 }
