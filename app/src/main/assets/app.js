@@ -156,7 +156,8 @@ Error generating stack: `+e.message+`
                     ]})
                   ]})
                 ]})
-              ]}// РАЗДЕЛ КОНФИДЕНЦИАЛЬНОСТИ (НАСТРОЙКИ ПРОФИЛЯ)
+              ]});
+            }// РАЗДЕЛ КОНФИДЕНЦИАЛЬНОСТИ (НАСТРОЙКИ ПРОФИЛЯ)
         if (o === "privacy") {
           return f.jsxs("div",{className:"settings-panel",children:[
             f.jsxs("div",{className:"settings-header",children:[
