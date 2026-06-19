@@ -139,9 +139,9 @@ fun createEncryptedStealthCopy(context: Context, originalUri: Uri, keyStr: Strin
         val iv = ByteArray(12)
         java.security.SecureRandom().nextBytes(iv)
         
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
         val spec = javax.crypto.spec.GCMParameterSpec(128, iv)
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, spec)
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, secretKey, spec)
         
         val ciphertext = cipher.doFinal(inputStream.readBytes())
         inputStream.close()
