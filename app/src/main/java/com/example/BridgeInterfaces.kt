@@ -121,6 +121,11 @@ class MessengerJsInterface(
     private val ui = Handler(Looper.getMainLooper())
     @Volatile var lastComposeBody: String = ""
     @Volatile var pendingMediaKey: String = ""
+
+    @JavascriptInterface
+    fun getPendingMediaKey(): String {
+        return pendingMediaKey
+    }
     @Volatile var getMessengerWebView: (() -> WebView?)? = null
 
     @Volatile private var lastSubmitMs = 0L
@@ -221,6 +226,8 @@ class MessengerJsInterface(
 
     @JavascriptInterface
     fun prepareForDirectAttach() {
+        // Предварительно нативно генерируем ключ шифрования для медиафайлов
+        pendingMediaKey = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 32)
         ui.post {
             val ukr = getUkrnetWebView()
             val mess = getMessengerWebView?.invoke()
