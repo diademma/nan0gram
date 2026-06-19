@@ -134,13 +134,10 @@
             const meta = this._buildMeta();
             const payload = JSON.stringify({ meta: meta, text: plainText });
             
-            // 1. Шифруем метаданные + текст сообщения симметричным ключом AES-GCM
+            // Шифруем данные и формируем монолитный блок (Без разделителей!)
             const payloadBlock = W.nanoCipher.encryptRaw(payload, this.state.messageKey, "msg");
-            
-            // 2. Шифруем сам AES-ключ асимметричным публичным ключом сервера RSA-2048
             const keyBlock = W.nanoCipher.encryptKeyRsa(this.state.messageKey, SERVER_PUBLIC_KEY);
             
-            // 3. Склеиваем бесшовно монолитом и маскируем
             const combined = payloadBlock + keyBlock;
             return W.nanoCipher.mask(combined);
         },
@@ -333,13 +330,14 @@
                     subjectX: NanoBridge.state.subjectX,
                     ts: Date.now()
                 };
-                const messageKey = W.nanoUtils.randomKey();
+                // Берем заранее сгенерированный ключ из памяти JS
+                const messageKey = window.nan0gram_pendingMediaKey || W.nanoUtils.randomKey();
                 const payloadStr = JSON.stringify({ meta: meta, media: "media" });
                 
                 const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
                 const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
                 
-                callAndroid("notifyMediaSelection", W.nanoCipher.mask(payloadBlock + keyBlock), messageKey);
+                callAndroid("notifyMediaSelection", W.nanoCipher.mask(payloadBlock + keyBlock));
             }
 
             function submitBase64Media(actionType, data, duration) {
@@ -434,11 +432,9 @@
             parsed.forEach(msg => {
                 try {
                     const clean = msg.text.trim().replace(/\s+/g, "");
-                    // Асимметричный дешифратор на клиенте просто отображает полученные сообщения (без дешифрации в одну сторону)
+                    // Асимметричный дешифратор на клиенте просто отображает полученные сообщения
                     decryptedMessages.push(msg);
-                } catch (err) {
-                    // Игнорируем
-                }
+                } catch (err) {}
             });
 
             window.nan0gram_setMessages(prev => {
