@@ -370,7 +370,9 @@ class MessengerJsInterface(
                 ) { res ->
                     val onSendmsg = res?.trim()?.replace("\"", "") == "true"
                     if (onSendmsg) {
-                        log("[Compose] На sendmsg — compose уже готов")
+                        log("[Compose] На sendmsg — compose уже готов, заполняем...")
+                        getUkrnetWebView()?.evaluateJavascript("delete window._n0gFilled;", null)
+                        getUkrnetWebView()?.evaluateJavascript(SENDMSG_FILL_JS, null)
                     } else {
                         log("[Compose] Нет координат — loadUrl sendmsg")
                         getUkrnetWebView()?.loadUrl("https://mail.ukr.net/touch/u0/sendmsg/")
