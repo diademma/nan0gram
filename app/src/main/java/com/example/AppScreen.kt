@@ -551,7 +551,7 @@ private fun WebViewLayer(
                         }
                         override fun onShowFileChooser(webView: WebView?, filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?, fileChooserParams: FileChooserParams?): Boolean {
                             if (ukrnetFilePathCallback != null) {
-                                filePathParams?.onReceiveValue(null)
+                                filePathCallbackParams?.onReceiveValue(null)
                                 return true
                             }
                             ukrnetFilePathCallback = filePathCallbackParams
@@ -702,7 +702,7 @@ private fun LogPanel(
                         }
                     }
                     if (!isBgServiceActive) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(36.dp)) {
+                        Row(verticalAlignment = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(36.dp)) {
                             Text("Видимость: ${(uiAlpha * 100).toInt()}%", color = Color(0xFFE0C3FC), fontSize = 11.sp, modifier = Modifier.width(130.dp))
                             Slider(value = uiAlpha, onValueChange = onUiAlphaChange, valueRange = 0f..1f, modifier = Modifier.weight(1f))
                         }
