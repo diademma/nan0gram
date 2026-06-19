@@ -17,7 +17,7 @@
         "~","•","$","€","£","¢","∆","*"
     ].join("");
 
-    const STD64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    const STD64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     function std64ToCustom(b64) {
         let out = "";
