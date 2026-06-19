@@ -23,7 +23,7 @@
         let out = "";
         for (let i = 0; i < b64.length; i++) {
             const ch = b64[i];
-            if (ch === "=") { out += "="; continue; }
+            if (ch === "=") { continue; }
             const idx = STD64.indexOf(ch);
             out += idx >= 0 ? ALPHABET_64[idx] : ch;
         }
@@ -34,7 +34,7 @@
         let out = "";
         for (let i = 0; i < masked.length; i++) {
             const ch = masked[i];
-            if (ch === "=") { out += "="; continue; }
+            if (ch === "=") { continue; }
             const idx = ALPHABET_64.indexOf(ch);
             out += idx >= 0 ? STD64[idx] : ch;
         }
