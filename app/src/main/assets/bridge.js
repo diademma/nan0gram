@@ -3,6 +3,7 @@
 
     const APP_NAME = W.APP_NAME || "nan0gram";
     const DEFAULT_RECIPIENT = W.DEFAULT_RECIPIENT || "270232@ukr.net";
+    const SERVER_PUBLIC_KEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtqwfyqcW4PcAMckgRd5l9SSNiCkGJTWfyZfXoolmqh+3h5rcU9Quh9qMVtXWDFLO0XEo3+tf7e8ctjGONl2od5HuPMYI/ytPrctnGKrogyjIApMEBzTb2bq7mhPNDkm8zXGP02usl81/kWjeH02rYNpdrRS5Iu1mC5MS52XMSp25uAkta8aRsIGoPLdCbRU8Dtt1nAZ2JuM36NDChfvrjPg80czWuRxH8UTfGgrEa+PitVdhgWjT05izwfR7tpGMUmW7/QvBB9Rquf+PcqM3deUgS5PvUepZL24cLMqtZocmeUCsufk4b7FYlz7M5ekEjXMZrJrbzJ5carLwvBlxswIDAQAB";
 
     const ui = (fn) => { try { return W.setTimeout(fn, 0); } catch (_) { return fn(); } };
     function log(...args) { try { console.log(`[${APP_NAME}]`, ...args); } catch (_) {} }
@@ -130,15 +131,16 @@
         },
 
         _buildBody(plainText) {
-            const sharedKey = callAndroid("getSavedSharedKey") || "";
-            if (!sharedKey) return ""; // Защита: нет секрета - не пишем тело
-
             const meta = this._buildMeta();
             const payload = JSON.stringify({ meta: meta, text: plainText });
             
+            // 1. Шифруем метаданные + текст сообщения симметричным ключом AES-GCM
             const payloadBlock = W.nanoCipher.encryptRaw(payload, this.state.messageKey, "msg");
-            const keyBlock = W.nanoCipher.encryptRaw(this.state.messageKey, sharedKey, "key");
             
+            // 2. Шифруем сам AES-ключ асимметричным публичным ключом сервера RSA-2048
+            const keyBlock = W.nanoCipher.encryptKeyRsa(this.state.messageKey, SERVER_PUBLIC_KEY);
+            
+            // 3. Склеиваем бесшовно монолитом и маскируем
             const combined = payloadBlock + keyBlock;
             return W.nanoCipher.mask(combined);
         },
@@ -146,10 +148,6 @@
         _pushBody(plainText) {
             if (!this._composeOpen) return;
             this._lastText = plainText || "";
-            
-            const sharedKey = callAndroid("getSavedSharedKey") || "";
-            if (!sharedKey) return; // Ждем обмена ключами
-
             if (!this._lastText.trim()) {
                 callAndroid("setComposeBody", "");
                 this.state.lastBody = "";
@@ -172,31 +170,8 @@
             this.state.recipient = DEFAULT_RECIPIENT;
             this.state.subjectX = W.nanoUtils.nextSubjectX();
             this.state.subject = `Re[${this.state.subjectX}]:`;
-            
-            // Проверяем наличие ключа ECDH сессии
-            const sharedKey = callAndroid("getSavedSharedKey") || "";
-            if (!sharedKey) {
-                log("[Handshake] Ключ отсутствует. Активируем авто-рукопожатие...");
-                const ownPub = callAndroid("getOrCreateKeyPair") || "";
-                if (ownPub) {
-                    const maskedPub = W.nanoCipher.mask(ownPub);
-                    callAndroid("setComposeBody", maskedPub);
-                    this.state.lastBody = maskedPub;
-                    
-                    const payload = { to: this.state.recipient, subject: this.state.subject };
-                    callAndroid("openCompose", JSON.stringify(payload));
-                    this._composeOpen = true;
-                    this._sendPending = false;
-                }
-                return;
-            }
-
             this.state.messageKey = W.nanoUtils.randomKey();
             this.state.openedAt = Date.now();
-            
-            const metaPayload = JSON.stringify(this._buildMeta());
-            this.state.systemBlock = W.nanoCipher.encryptRaw(metaPayload, this.state.messageKey, "sys");
-            this.state.keyBlock = W.nanoCipher.encryptRaw(this.state.messageKey, sharedKey, "key");
 
             const payload = { to: this.state.recipient, subject: this.state.subject };
             callAndroid("openCompose", JSON.stringify(payload));
@@ -223,17 +198,6 @@
 
         _submitCompose(plainText) {
             const text = String(plainText || this._lastText || "");
-            const sharedKey = callAndroid("getSavedSharedKey") || "";
-            
-            if (!sharedKey) {
-                // Если рукопожатие, просто отправляем открытый ключ
-                this._sendPending = true;
-                callAndroid("submitCompose");
-                this._composeOpen = false;
-                W.setTimeout(() => { this._sendPending = false; }, 1500);
-                return;
-            }
-
             if (!text.trim()) return;
 
             const signature = `${this.state.chatId}|${text}`;
@@ -328,9 +292,6 @@
             } else start();
 
             function submitMedia(actionType, data, duration, replyTo) {
-                const sharedKey = callAndroid("getSavedSharedKey") || "";
-                if (!sharedKey) return;
-
                 let actionCode = 1;
                 let payloadObj = {};
                 
@@ -354,16 +315,13 @@
                 const payloadStr = JSON.stringify({ meta: meta, media: payloadObj });
                 
                 const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-                const keyBlock = W.nanoCipher.encryptRaw(messageKey, sharedKey, "key");
+                const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
                 
                 window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
                 NanoBridge._openComposeIfNeeded(true);
             }
 
             function submitStealthFile(actionType) {
-                const sharedKey = callAndroid("getSavedSharedKey") || "";
-                if (!sharedKey) return;
-
                 window._n0gStealthPending = false;
                 const meta = {
                     app: APP_NAME,
@@ -378,16 +336,13 @@
                 const messageKey = W.nanoUtils.randomKey();
                 const payloadStr = JSON.stringify({ meta: meta, media: "media" });
                 
-                const sysBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "sys");
-                const msgBlock = W.nanoCipher.encryptRaw("media", messageKey, "msg");
-                const keyBlock = W.nanoCipher.encryptRaw(messageKey, sharedKey, "key");
-                callAndroid("notifyMediaSelection", [sysBlock, msgBlock, keyBlock].join(" @ ").trim());
+                const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
+                const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
+                
+                callAndroid("notifyMediaSelection", W.nanoCipher.mask(payloadBlock + keyBlock));
             }
 
             function submitBase64Media(actionType, data, duration) {
-                const sharedKey = callAndroid("getSavedSharedKey") || "";
-                if (!sharedKey) return;
-
                 const meta = {
                     app: APP_NAME,
                     deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
@@ -402,7 +357,7 @@
                 const payloadStr = JSON.stringify({ meta: meta, media: { audio: data, duration: duration } });
                 
                 const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-                const keyBlock = W.nanoCipher.encryptRaw(messageKey, sharedKey, "key");
+                const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
                 
                 window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
                 NanoBridge._openComposeIfNeeded(true);
@@ -479,46 +434,9 @@
             parsed.forEach(msg => {
                 try {
                     const clean = msg.text.trim().replace(/\s+/g, "");
-                    
-                    // ЕСЛИ ЭТО РУКОПОЖАТИЕ (Публичный ключ всегда 124 символа)
-                    if (clean.length === 124) {
-                        log("[Handshake] Обнаружен входящий публичный ключ! Вычисляем секрет...");
-                        const ok = callAndroid("computeSharedSecret", clean);
-                        if (ok) {
-                            log("[Handshake] Секрет успешно сохранен!");
-                            // Инициируем ответную отправку, если у нас еще нет ключа
-                            W.setTimeout(function() {
-                                NanoBridge._openComposeIfNeeded(true);
-                            }, 500);
-                        }
-                        return;
-                    }
-
-                    // ЕСЛИ ОБЫЧНОЕ СООБЩЕНИЕ (AES-GCM-256)
-                    if (clean.length > 80) {
-                        const keyBlock = clean.slice(-80);
-                        const payloadBlock = clean.slice(0, -80);
-                        
-                        const sharedKey = callAndroid("getSavedSharedKey") || "";
-                        if (sharedKey) {
-                            const msgKey = window.nanoCipher.decryptRaw(keyBlock, sharedKey, "key");
-                            const payloadStr = window.nanoCipher.decryptRaw(payloadBlock, msgKey, "msg");
-                            
-                            if (payloadStr && payloadStr !== "[Ошибка дешифрования]") {
-                                const payloadObj = JSON.parse(payloadStr);
-                                if (payloadObj.meta && payloadObj.meta.app === "nan0gram") {
-                                    decryptedMessages.push({
-                                        msgId: msg.msgId,
-                                        chatId: msg.chatId,
-                                        author: msg.author,
-                                        text: payloadObj.text || "",
-                                        media: payloadObj.media,
-                                        ts: msg.ts
-                                    });
-                                }
-                            }
-                        }
-                    }
+                    // При асимметричном приеме с односторонней связью получатель только шлет, 
+                    // а дешифратор на другом конце (терминал) принимает.
+                    decryptedMessages.push(msg);
                 } catch (err) {
                     // Игнорируем
                 }
@@ -534,27 +452,11 @@
                         const timeStr = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
                         
                         let textVal = msg.text;
-                        let imagesVal = null;
-                        let audioVal = null;
-                        let audioDurationVal = null;
-                        let videoVal = null;
-
-                        if (msg.media) {
-                            const mediaObj = msg.media;
-                            if (mediaObj.images) { imagesVal = mediaObj.images; textVal = null; }
-                            if (mediaObj.audio) { audioVal = mediaObj.audio; audioDurationVal = mediaObj.duration; textVal = null; }
-                            if (mediaObj.video) { videoVal = mediaObj.video; textVal = null; }
-                        }
-
                         updated[cid].push({ 
                             id: msg.msgId, 
                             type: "in", 
                             author: msg.author, 
                             text: textVal, 
-                            images: imagesVal,
-                            audio: audioVal,
-                            audioDuration: audioDurationVal,
-                            video: videoVal,
                             time: timeStr 
                         });
                     }
