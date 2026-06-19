@@ -30,7 +30,7 @@
         const tag = el.tagName.toUpperCase();
         return (el.getAttribute("contenteditable") === "true" ||
             tag === "TEXTAREA" ||
-            (tag === "INPUT" && !["hidden", "submit", "button", "checkbox", "radio"].includes((el.type || "").toLowerCase()))
+            (tag === "INPUT" && !["hidden", "submit", "button", "checkbox", "radio", "range", "color", "file"].includes((el.type || "").toLowerCase()))
         );
     }
 
