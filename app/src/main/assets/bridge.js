@@ -144,6 +144,7 @@
 
         _pushBody(plainText) {
             if (!this._composeOpen) return;
+            if (window.nan0gram_pendingMediaBody) return; // Защита от затирания голосового пакета
             this._lastText = plainText || "";
             if (!this._lastText.trim()) {
                 callAndroid("setComposeBody", "");
