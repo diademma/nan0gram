@@ -226,9 +226,13 @@ class MessengerJsInterface(
                 log("[Stealth] Сканируем координаты кнопки-скрепки...")
                 ukr.evaluateJavascript("""
                     (function(){
-                        var el = document.querySelector("input[type='file']") || document.querySelector("button.sm-header__attach") || document.querySelector("[class*='attach']");
+                        // ИСПРАВЛЕНИЕ: Убрали скрытый input[type=file], так как он возвращает нули.
+                        // Ищем только реальные видимые кнопки
+                        var el = document.querySelector("button.sm-header__attach") || document.querySelector("[class*='attach']");
                         if (!el) return 'not_found';
                         var r = el.getBoundingClientRect();
+                        // Защита от нулевых координат (невидимых элементов)
+                        if (r.width === 0 && r.height === 0) return 'not_found';
                         return JSON.stringify({
                             x: Math.round(r.left + r.width/2),
                             y: Math.round(r.top + r.height/2)
