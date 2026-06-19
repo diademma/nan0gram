@@ -54,54 +54,109 @@ Error generating stack: `+e.message+`
         };
 
         if (o === "appearance") {
-          const el={in:`rgba(${O.inRgb},${O.opacity})`,out:`rgba(${O.outRgb},${O.opacity})`};
-          return f.jsxs("div",{className:"settings-panel",children:[
-            f.jsxs("div",{className:"settings-header",children:[
-              f.jsx("button",{className:"theme-back-btn",onClick:()=>_("main"),children:"←"}),
-              f.jsx("span",{style:{fontWeight:600,fontSize:16},children:"Оформление"}),
-              f.jsx("button",{className:"theme-save-btn",onClick:()=>{G(O);localStorage.setItem("nan0gram_sidebar_blur",sidebarBlur);localStorage.setItem("nan0gram_sidebar_darkness",sidebarDarkness);document.documentElement.style.setProperty("--sidebar-blur",sidebarBlur+"px");document.documentElement.style.setProperty("--sidebar-brightness",(100-sidebarDarkness)/100);_("main")},children:"Применить"})
-            ]}),
-            f.jsxs("div",{className:"theme-panel-body",children:[
-              f.jsxs("div",{className:"theme-preview-section",children:[
-                f.jsx("div",{className:"theme-preview-label",children:"Предпросмотр"}),
-                f.jsxs("div",{className:"theme-preview-chat",children:[
-                  f.jsxs("div",{className:"theme-preview-msg in",style:{background:el.in},children:["Привет! Красивая тема 😊 ",f.jsx("span",{className:"theme-preview-time",children:"12:34"})]}),
-                  f.jsxs("div",{className:"theme-preview-msg out",style:{background:el.out},children:["Согласен, выглядит! ✨ ",f.jsx("span",{className:"theme-preview-time",children:"12:35 ✓✓"})]})
-                ]})
-              ]}),
-              f.jsxs("div",{className:"theme-section",children:[
-                f.jsx("div",{className:"theme-section-title",children:"Прозрачность пузырей"}),
-                f.jsxs("div",{className:"opacity-row",children:[
-                  f.jsx("span",{className:"opacity-label",children:"Прозрач."}),
-                  f.jsx("input",{type:"range",min:30,max:100,value:Math.round(O.opacity*100),onChange:M=>K(S=>({...S,opacity:Number(M.target.value)/100})),className:"opacity-slider"}),
-                  f.jsxs("span",{className:"opacity-value",children:[Math.round(O.opacity*100),"%"]})
+              const el={in:`rgba(${O.inRgb},${O.opacity})`,out:`rgba(${O.outRgb},${O.opacity})`};
+              const hexToRgb = (hex) => {
+                  const bigint = parseInt(hex.slice(1), 16);
+                  const r = (bigint >> 16) & 255;
+                  const g = (bigint >> 8) & 255;
+                  const b = bigint & 255;
+                  return [r, g, b];
+              };
+              const rgbToHex = (r, g, b) => {
+                  return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+              };
+              const handleColorChange = (e) => {
+                  const hex = e.target.value;
+                  const [r, g, b] = hexToRgb(hex);
+                  const outRgbStr = `${r},${g},${b}`;
+                  const inRgbStr = `${Math.round(r * 0.6)},${Math.round(g * 0.6)},${Math.round(b * 0.6)}`;
+                  K(prev => ({
+                      ...prev,
+                      schemeId: "custom",
+                      outRgb: outRgbStr,
+                      inRgb: inRgbStr
+                  }));
+              };
+              return f.jsxs("div",{className:"settings-panel",children:[
+                f.jsxs("div",{className:"settings-header",children:[
+                  f.jsx("button",{className:"theme-back-btn",onClick:()=>_("main"),children:"←"}),
+                  f.jsx("span",{style:{fontWeight:600,fontSize:16},children:"Оформление"}),
+                  f.jsx("button",{className:"theme-save-btn",onClick:()=>{G(O);localStorage.setItem("nan0gram_sidebar_blur",sidebarBlur);localStorage.setItem("nan0gram_sidebar_darkness",sidebarDarkness);document.documentElement.style.setProperty("--sidebar-blur",sidebarBlur+"px");document.documentElement.style.setProperty("--sidebar-brightness",(100-sidebarDarkness)/100);_("main")},children:"Применить"})
                 ]}),
-              f.jsxs("div",{className:"theme-section",children:[
-                f.jsx("div",{className:"theme-section-title",children:"Размытие сайдбара"}),
-                f.jsxs("div",{className:"opacity-row",children:[
-                  f.jsx("span",{className:"opacity-label",children:"Размытие"}),
-                  f.jsx("input",{type:"range",min:0,max:40,value:sidebarBlur,onChange:M=>setSidebarBlur(Number(M.target.value)),className:"opacity-slider"}),
-                  f.jsxs("span",{className:"opacity-value",children:[sidebarBlur,"px"]})
+                f.jsxs("div",{className:"theme-panel-body",children:[
+                  f.jsxs("div",{className:"theme-preview-section",children:[
+                    f.jsx("div",{className:"theme-preview-label",children:"Предпросмотр"}),
+                    f.jsxs("div",{className:"theme-preview-chat",style:{backgroundImage:"var(--wallpaper-url)"},children:[
+                      f.jsxs("div",{className:"theme-preview-msg in",style:{background:el.in},children:["Привет! Красивая тема 😊 ",f.jsx("span",{className:"theme-preview-time",children:"12:34"})]}),
+                      f.jsxs("div",{className:"theme-preview-msg out",style:{background:el.out},children:["Согласен, выглядит! ✨ ",f.jsx("span",{className:"theme-preview-time",children:"12:35 ✓✓"})]})
+                    ]})
+                  ]}),
+                  f.jsxs("div",{className:"theme-section",children:[
+                    f.jsx("div",{className:"theme-section-title",children:"Размытие сайдбара"}),
+                    f.jsxs("div",{className:"opacity-row",children:[
+                      f.jsx("span",{className:"opacity-label",children:"Размытие"}),
+                      f.jsx("input",{type:"range",min:0,max:40,value:sidebarBlur,onChange:M=>setSidebarBlur(Number(M.target.value)),className:"opacity-slider"}),
+                      f.jsxs("span",{className:"opacity-value",children:[sidebarBlur,"px"]})
+                    ]})
+                  ]}),
+                  f.jsxs("div",{className:"theme-section",children:[
+                    f.jsx("div",{className:"theme-section-title",children:"Затемнение сайдбара"}),
+                    f.jsxs("div",{className:"opacity-row",children:[
+                      f.jsx("span",{className:"opacity-label",children:"Темнота"}),
+                      f.jsx("input",{type:"range",min:0,max:90,value:sidebarDarkness,onChange:M=>setSidebarDarkness(Number(M.target.value)),className:"opacity-slider"}),
+                      f.jsxs("span",{className:"opacity-value",children:[sidebarDarkness,"%"]})
+                    ]})
+                  ]}),
+                  f.jsxs("div",{className:"theme-section",children:[
+                    f.jsx("div",{className:"theme-section-title",children:"Цвет Бабла (сообщения)"}),
+                    f.jsxs("div",{
+                        style:{
+                            display:"flex",
+                            alignItems:"center",
+                            background:"#15101b",
+                            border:"1px solid rgba(255,255,255,0.1)",
+                            borderRadius:"12px",
+                            padding:"10px 16px",
+                            cursor:"pointer",
+                            justifyContent:"space-between"
+                        },
+                        onClick:()=>document.getElementById("customColorPicker")?.click(),
+                        children:[
+                            f.jsx("span",{style:{fontSize:"14px",color:"#fff"},children:"Выбрать любой оттенок..."}),
+                            f.jsxs("div",{style:{display:"flex",alignItems:"center",gap:"8px"},children:[
+                                f.jsx("div",{
+                                    style:{
+                                        width:"24px",
+                                        height:"24px",
+                                        borderRadius:"50%",
+                                        background:`rgb(${O.outRgb})`,
+                                        border:"2px solid #fff"
+                                    }
+                                }),
+                                f.jsx("input",{
+                                    id:"customColorPicker",
+                                    type:"color",
+                                    value:(() => {
+                                        const parts = O.outRgb.split(",");
+                                        return rgbToHex(Number(parts[0]), Number(parts[1]), Number(parts[2]));
+                                    })(),
+                                    onChange:handleColorChange,
+                                    style:{display:"none"}
+                                })
+                            ]})
+                        ]
+                    })
+                  ]}),
+                  f.jsxs("div",{className:"theme-section",style:{marginTop:10},children:[
+                    f.jsx("div",{className:"theme-section-title",children:"Прозрачность бабла (сообщения)"}),
+                    f.jsxs("div",{className:"opacity-row",children:[
+                      f.jsx("span",{className:"opacity-label",children:"Прозрач."}),
+                      f.jsx("input",{type:"range",min:30,max:100,value:Math.round(O.opacity*100),onChange:M=>K(S=>({...S,opacity:Number(M.target.value)/100})),className:"opacity-slider"}),
+                      f.jsxs("span",{className:"opacity-value",children:[Math.round(O.opacity*100),"%"]})
+                    ]})
+                  ]})
                 ]})
-              ]}),
-              f.jsxs("div",{className:"theme-section",children:[
-                f.jsx("div",{className:"theme-section-title",children:"Затемнение сайдбара"}),
-                f.jsxs("div",{className:"opacity-row",children:[
-                  f.jsx("span",{className:"opacity-label",children:"Темнота"}),
-                  f.jsx("input",{type:"range",min:0,max:90,value:sidebarDarkness,onChange:M=>setSidebarDarkness(Number(M.target.value)),className:"opacity-slider"}),
-                  f.jsxs("span",{className:"opacity-value",children:[sidebarDarkness,"%"]})
-                ]})
-              ]}),
-              ]}),
-              f.jsxs("div",{className:"theme-section",children:[
-                f.jsx("div",{className:"theme-section-title",children:"Цветовая гамма"}),
-                f.jsx("div",{className:"color-scheme-grid",children:pd.map(M=>f.jsxs("button",{className:`scheme-btn${O.schemeId===M.id?" active":""}`,onClick:()=>K(S=>({...S,schemeId:M.id,inRgb:M.inRgb,outRgb:M.outRgb})),children:[f.jsx("div",{className:"scheme-preview",style:{background:M.gradient}}),f.jsx("div",{className:"scheme-name",children:M.label}),O.schemeId===M.id&&f.jsx("div",{className:"scheme-check",children:"✓"})]},M.id))})
-              ]})
-            ]})
-          ]});
-        }
-
-        // РАЗДЕЛ КОНФИДЕНЦИАЛЬНОСТИ (НАСТРОЙКИ ПРОФИЛЯ)
+              ]}// РАЗДЕЛ КОНФИДЕНЦИАЛЬНОСТИ (НАСТРОЙКИ ПРОФИЛЯ)
         if (o === "privacy") {
           return f.jsxs("div",{className:"settings-panel",children:[
             f.jsxs("div",{className:"settings-header",children:[
