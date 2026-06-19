@@ -18,7 +18,6 @@ import android.graphics.BitmapFactory
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.io.FileInputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -94,12 +93,9 @@ private fun WebView?.forceSendMsg(log: (String) -> Unit, source: String) {
     val view = this ?: return
     val currentUrl = view.url ?: return
     if (!currentUrl.isUkrnetTouchUrl() || currentUrl.isSendMsgUrl()) return
-
-    log("[ComposeGuardian] $source → возвращаемся на sendmsg")
+    log("[ComposeGuardian] $source -> возвращаемся на sendmsg")
     view.post {
-        try {
-            view.stopLoading()
-        } catch (_: Throwable) {}
+        try { view.stopLoading() } catch (_: Throwable) {}
         view.loadUrl(UKRNET_SENDMSG_URL)
     }
 }
@@ -128,40 +124,6 @@ fun getOriginalFileName(context: Context, uri: Uri): String {
     return result ?: "media_file"
 }
 
-fun createEncryptedStealthCopy(context: Context, originalUri: Uri, keyStr: String): Uri? {
-    return try {
-        val inputStream = context.contentResolver.openInputStream(originalUri) ?: return null
-        val originalName = getOriginalFileName(context, originalUri)
-        val baseName = if (originalName.contains(".")) originalName.substringBeforeLast(".") else originalName
-        val file = File(context.cacheDir, "${baseName}.bin")
-        
-        val keyBytes = "$keyStr:media".toByteArray(Charsets.UTF_8)
-        val digest = java.security.MessageDigest.getInstance("SHA-256")
-        val keyBytes32 = digest.digest(keyBytes)
-        val secretKey = javax.crypto.spec.SecretKeySpec(keyBytes32, "AES")
-        
-        val iv = ByteArray(12)
-        java.security.SecureRandom().nextBytes(iv)
-        
-        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
-        val spec = javax.crypto.spec.GCMParameterSpec(128, iv)
-        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, secretKey, spec)
-        
-        val ciphertext = cipher.doFinal(inputStream.readBytes())
-        inputStream.close()
-        
-        val outputStream = java.io.FileOutputStream(file)
-        outputStream.write(iv)
-        outputStream.write(ciphertext)
-        outputStream.flush()
-        outputStream.close()
-        Uri.fromFile(file)
-    } catch (e: Exception) {
-        android.util.Log.e("nan0gram", "Encryption failed: ${e.message}")
-        null
-    }
-}
-
 fun createStealthCopy(context: Context, originalUri: Uri): Uri? {
     return try {
         val inputStream = context.contentResolver.openInputStream(originalUri) ?: return null
@@ -173,7 +135,37 @@ fun createStealthCopy(context: Context, originalUri: Uri): Uri? {
         inputStream.close()
         outputStream.close()
         Uri.fromFile(file)
+    } catch (e: Exception) { null }
+}
+
+fun createEncryptedStealthCopy(context: Context, originalUri: Uri, keyStr: String): Uri? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(originalUri) ?: return null
+        val originalName = getOriginalFileName(context, originalUri)
+        val baseName = if (originalName.contains(".")) originalName.substringBeforeLast(".") else originalName
+        val file = File(context.cacheDir, "${baseName}.bin")
+        
+        val keyBytes = "$keyStr:media".toByteArray(Charsets.UTF_8)
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        val keyBytes32 = digest.digest(keyBytes)
+        val secretKey = SecretKeySpec(keyBytes32, "AES")
+        val iv = ByteArray(12)
+        java.security.SecureRandom().nextBytes(iv)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        val spec = GCMParameterSpec(128, iv)
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, spec)
+        
+        val ciphertext = cipher.doFinal(inputStream.readBytes())
+        inputStream.close()
+        
+        val outputStream = FileOutputStream(file)
+        outputStream.write(iv)
+        outputStream.write(ciphertext)
+        outputStream.flush()
+        outputStream.close()
+        Uri.fromFile(file)
     } catch (e: Exception) {
+        android.util.Log.e("nan0gram", "Encryption failed: ${e.message}")
         null
     }
 }
@@ -182,47 +174,31 @@ fun uriToBase64(context: Context, uri: Uri): String {
     return try {
         val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
         val inputStream = context.contentResolver.openInputStream(uri) ?: return ""
-        
         if (mimeType.startsWith("video")) {
             val bytes = inputStream.readBytes()
             inputStream.close()
-            val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-            return "data:$mimeType;base64,$b64"
+            return "data:$mimeType;base64," + android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
         }
-        
-        val options = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeStream(inputStream, null, options)
         inputStream.close()
-        
         val maxDimension = 800
         var scale = 1
         if (options.outHeight > maxDimension || options.outWidth > maxDimension) {
             val halfHeight = options.outHeight / 2
             val halfWidth = options.outWidth / 2
-            while ((halfHeight / scale) >= maxDimension && (halfWidth / scale) >= maxDimension) {
-                scale *= 2
-            }
+            while ((halfHeight / scale) >= maxDimension && (halfWidth / scale) >= maxDimension) scale *= 2
         }
-        
-        val decodeOptions = BitmapFactory.Options().apply {
-            inSampleSize = scale
-        }
+        val decodeOptions = BitmapFactory.Options().apply { inSampleSize = scale }
         val secondStream = context.contentResolver.openInputStream(uri) ?: return ""
         val bitmap = BitmapFactory.decodeStream(secondStream, null, decodeOptions) ?: return ""
         secondStream.close()
-        
         val outputStream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
         val bytes = outputStream.toByteArray()
         bitmap.recycle()
-        
-        val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-        "data:image/jpeg;base64,$b64"
-    } catch (e: Exception) {
-        ""
-    }
+        "data:image/jpeg;base64," + android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+    } catch (e: Exception) { "" }
 }
 
 private fun getVideoThumbnailBase64(context: Context, uri: Uri): String {
@@ -230,20 +206,13 @@ private fun getVideoThumbnailBase64(context: Context, uri: Uri): String {
     return try {
         retriever.setDataSource(context, uri)
         val bitmap = retriever.getFrameAtTime(1000000, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-            ?: retriever.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-            ?: return ""
-        val outputStream = java.io.ByteArrayOutputStream()
-        bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 75, outputStream)
+            ?: retriever.getFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC) ?: return ""
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
         val bytes = outputStream.toByteArray()
         bitmap.recycle()
         android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-    } catch (e: Exception) {
-        ""
-    } finally {
-        try {
-            retriever.release()
-        } catch (_: Exception) {}
-    }
+    } catch (e: Exception) { "" } finally { try { retriever.release() } catch (_: Exception) {} }
 }
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -270,39 +239,9 @@ fun AppScreen(
     log: (String) -> Unit
 ) {
     Scaffold(containerColor = Color(0xFF130E19), modifier = Modifier.fillMaxSize()) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(Color(0xFF130E19))
-        ) {
-            WebViewLayer(
-                isBgServiceActive = isBgServiceActive,
-                uiAlpha = uiAlpha,
-                ukrnetInterface = ukrnetInterface,
-                messengerInterface = messengerInterface,
-                onUkrnetViewReady = onUkrnetViewReady,
-                onMessengerViewReady = onMessengerViewReady,
-                log = log
-            )
-
-            LogPanel(
-                isExpanded = isLogPanelExpanded,
-                onToggle = onLogPanelToggle,
-                logList = logList,
-                logListState = logListState,
-                onClear = onLogClear,
-                isBgServiceActive = isBgServiceActive,
-                uiAlpha = uiAlpha,
-                onUiAlphaChange = onUiAlphaChange,
-                isParserEnabled = isParserEnabled,
-                onParserToggle = onParserToggle,
-                coords = coords,
-                onUkrnetReload = onUkrnetReload,
-                onMessengerReload = onMessengerReload,
-                coroutineScope = coroutineScope,
-                log = log
-            )
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding).background(Color(0xFF130E19))) {
+            WebViewLayer(isBgServiceActive, uiAlpha, ukrnetInterface, messengerInterface, onUkrnetViewReady, onMessengerViewReady, log)
+            LogPanel(isLogPanelExpanded, onLogPanelToggle, logList, logListState, onLogClear, isBgServiceActive, uiAlpha, onUiAlphaChange, isParserEnabled, onParserToggle, coords, onUkrnetReload, onMessengerReload, coroutineScope, log)
         }
     }
 }
@@ -323,42 +262,26 @@ private fun WebViewLayer(
     var ukrnetFilePathCallback by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
     var messengerFilePathCallback by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
 
-    val messengerFileChooserLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
+    val messengerFileChooserLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.data
         val clipData = result.data?.clipData
         val selectedUris = mutableListOf<Uri>()
-        if (uri != null) {
-            selectedUris.add(uri)
-        } else if (clipData != null) {
-            for (i in 0 until clipData.itemCount) {
-                selectedUris.add(clipData.getItemAt(i).uri)
-            }
+        if (uri != null) selectedUris.add(uri) else if (clipData != null) {
+            for (i in 0 until clipData.itemCount) selectedUris.add(clipData.getItemAt(i).uri)
         }
-        if (selectedUris.isNotEmpty()) {
-            messengerFilePathCallback?.onReceiveValue(selectedUris.toTypedArray())
-        } else {
-            messengerFilePathCallback?.onReceiveValue(null)
-        }
+        if (selectedUris.isNotEmpty()) messengerFilePathCallback?.onReceiveValue(selectedUris.toTypedArray()) else messengerFilePathCallback?.onReceiveValue(null)
         messengerFilePathCallback = null
     }
     
     var ukrnetWebViewInstance by remember { mutableStateOf<WebView?>(null) }
     var messengerWebViewInstance by remember { mutableStateOf<WebView?>(null) }
     
-    val ukrnetFileChooserLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
+    val ukrnetFileChooserLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.data
         val clipData = result.data?.clipData
         val selectedUris = mutableListOf<Uri>()
-        if (uri != null) {
-            selectedUris.add(uri)
-        } else if (clipData != null) {
-            for (i in 0 until clipData.itemCount) {
-                selectedUris.add(clipData.getItemAt(i).uri)
-            }
+        if (uri != null) selectedUris.add(uri) else if (clipData != null) {
+            for (i in 0 until clipData.itemCount) selectedUris.add(clipData.getItemAt(i).uri)
         }
         
         if (selectedUris.isNotEmpty()) {
@@ -370,13 +293,13 @@ private fun WebViewLayer(
                 } else {
                     createStealthCopy(context, originalUri)
                 }
-                if (processedUri != null) {
-                    finalUris.add(processedUri)
-                }
+                if (processedUri != null) finalUris.add(processedUri)
             }
+            messengerInterface.pendingMediaKey = ""
+            
             if (finalUris.isNotEmpty()) {
                 ukrnetFilePathCallback?.onReceiveValue(finalUris.toTypedArray())
-                log("[Stealth] Все выбранные медиафайлы зашифрованы AES-GCM-256 и переданы.")
+                log("[Stealth] Все медиафайлы зашифрованы AES-GCM-256 (с оригинальными именами) и переданы.")
             } else {
                 ukrnetFilePathCallback?.onReceiveValue(null)
             }
@@ -396,26 +319,20 @@ private fun WebViewLayer(
                             put("base64", b64)
                             put("isVideo", true)
                             val thumbB64 = getVideoThumbnailBase64(context, firstUri)
-                            if (thumbB64.isNotEmpty()) {
-                                put("videoThumbnail", "data:image/jpeg;base64,$thumbB64")
-                            }
+                            if (thumbB64.isNotEmpty()) put("videoThumbnail", "data:image/jpeg;base64,$thumbB64")
                         }
                     } else {
                         val b64List = org.json.JSONArray()
                         for (imgUri in selectedUris) {
                             val b64 = uriToBase64(context, imgUri)
-                            if (b64.isNotEmpty()) {
-                                b64List.put(b64)
-                            }
+                            if (b64.isNotEmpty()) b64List.put(b64)
                         }
                         put("base64s", b64List)
                     }
                 }
                 val escaped = chatData.toString().replace("\\", "\\\\").replace("\"", "\\\"")
                 withContext(Dispatchers.Main) {
-                    messengerWebViewInstance?.evaluateJavascript(
-                        "window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \"$escaped\" }));", null
-                    )
+                    messengerWebViewInstance?.evaluateJavascript("window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \"$escaped\" }));", null)
                 }
             }
         } else {
@@ -423,12 +340,10 @@ private fun WebViewLayer(
             messengerWebViewInstance?.evaluateJavascript("window._n0gStealthPending = false;", null)
         }
         ukrnetFilePathCallback = null
-        
         ukrnetWebViewInstance?.isFocusable = false
         ukrnetWebViewInstance?.isFocusableInTouchMode = false
         messengerWebViewInstance?.bringToFront()
         messengerWebViewInstance?.requestFocus()
-
         ukrnetWebViewInstance.forceSendMsg(log, "file chooser result")
     }
 
@@ -438,13 +353,8 @@ private fun WebViewLayer(
                 val uWebView = WebView(ctx).apply {
                     tag = "ukrnet"
                     settings.apply {
-                        javaScriptEnabled    = true
-                        domStorageEnabled    = true
-                        databaseEnabled      = true
-                        useWideViewPort      = true
-                        loadWithOverviewMode = true
-                        allowFileAccess      = true
-                        allowContentAccess   = true
+                        javaScriptEnabled = true; domStorageEnabled = true; databaseEnabled = true
+                        useWideViewPort = true; loadWithOverviewMode = true; allowFileAccess = true; allowContentAccess = true
                         javaScriptCanOpenWindowsAutomatically = true
                         userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
                     }
@@ -455,39 +365,24 @@ private fun WebViewLayer(
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
                             if (url.isSendMsgUrl()) {
-                                view?.evaluateJavascript(SENDMSG_FILL_JS, null)
-                                log("[Compose] sendmsg загружен — заполняем поля")
+                                view?.evaluateJavascript(BridgeScripts.SENDMSG_FILL_JS, null)
                                 val bufferedBody = messengerInterface.lastComposeBody
                                 if (bufferedBody.isNotEmpty()) {
-                                    val esc = bufferedBody
-                                        .replace("\\", "\\\\")
-                                        .replace("'", "\\'")
-                                        .replace("\"", "\\\"")
-                                        .replace("\n", "\\n")
-                                        .replace("\r", "")
-                                        .replace("\u2028", "")
-                                        .replace("\u2029", "")
-                                        
+                                    val esc = bufferedBody.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "").replace("\u2028", "").replace("\u2029", "")
                                     val js = """
                                         (function(text) {
-                                            var el = document.querySelector("${UkrnetSelectors.BODY_AREA}")
-                                                || document.querySelector("${UkrnetSelectors.BODY_AREA_FALLBACK_EDITABLE}")
-                                                || document.querySelector("${UkrnetSelectors.BODY_AREA_FALLBACK_NAME}")
-                                                || document.querySelector("${UkrnetSelectors.BODY_AREA_FALLBACK_TAG}");
+                                            var el = document.querySelector(".sm-editor__area") || document.querySelector("[contenteditable='true']") || document.querySelector("textarea");
                                             if (!el) return;
                                             el.innerHTML = '';
                                             if (el.getAttribute('contenteditable') === 'true') { el.innerText = text; }
                                             else { try { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(el,text); } catch(e) { el.value=text; } }
-                                            el.dispatchEvent(new Event('input',{bubbles:true}));
-                                            el.dispatchEvent(new Event('change',{bubbles:true}));
+                                            el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true}));
                                         })('$esc');
                                     """.trimIndent()
                                     view?.evaluateJavascript(js, null)
-                                    log("[Compose] Восстановлен текст из буфера быстрого ввода")
                                 }
                                 return
                             }
-
                             view.forceSendMsg(log, "onPageFinished")
                         }
                         override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
@@ -495,24 +390,15 @@ private fun WebViewLayer(
                             if (url != null) ukrnetInterface.onUrlChange(url)
                             view.forceSendMsg(log, "history")
                         }
-                        override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
-                            handler?.cancel()
-                        }
+                        override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) { handler?.cancel() }
                     }
                     webChromeClient = object : WebChromeClient() {
                         override fun onConsoleMessage(m: ConsoleMessage?): Boolean {
-                            val level = m?.messageLevel()?.name ?: "LOG"
-                            log("[Ukrnet JS] [$level] ${m?.message()} (${m?.lineNumber()})")
+                            log("[Ukrnet JS] [${m?.messageLevel()?.name ?: "LOG"}] ${m?.message()} (${m?.lineNumber()})")
                             return true
                         }
-                        
-                        override fun onShowFileChooser(
-                            webView: WebView?,
-                            filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?,
-                            fileChooserParams: FileChooserParams?
-                        ): Boolean {
+                        override fun onShowFileChooser(webView: WebView?, filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?, fileChooserParams: FileChooserParams?): Boolean {
                             if (ukrnetFilePathCallback != null) {
-                                log("[Stealth] Блокировка двойного вызова FileChooser")
                                 filePathCallbackParams?.onReceiveValue(null)
                                 return true
                             }
@@ -529,7 +415,6 @@ private fun WebViewLayer(
                                 ukrnetFilePathCallback?.onReceiveValue(null)
                                 ukrnetFilePathCallback = null
                                 messengerWebViewInstance?.evaluateJavascript("window._n0gStealthPending = false;", null)
-                                webView.forceSendMsg(log, "file chooser exception")
                                 return false
                             }
                             return true
@@ -544,66 +429,39 @@ private fun WebViewLayer(
                 val mWebView = WebView(ctx).apply {
                     tag = "messenger"
                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                    settings.apply {
-                        javaScriptEnabled  = true
-                        domStorageEnabled  = true
-                        databaseEnabled    = true
-                        allowFileAccess    = true
-                        allowContentAccess = true
-                        mediaPlaybackRequiresUserGesture = false
-                    }
+                    settings.apply { javaScriptEnabled = true; domStorageEnabled = true; databaseEnabled = true; allowFileAccess = true; allowContentAccess = true; mediaPlaybackRequiresUserGesture = false }
                     addJavascriptInterface(messengerInterface, "Android")
                     webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
-                            view?.evaluateJavascript(TQ
+                            view?.evaluateJavascript("""
                                 (function(){
                                     if(window._n0gDirectPickerPatch)return;
                                     window._n0gDirectPickerPatch=true;
-                                    
                                     var _attachDebounce = false;
                                     function triggerStealthAttach() {
                                         if (_attachDebounce) return;
                                         _attachDebounce = true;
                                         setTimeout(function(){ _attachDebounce = false; }, 2000);
-                                        
                                         if (window.Android && window.Android.prepareForDirectAttach) {
                                             var mk = "";
-                                            var arr = new Uint8Array(16);
-                                            window.crypto.getRandomValues(arr);
-                                            for(var i=0; i<16; i++) { mk += arr[i].toString(16).padStart(2,'0'); }
+                                            if (window.nanoUtils && window.nanoUtils.randomKey) {
+                                                mk = window.nanoUtils.randomKey();
+                                            } else {
+                                                var arr = new Uint8Array(16);
+                                                window.crypto.getRandomValues(arr);
+                                                for(var i=0; i<16; i++) { mk += arr[i].toString(16).padStart(2,'0'); }
+                                            }
                                             window.nan0gram_pendingMediaKey = mk;
                                             window.Android.prepareForDirectAttach(mk);
                                         }
                                     }
-                                    
-                                    document.addEventListener('touchstart', function(e) {
-                                        var t = e.target.closest('.input-icon');
-                                        if (t) {
-                                            window._n0gStealthPending = true;
-                                            triggerStealthAttach();
-                                        }
-                                    }, true);
-
-                                    document.addEventListener('mousedown', function(e) {
-                                        var t = e.target.closest('.input-icon');
-                                        if (t) {
-                                            window._n0gStealthPending = true;
-                                            triggerStealthAttach();
-                                        }
-                                    }, true);
-
-                                    document.addEventListener('click', function(e) {
-                                        var t = e.target.closest('.input-icon');
-                                        if (t) {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                        }
-                                    }, true);
+                                    document.addEventListener('touchstart', function(e) { var t = e.target.closest('.input-icon'); if (t) { window._n0gStealthPending = true; triggerStealthAttach(); } }, true);
+                                    document.addEventListener('mousedown', function(e) { var t = e.target.closest('.input-icon'); if (t) { window._n0gStealthPending = true; triggerStealthAttach(); } }, true);
+                                    document.addEventListener('click', function(e) { var t = e.target.closest('.input-icon'); if (t) { e.preventDefault(); e.stopPropagation(); } }, true);
                                 })();
-                            TQ.trimIndent(), null)
-                            
-                            view?.evaluateJavascript(TQ
+                            """.trimIndent(), null)
+                            view?.evaluateJavascript("""
                                 (function polyfillNan0gramFn(){
                                     if(window.nan0gram){
                                         if(!window.nan0gram._openComposeIfNeeded){
@@ -614,38 +472,19 @@ private fun WebViewLayer(
                                         setTimeout(polyfillNan0gramFn, 300);
                                     }
                                 })();
-                            TQ.trimIndent(), null)
+                            """.trimIndent(), null)
                         }
                     }
                     webChromeClient = object : WebChromeClient() {
-                        override fun onConsoleMessage(m: ConsoleMessage?): Boolean {
-                            log("[Local JS] [${m?.messageLevel()?.name ?: "LOG"}] ${m?.message()} (${m?.lineNumber()})")
-                            return true
-                        }
-                        override fun onPermissionRequest(request: android.webkit.PermissionRequest?) {
-                            request?.grant(request.resources)
-                        }
-                        override fun onShowFileChooser(
-                            webView: WebView?,
-                            filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?,
-                            fileChooserParams: FileChooserParams?
-                        ): Boolean {
-                            if (messengerFilePathCallback != null) {
-                                filePathCallbackParams?.onReceiveValue(null)
-                                return true
-                            }
+                        override fun onConsoleMessage(m: ConsoleMessage?): Boolean { log("[Local JS] [${m?.messageLevel()?.name ?: "LOG"}] ${m?.message()} (${m?.lineNumber()})"); return true }
+                        override fun onPermissionRequest(request: android.webkit.PermissionRequest?) { request?.grant(request.resources) }
+                        override fun onShowFileChooser(webView: WebView?, filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?, fileChooserParams: FileChooserParams?): Boolean {
+                            if (messengerFilePathCallback != null) { filePathCallbackParams?.onReceiveValue(null); return true }
                             messengerFilePathCallback = filePathCallbackParams
                             try {
-                                val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
-                                    addCategory(android.content.Intent.CATEGORY_OPENABLE)
-                                    type = "image/*"
-                                }
+                                val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply { addCategory(android.content.Intent.CATEGORY_OPENABLE); type = "image/*" }
                                 messengerFileChooserLauncher.launch(intent)
-                            } catch (e: Exception) {
-                                messengerFilePathCallback?.onReceiveValue(null)
-                                messengerFilePathCallback = null
-                                return false
-                            }
+                            } catch (e: Exception) { messengerFilePathCallback?.onReceiveValue(null); messengerFilePathCallback = null; return false }
                             return true
                         }
                     }
