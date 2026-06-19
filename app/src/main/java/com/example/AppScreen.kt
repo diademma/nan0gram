@@ -153,7 +153,7 @@ fun createStealthCopy(context: Context, originalUri: Uri): Uri? {
     } catch (e: Exception) { null }
 }
 
-fun createEncryptedStealthCopy(context: Context, originalUri: Uri, keyStr: String): Uri? {
+fun createEncryptedStealthCopy(context: Context, originalUri, keyStr: String): Uri? {
     return try {
         val inputStream = context.contentResolver.openInputStream(originalUri) ?: return null
         val originalName = getOriginalFileName(context, originalUri)
@@ -387,7 +387,7 @@ private fun WebViewLayer(
                             if (b64.isNotEmpty()) {
                                 b64List.put(b64)
                                 val thumbB64 = getVideoThumbnailBase64(context, vidUri)
-                                if (thumbB64.isNotEmpty()) thumbList.put("data:image/jpeg;base64," + thumbB64)
+                                if (thumbB64.isNotEmpty()) thumbList.put("data:image/jpeg;base64,$thumbB64")
                             }
                         }
                         put("base64s", b64List)
@@ -517,7 +517,7 @@ private fun WebViewLayer(
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
                             if (url.isSendMsgUrl()) {
-                                view?.evaluateJavascript(BridgeScripts.SENDMSG_FILL_JS, null)
+                                view?.evaluateJavascript(SENDMSG_FILL_JS, null)
                                 val bufferedBody = messengerInterface.lastComposeBody
                                 if (bufferedBody.isNotEmpty()) {
                                     val esc = bufferedBody.replace("\\", "\\\\").replace("'", "\\'").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "").replace("\u2028", "").replace("\u2029", "")
