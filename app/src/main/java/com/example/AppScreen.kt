@@ -370,7 +370,6 @@ private fun WebViewLayer(
                     finalUris.add(processedUri)
                 }
             }
-            messengerInterface.pendingMediaKey = ""
             if (finalUris.isNotEmpty()) {
                 ukrnetFilePathCallback?.onReceiveValue(finalUris.toTypedArray())
                 log("[Stealth] Все выбранные медиафайлы зашифрованы AES-GCM-256 и переданы.")
