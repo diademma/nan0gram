@@ -1940,12 +1940,15 @@ html, body, #root {
   }
 }
 
-/* Фикс флексбокс-бага усечения текста (ellipsis) в блоке ответа (reply) без раздувания родительского пузыря */
+/* Фикс флексбокс-бага усечения текста (ellipsis) в блоке ответа (reply) */
+/* Жесткое ограничение ширины в 280px предотвращает раздувание всего пузыря сообщения */
 .msg-reply {
   min-width: 0 !important;
-  max-width: 100% !important;
+  max-width: 280px !important;
+  width: auto !important;
 }
 .msg-reply > div {
   min-width: 0 !important;
   max-width: 100% !important;
+  width: auto !important;
 }
