@@ -276,6 +276,9 @@ private fun WebViewLayer(
     val scope = rememberCoroutineScope()
     var ukrnetFilePathCallback by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
     var messengerFilePathCallback by remember { mutableStateOf<android.webkit.ValueCallback<Array<Uri>>?>(null) }
+    
+    var ukrnetWebViewInstance by remember { mutableStateOf<WebView?>(null) }
+    var messengerWebViewInstance by remember { mutableStateOf<WebView?>(null) }
 
     val messengerFileChooserLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.data
@@ -369,7 +372,7 @@ private fun WebViewLayer(
             ukrnetFilePathCallback = null
             
             val typeStr = if (isVideo) "video" else "photo"
-            messengerWebViewInstance?.post { messengerWebViewInstance?.evaluateJavascript("if(window.nan0gram && window.nan0gram.submitStealthFile) window.nan0gram.submitStealthFile('" + typeStr + "');", null) }
+            messengerWebViewInstance?.post { messengerWebViewInstance?.evaluateJavascript("if(window.nan0gram && window.nan0gram.submitStealthFile) window.nan0gram.submitStealthFile('$typeStr');", null) }
             
             scope.launch(Dispatchers.IO) {
                 val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
@@ -384,7 +387,7 @@ private fun WebViewLayer(
                             if (b64.isNotEmpty()) {
                                 b64List.put(b64)
                                 val thumbB64 = getVideoThumbnailBase64(context, vidUri)
-                                if (thumbB64.isNotEmpty()) thumbList.put("data:image/jpeg;base64," + thumbB64)
+                                if (thumbB64.isNotEmpty()) thumbList.put("data:image/jpeg;base64,$thumbB64")
                             }
                         }
                         put("base64s", b64List)
@@ -398,10 +401,9 @@ private fun WebViewLayer(
                         put("base64s", b64List)
                     }
                 }
-                
                 val escaped = chatData.toString().replace("\", "\\").replace("\"", "\\"")
                 withContext(Dispatchers.Main) {
-                    val jsDispatch = "window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \"" + escaped + "\" }));"
+                    val jsDispatch = "window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \"$escaped\" }));"
                     messengerWebViewInstance?.evaluateJavascript(jsDispatch, null)
                 }
             }
@@ -426,6 +428,78 @@ private fun WebViewLayer(
         }
     }
 
+    val ukrnetFileChooserLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.data
+        val clipData = result.data?.clipData
+        val selectedUris = mutableListOf<Uri>()
+        if (uri != null) selectedUris.add(uri) else if (clipData != null) {
+            for (i in 0 until clipData.itemCount) selectedUris.add(clipData.getItemAt(i).uri)
+        }
+        
+        if (selectedUris.isNotEmpty()) {
+            val finalUris = mutableListOf<Uri>()
+            val mediaKey = messengerInterface.pendingMediaKey
+            for (originalUri in selectedUris) {
+                val processedUri = if (mediaKey.isNotEmpty()) {
+                    createEncryptedStealthCopy(context, originalUri, mediaKey)
+                } else {
+                    createStealthCopy(context, originalUri)
+                }
+                if (processedUri != null) finalUris.add(processedUri)
+            }
+            messengerInterface.pendingMediaKey = ""
+            
+            if (finalUris.isNotEmpty()) {
+                ukrnetFilePathCallback?.onReceiveValue(finalUris.toTypedArray())
+                log("[Stealth] Все медиафайлы зашифрованы AES-GCM-256 (с оригинальными именами) и переданы.")
+            } else {
+                ukrnetFilePathCallback?.onReceiveValue(null)
+            }
+            
+            val firstUri = selectedUris.first()
+            val isVideo = context.contentResolver.getType(firstUri)?.startsWith("video") == true
+            val typeStr = if (isVideo) "video" else "photo"
+            messengerWebViewInstance?.evaluateJavascript("if(window.nan0gram && window.nan0gram.submitStealthFile) window.nan0gram.submitStealthFile('$typeStr');", null)
+            
+            scope.launch(Dispatchers.IO) {
+                val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                val chatData = JSONObject().apply {
+                    put("time", timeStr)
+                    if (isVideo) {
+                        val b64 = uriToBase64(context, firstUri)
+                        if (b64.isNotEmpty()) {
+                            put("base64", b64)
+                            put("isVideo", true)
+                            val thumbB64 = getVideoThumbnailBase64(context, firstUri)
+                            if (thumbB64.isNotEmpty()) put("videoThumbnail", "data:image/jpeg;base64,$thumbB64")
+                        }
+                    } else {
+                        val b64List = org.json.JSONArray()
+                        for (imgUri in selectedUris) {
+                            val b64 = uriToBase64(context, imgUri)
+                            if (b64.isNotEmpty()) b64List.put(b64)
+                        }
+                        put("base64s", b64List)
+                    }
+                }
+                val escaped = chatData.toString().replace("\", "\\").replace("\"", "\\"")
+                withContext(Dispatchers.Main) {
+                    messengerWebViewInstance?.evaluateJavascript("window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \"$escaped\" }));", null)
+                }
+            }
+        } else {
+            ukrnetFilePathCallback?.onReceiveValue(null)
+            messengerWebViewInstance?.evaluateJavascript("window._n0gStealthPending = false;", null)
+        }
+        ukrnetFilePathCallback = null
+        ukrnetWebViewInstance?.isFocusable = false
+        ukrnetWebViewInstance?.isFocusableInTouchMode = false
+        messengerWebViewInstance?.bringToFront()
+        messengerWebViewInstance?.requestFocus()
+        ukrnetWebViewInstance?.forceSendMsg(log, "file chooser result")
+    }
+
+    AndroidView(
     AndroidView(
         factory = { ctx ->
             FrameLayout(ctx).apply {
