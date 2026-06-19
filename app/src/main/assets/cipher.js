@@ -20,22 +20,6 @@
 
     const STD64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-    function textToUtf8Bytes(text) { return new TextEncoder().encode(String(text)); }
-    function utf8BytesToText(bytes) { return new TextDecoder().decode(bytes); }
-    
-    function bytesToBase64(bytes) {
-        let bin = "";
-        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-        return W.btoa(bin);
-    }
-    
-    function base64ToBytes(b64) {
-        const bin = W.atob(b64);
-        const out = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-        return out;
-    }
-
     function std64ToCustom(b64) {
         let out = "";
         for (let i = 0; i < b64.length; i++) {
@@ -58,52 +42,20 @@
         return out;
     }
 
-    async function getCryptoKey(rawKey) {
-        const keyBytes = textToUtf8Bytes(rawKey);
-        const hashBuffer = await crypto.subtle.digest("SHA-256", keyBytes);
-        return await crypto.subtle.importKey(
-            "raw",
-            hashBuffer,
-            { name: "AES-GCM" },
-            false,
-            ["encrypt", "decrypt"]
-        );
-    }
-
-    async function encryptPayload(plainText, keyStr) {
-        const dataBytes = textToUtf8Bytes(plainText);
-        const key = await getCryptoKey(keyStr);
-        const iv = crypto.getRandomValues(new Uint8Array(12));
-        const ciphertextBuffer = await crypto.subtle.encrypt(
-            { name: "AES-GCM", iv: iv },
-            key,
-            dataBytes
-        );
-        const ciphertextBytes = new Uint8Array(ciphertextBuffer);
-        const combined = new Uint8Array(12 + ciphertextBytes.length);
-        combined.set(iv, 0);
-        combined.set(ciphertextBytes, 12);
-        const b64 = bytesToBase64(combined);
-        return std64ToCustom(b64);
-    }
-
-    async function decryptPayload(customB64, keyStr) {
-        try {
-            const stdB64 = custom64ToStd(customB64);
-            const combined = base64ToBytes(stdB64);
-            if (combined.length < 12) return "[Ошибка дешифрования]";
-            const iv = combined.slice(0, 12);
-            const ciphertextBytes = combined.slice(12);
-            const key = await getCryptoKey(keyStr);
-            const decryptedBuffer = await crypto.subtle.decrypt(
-                { name: "AES-GCM", iv: iv },
-                key,
-                ciphertextBytes
-            );
-            return utf8BytesToText(new Uint8Array(decryptedBuffer));
-        } catch (e) {
-            return "[Ошибка дешифрования]";
+    function encryptPayload(plainText, keyStr) {
+        if (W.Android && typeof W.Android.encryptGcm === "function") {
+            const b64 = W.Android.encryptGcm(plainText, keyStr);
+            return std64ToCustom(b64);
         }
+        return "";
+    }
+
+    function decryptPayload(customB64, keyStr) {
+        if (W.Android && typeof W.Android.decryptGcm === "function") {
+            const stdB64 = custom64ToStd(customB64);
+            return W.Android.decryptGcm(stdB64, keyStr);
+        }
+        return "[Ошибка дешифрования]";
     }
 
     function maskToPseudoWords(str) {
@@ -115,7 +67,7 @@
             let len;
             if (rand < 0.15) {
                 len = W.nanoUtils.randInt(1, 2);
-            } else if (rand < 0.75) {
+            } else if (rand < 0.65) {
                 len = W.nanoUtils.randInt(4, 7);
             } else {
                 len = W.nanoUtils.randInt(8, 12);
@@ -153,13 +105,13 @@
     }
 
     W.nanoCipher = {
-        encode: async function(text, key, domain = "msg") {
-            const encrypted = await encryptPayload(text, `${key}:${domain}`);
+        encode: function(text, key, domain = "msg") {
+            const encrypted = encryptPayload(text, `${key}:${domain}`);
             return maskToPseudoWords(encrypted);
         },
-        decode: async function(maskedText, key, domain = "msg") {
+        decode: function(maskedText, key, domain = "msg") {
             const clean = String(maskedText || "").replace(/\s+/g, "");
-            return await decryptPayload(clean, `${key}:${domain}`);
+            return decryptPayload(clean, `${key}:${domain}`);
         }
     };
 
