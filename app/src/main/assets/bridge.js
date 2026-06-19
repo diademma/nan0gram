@@ -407,22 +407,28 @@
                     time: data.time
                 };
                 
-                if (data.base64) {
+                if (data.isVideo && data.base64s && data.base64s.length > 0) {
+                    data.base64s.forEach((b64, idx) => {
+                        const vidObj = { ...msgObj, id: Date.now() + Math.random(), video: b64 };
+                        if (data.thumbnails && data.thumbnails[idx]) vidObj.videoThumbnail = data.thumbnails[idx];
+                        updated[cid].push(vidObj);
+                    });
+                } else if (data.base64) {
                     if (data.isVideo) {
                         msgObj.video = data.base64;
-                        if (data.videoThumbnail) {
-                            msgObj.videoThumbnail = data.videoThumbnail;
-                        }
+                        if (data.videoThumbnail) msgObj.videoThumbnail = data.videoThumbnail;
+                        updated[cid].push(msgObj);
                     } else if (data.base64.startsWith("data:audio")) {
                         msgObj.audio = data.base64;
+                        updated[cid].push(msgObj);
                     } else {
                         msgObj.images = [data.base64];
+                        updated[cid].push(msgObj);
                     }
                 } else if (data.base64s && data.base64s.length > 0) {
                     msgObj.images = data.base64s;
+                    updated[cid].push(msgObj);
                 }
-                
-                updated[cid].push(msgObj);
                 return updated;
             });
         } catch (e) { console.error("Ошибка отображения локального превью:", e); }
