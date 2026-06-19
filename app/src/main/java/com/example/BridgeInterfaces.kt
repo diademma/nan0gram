@@ -124,6 +124,42 @@ class MessengerJsInterface(
     private val ui = Handler(Looper.getMainLooper())
     @Volatile var lastComposeBody: String = ""
     @Volatile var getMessengerWebView: (() -> WebView?)? = null
+    @Volatile var isVoicePending: Boolean = false
+    @Volatile var pendingVoiceUri: android.net.Uri? = null
+
+    @android.webkit.JavascriptInterface
+    fun submitVoiceFile(base64Data: String, duration: Int) {
+        log("[Stealth] Получено голосовое сообщение из JS. Начинаем упаковку...")
+        val context = getUkrnetWebView()?.context ?: return
+        try {
+            val cleanB64 = if (base64Data.contains("base64,")) base64Data.split("base64,")[1] else base64Data
+            val audioBytes = android.util.Base64.decode(cleanB64, android.util.Base64.NO_WRAP)
+            val tempFile = java.io.File(context.cacheDir, "voice_msg.webm")
+            java.io.FileOutputStream(tempFile).use { it.write(audioBytes) }
+            val originalUri = android.net.Uri.fromFile(tempFile)
+            val mediaKey = pendingMediaKey.ifEmpty {
+                val arr = ByteArray(16)
+                java.security.SecureRandom().nextBytes(arr)
+                arr.joinToString("") { "%02x".format(it) }
+            }
+            pendingMediaKey = mediaKey
+            val encryptedUri = createEncryptedStealthCopy(context, originalUri, mediaKey)
+            if (encryptedUri != null) {
+                isVoicePending = true
+                pendingVoiceUri = encryptedUri
+                ui.post {
+                    val ukr = getUkrnetWebView()
+                    ukr?.evaluateJavascript("window._n0gStealthUpload = true;", null)
+                    startMediaUploadSequence()
+                    prepareForDirectAttach(mediaKey)
+                }
+            } else {
+                log("[Stealth Error] Не удалось зашифровать голосовой файл.")
+            }
+        } catch (e: Exception) {
+            log("[Stealth Error] Ошибка подготовки голосового файла: ${"$"}{e.message}")
+        }
+    }
 
     @Volatile private var lastSubmitMs = 0L
     private val RECOIL_MS = 3000L
