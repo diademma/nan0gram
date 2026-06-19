@@ -161,7 +161,9 @@ fun createEncryptedStealthCopy(context: Context, originalUri: Uri, keyStr: Strin
 fun createStealthCopy(context: Context, originalUri: Uri): Uri? {
     return try {
         val inputStream = context.contentResolver.openInputStream(originalUri) ?: return null
-        val file = File(context.cacheDir, "sys_data_${System.currentTimeMillis()}.bin")
+        val originalName = getOriginalFileName(context, originalUri)
+        val baseName = if (originalName.contains(".")) originalName.substringBeforeLast(".") else originalName
+        val file = File(context.cacheDir, "${baseName}.bin")
         val outputStream = FileOutputStream(file)
         inputStream.copyTo(outputStream)
         inputStream.close()
