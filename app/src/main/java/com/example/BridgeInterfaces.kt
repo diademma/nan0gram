@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.webkit.JavascriptInterface
@@ -11,7 +12,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.security.KeyFactory
 import java.security.spec.X509EncodedKeySpec
+import java.security.spec.PKCS8EncodedKeySpec
 import javax.crypto.Cipher
+import javax.crypto.KeyAgreement
 
 class UkrnetJsInterface(
     private val log: (String) -> Unit,
@@ -120,12 +123,6 @@ class MessengerJsInterface(
     lateinit var scope: CoroutineScope
     private val ui = Handler(Looper.getMainLooper())
     @Volatile var lastComposeBody: String = ""
-    @Volatile var pendingMediaKey: String = ""
-
-    @JavascriptInterface
-    fun retrievePendingMediaKey(): String {
-        return pendingMediaKey
-    }
     @Volatile var getMessengerWebView: (() -> WebView?)? = null
 
     @Volatile private var lastSubmitMs = 0L
@@ -133,6 +130,14 @@ class MessengerJsInterface(
 
     @Volatile private var lastOpenMs = 0L
     private val DEBOUNCE_MS = 300L
+
+    // Системное зашифрованное хранилище ключей
+    private val prefs by lazy {
+        getUkrnetWebView()?.context?.getSharedPreferences("nan0gram_crypto_prefs", Context.MODE_PRIVATE)
+    }
+
+    // Временный ключ медиафайлов
+    @Volatile var pendingMediaKey: String = ""
 
     @JavascriptInterface
     fun encryptRsa(plainText: String, publicKeyB64: String): String {
@@ -213,9 +218,9 @@ class MessengerJsInterface(
     fun getDeviceId(): String { return androidId }
 
     @JavascriptInterface
-    fun notifyMediaSelection(sysBlock: String, mediaKey: String) {
-        pendingMediaKey = mediaKey
+    fun notifyMediaSelection(sysBlock: String) {
         log("[Stealth] Получены метаданные медиа. Прикрепляем к письму...")
+        pendingMediaKey = "" // Очищаем временный ключ после подтверждения отправки из JS
         ui.post {
             val ukr = getUkrnetWebView()
             ukr?.evaluateJavascript("window._n0gStealthUpload = true;", null)
@@ -225,9 +230,8 @@ class MessengerJsInterface(
     }
 
     @JavascriptInterface
-    fun prepareForDirectAttach() {
-        // Предварительно нативно генерируем ключ шифрования для медиафайлов
-        pendingMediaKey = java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 32)
+    fun prepareForDirectAttach(mediaKey: String) {
+        pendingMediaKey = mediaKey
         ui.post {
             val ukr = getUkrnetWebView()
             val mess = getMessengerWebView?.invoke()
@@ -235,12 +239,9 @@ class MessengerJsInterface(
                 log("[Stealth] Сканируем координаты кнопки-скрепки...")
                 ukr.evaluateJavascript("""
                     (function(){
-                        // ИСПРАВЛЕНИЕ: Убрали скрытый input[type=file], так как он возвращает нули.
-                        // Ищем только реальные видимые кнопки
                         var el = document.querySelector("button.sm-header__attach") || document.querySelector("[class*='attach']");
                         if (!el) return 'not_found';
                         var r = el.getBoundingClientRect();
-                        // Защита от нулевых координат (невидимых элементов)
                         if (r.width === 0 && r.height === 0) return 'not_found';
                         return JSON.stringify({
                             x: Math.round(r.left + r.width/2),
