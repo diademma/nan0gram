@@ -1927,19 +1927,25 @@ html, body, #root {
   transform: scale(1.15) !important; /* Кнопка слегка увеличивается */
 }
 
-/* 🎯 Ограничение ширины пузырей сообщений для телефонов и планшетов (до оранжевой линии) */
+/* 🎯 Ограничение ширины пузырей сообщений для телефонов и планшетов (до оранжевой/черной линии) */
 @media (orientation: portrait) {
   .message {
     max-width: 85% !important;
   }
 }
 
-/* Фикс флексбокс-бага усечения текста (ellipsis) в блоке ответа (reply) */
+@media (orientation: landscape) {
+  .message {
+    max-width: 48% !important;
+  }
+}
+
+/* Фикс флексбокс-бага усечения текста (ellipsis) в блоке ответа (reply) без раздувания родительского пузыря */
 .msg-reply {
   min-width: 0 !important;
-  width: 100% !important;
+  max-width: 100% !important;
 }
 .msg-reply > div {
   min-width: 0 !important;
-  width: 100% !important;
+  max-width: 100% !important;
 }
