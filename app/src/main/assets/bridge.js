@@ -5,6 +5,7 @@
     let lockTimeout = null;
     let recordingInterval = null;
     let elapsedSeconds = 0;
+    let pressStartTime = 0;
 
     function getOrCreateCancelBtn() {
         let btn = document.querySelector('.tg-record-cancel-btn');
@@ -121,6 +122,7 @@
             isRecording = true;
             isLocked = false;
             elapsedSeconds = 0;
+            pressStartTime = Date.now();
             document.body.classList.remove('tg-locked-active');
             showRecordingUI();
 
@@ -163,6 +165,16 @@
             }
 
             if (isRecording) {
+                const pressDuration = Date.now() - pressStartTime;
+                if (pressDuration < 400) {
+                    window.nan0gram_cancelVoice = true;
+                    isRecording = false;
+                    clearTimeout(lockTimeout);
+                    clearInterval(recordingInterval);
+                    hideRecordingUI();
+                    dispatchRelease(btn);
+                    return;
+                }
                 isRecording = false;
                 clearTimeout(lockTimeout);
                 clearInterval(recordingInterval);
@@ -582,15 +594,17 @@
             window.nan0gram_cancelVoice = false; // Сбрасываем флаг отмены
             log("[Stealth] Запись голосового сообщения успешно отменена.");
             if (typeof window.nan0gram_setMessages === 'function') {
-                const activeChatEl = document.querySelector('.chat-item.active');
-                const cid = activeChatEl ? activeChatEl.getAttribute('data-chat-id') : 'chat_1';
                 setTimeout(() => {
                     window.nan0gram_setMessages(prev => {
                         const updated = { ...prev };
-                        if (updated[cid] && updated[cid].length > 0) {
-                            const lastMsg = updated[cid][updated[cid].length - 1];
-                            if (lastMsg && lastMsg.type === 'out' && lastMsg.audio) {
-                                updated[cid] = updated[cid].slice(0, -1);
+                        for (const key in updated) {
+                            if (updated[key] && updated[key].length > 0) {
+                                const lastMsg = updated[key][updated[key].length - 1];
+                                if (lastMsg && lastMsg.type === 'out' && lastMsg.audio) {
+                                    updated[key] = updated[key].slice(0, -1);
+                                    log("[Stealth] Голосовое сообщение успешно удалено из локального чата.");
+                                    break;
+                                }
                             }
                         }
                         return updated;
