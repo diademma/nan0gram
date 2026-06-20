@@ -2207,8 +2207,10 @@ body.tg-locked-active .send-mic-btn::after {
   gap: 3px;
   height: 24px;
   flex-grow: 1;
-  margin-left: 20px;
-  margin-right: 120px;
+  margin-left: 12px;
+  margin-right: 64px;
+  overflow: hidden;
+  min-width: 0;
 }
 
 .tg-rec-bar {
