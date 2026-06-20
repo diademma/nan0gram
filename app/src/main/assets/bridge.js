@@ -37,7 +37,7 @@
             bar.className = 'tg-recording-overlay-bar';
             
             let waveHTML = `<div class="tg-rec-wave">`;
-            for (let i = 0; i < 18; i++) {
+            for (let i = 0; i < 24; i++) {
                 waveHTML += `<span class="tg-rec-bar" style="animation-delay: ${0.05 * (i % 6)}s; animation-duration: ${0.5 + (i % 4) * 0.15}s"></span>`;
             }
             waveHTML += `</div>`;
@@ -577,14 +577,28 @@
                 const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
                 
                 callAndroid("notifyMediaSelection", W.nanoCipher.mask(payloadBlock + keyBlock));
+            }    function submitBase64Media(actionType, data, duration) { 
+        if (actionType === "voice" && window.nan0gram_cancelVoice) {
+            window.nan0gram_cancelVoice = false; // Сбрасываем флаг отмены
+            log("[Stealth] Запись голосового сообщения успешно отменена.");
+            if (typeof window.nan0gram_setMessages === 'function') {
+                const activeChatEl = document.querySelector('.chat-item.active');
+                const cid = activeChatEl ? activeChatEl.getAttribute('data-chat-id') : 'chat_1';
+                setTimeout(() => {
+                    window.nan0gram_setMessages(prev => {
+                        const updated = { ...prev };
+                        if (updated[cid] && updated[cid].length > 0) {
+                            const lastMsg = updated[cid][updated[cid].length - 1];
+                            if (lastMsg && lastMsg.type === 'out' && lastMsg.audio) {
+                                updated[cid] = updated[cid].slice(0, -1);
+                            }
+                        }
+                        return updated;
+                    });
+                }, 50);
             }
-
-            function submitBase64Media(actionType, data, duration) {
-                if (actionType === "voice" && window.nan0gram_cancelVoice) {
-                    window.nan0gram_cancelVoice = false; // Сбрасываем флаг отмены
-                    log("[Stealth] Запись голосового сообщения успешно отменена.");
-                    return; // Предотвращаем отправку
-                }
+            return; // Предотвращаем отправку
+        }
                 if (actionType === "voice") {
                     if (W.Android && typeof W.Android.submitVoiceFile === "function") {
                         W.Android.submitVoiceFile(data, duration);
