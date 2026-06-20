@@ -2150,6 +2150,20 @@ html, body, #root {
   background: #2563eb !important;
 }
 
+.send-mic-btn.tg-send-mode svg {
+  display: none !important;
+}
+
+.send-mic-btn.tg-send-mode::after {
+  content: "" !important;
+  width: 18px;
+  height: 18px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='22' y1='2' x2='11' y2='13'%3E%3C/line%3E%3Cpolygon points='22 2 15 22 11 13 2 9 22 2'%3E%3C/polygon%3E%3C/svg%3E") !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  display: block !important;
+}
+
 .tg-recording-overlay-bar {
   display: flex;
   align-items: center;
