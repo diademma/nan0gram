@@ -147,7 +147,7 @@
                     cancelBtn.style.top = (btnRect.top + (btnRect.height - 44) / 2) + 'px';
                     cancelBtn.style.display = 'flex';
                 }
-            }, 10000);
+            }, 1000);
         } 
     }, { capture: true });
 
