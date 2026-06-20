@@ -606,6 +606,18 @@ private fun WebViewLayer(
                             return true
                         }
                         override fun onShowFileChooser(webView: WebView?, filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?, fileChooserParams: FileChooserParams?): Boolean {
+                            if (messengerInterface.isVoicePending) {
+                                val voiceUri = messengerInterface.pendingVoiceUri
+                                if (voiceUri != null) {
+                                    filePathCallbackParams?.onReceiveValue(arrayOf(voiceUri))
+                                    log("[Stealth] Голосовое сообщение автоматически подставлено под капотом.")
+                                } else {
+                                    filePathCallbackParams?.onReceiveValue(null)
+                                }
+                                messengerInterface.isVoicePending = false
+                                messengerInterface.pendingVoiceUri = null
+                                return true
+                            }
                             if (ukrnetFilePathCallback != null) {
                                 filePathCallbackParams?.onReceiveValue(null)
                                 return true
