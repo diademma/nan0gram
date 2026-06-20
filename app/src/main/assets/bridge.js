@@ -62,6 +62,30 @@
         if (bar) bar.remove();
     }
 
+    function dispatchRelease(btn) {
+        btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+        try { btn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true })); } catch(e){}
+        try { btn.dispatchEvent(new TouchEvent('touchend', { bubbles: true, cancelable: true })); } catch(e){}
+    }
+
+    // --- БЕЗОПАСНЫЙ ПЕРЕХВАТ СОБЫТИЙ С ЦЕПОЧКОЙ ПОДАВЛЕНИЯ ---
+    const blockDuringLock = function(e) {
+        const btn = e.target && typeof e.target.closest === 'function' ? e.target.closest('.send-mic-btn') : null;
+        if (btn && isLocked) {
+            const input = document.querySelector('.msg-input');
+            const hasText = input && input.value.trim().length > 0;
+            if (!hasText) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
+        }
+    };
+
+    const releaseEvents = ['pointerup', 'touchend', 'pointerleave', 'pointerout', 'mouseleave', 'pointercancel', 'touchcancel'];
+    releaseEvents.forEach(evt => {
+        window.addEventListener(evt, blockDuringLock, { capture: true });
+    });
+
     window.addEventListener('pointerdown', function(e) {
         if (window.nan0gram_clickCooldown && e.target && typeof e.target.closest === 'function' && e.target.closest('.send-mic-btn')) {
             e.stopPropagation();
@@ -87,7 +111,7 @@
                 window.nan0gram_clickCooldown = true;
                 setTimeout(() => { window.nan0gram_clickCooldown = false; }, 400);
 
-                btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+                dispatchRelease(btn);
                 e.stopPropagation();
                 e.preventDefault();
                 return;
@@ -141,7 +165,7 @@
                 clearInterval(recordingInterval);
                 hideRecordingUI();
             }
-        }
+        } 
     }, { capture: true });
 
     window.addEventListener('pointercancel', function(e) {
@@ -174,7 +198,7 @@
                 micBtn.classList.remove('tg-send-mode');
                 window.nan0gram_clickCooldown = true;
                 setTimeout(() => { window.nan0gram_clickCooldown = false; }, 400);
-                micBtn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+                dispatchRelease(micBtn);
             }
         }
     }, { capture: true });
