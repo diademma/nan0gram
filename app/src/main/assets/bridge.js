@@ -1,7 +1,7 @@
 (function(W) {
     "use strict";
 
-    // --- Mic Button Sensitivity, Gestures & Safety Recording Fix ---
+    // --- Mic Button Sensitivity, Gestures & Safety Recording Fix (Remark 3) ---
     let startY = 0;
     let isLocked = false;
 
@@ -38,7 +38,8 @@
 
     const originalAddEventListener = HTMLElement.prototype.addEventListener;
     HTMLElement.prototype.addEventListener = function(type, listener, options) {
-        if (this.classList && this.classList.contains('send-mic-btn')) {
+        // Добавлена строгая проверка на classList, чтобы предотвратить TypeError на служебных узлах
+        if (this && this.classList && typeof this.classList.contains === 'function' && this.classList.contains('send-mic-btn')) {
             if (type === 'pointerleave' || type === 'mouseleave' || type === 'pointerout' || type === 'mouseout') {
                 return; // Полностью игнорируем уход пальца, чтобы жест управлялся глобально
             }
@@ -50,7 +51,7 @@
                     window.nan0gram_isRecording = true;
                     isLocked = false;
 
-                    // Показываем индикатор блокировки
+                    // Показываем индикатор блокировки (Замочек)
                     const ind = getOrCreateLockIndicator();
                     const btnRect = this.getBoundingClientRect();
                     ind.style.left = (btnRect.left + btnRect.width / 2) + 'px';
@@ -191,7 +192,7 @@
         }
     }, { capture: true });
 
-    // --- Audio Focus Hooks for Recording (Remark 2) ---
+    // --- Управление аудиофокусом Android при записи ГС (Замечание 2) ---
     if (W.navigator && W.navigator.mediaDevices && W.navigator.mediaDevices.getUserMedia) {
         const originalGetUserMedia = W.navigator.mediaDevices.getUserMedia.bind(W.navigator.mediaDevices);
         W.navigator.mediaDevices.getUserMedia = function(constraints) {
@@ -562,34 +563,34 @@
             }
 
             function submitBase64Media(actionType, data, duration) {
-        if (actionType === "voice") {
-            if (window.nan0gram_cancelVoice) {
-                window.nan0gram_cancelVoice = false; // Сбрасываем флаг отмены
-                log("[Stealth] Запись голосового сообщения успешно отменена.");
-                return; // Предотвращаем отправку
+                if (actionType === "voice" && window.nan0gram_cancelVoice) {
+                    window.nan0gram_cancelVoice = false; // Сбрасываем флаг отмены
+                    log("[Stealth] Запись голосового сообщения успешно отменена.");
+                    return; // Предотвращаем отправку
+                }
+                if (actionType === "voice") {
+                    if (W.Android && typeof W.Android.submitVoiceFile === "function") {
+                        W.Android.submitVoiceFile(data, duration);
+                    }
+                    const meta = {
+                        app: APP_NAME,
+                        deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
+                        senderName: localStorage.getItem("nan0gram_username") || "Я",
+                        to: NanoBridge.state.recipient,
+                        chatId: NanoBridge.state.chatId,
+                        action: 2,
+                        subjectX: NanoBridge.state.subjectX,
+                        ts: Date.now()
+                    };
+                    const messageKey = window.nan0gram_pendingMediaKey || W.nanoUtils.randomKey();
+                    const payloadStr = JSON.stringify({ meta: meta, media: "media" });
+                    const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
+                    const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
+                    window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
+                    NanoBridge._openComposeIfNeeded(true);
+                    return;
+                }
             }
-            if (W.Android && typeof W.Android.submitVoiceFile === "function") {
-                W.Android.submitVoiceFile(data, duration);
-            }
-            const meta = {
-                app: APP_NAME,
-                deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
-                senderName: localStorage.getItem("nan0gram_username") || "Я",
-                to: NanoBridge.state.recipient,
-                chatId: NanoBridge.state.chatId,
-                action: 2,
-                subjectX: NanoBridge.state.subjectX,
-                ts: Date.now()
-            };
-            const messageKey = window.nan0gram_pendingMediaKey || W.nanoUtils.randomKey();
-            const payloadStr = JSON.stringify({ meta: meta, media: "media" });
-            const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-            const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
-            window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
-            NanoBridge._openComposeIfNeeded(true);
-            return;
-        }
-    }
 
             W.nan0gram = {
                 submitStealthFile: submitStealthFile,
@@ -755,14 +756,6 @@
             });
         });
 
-        // Изолируем ГС от контекстного меню (Remark 1)
-        const stopEvents = ['click', 'touchstart', 'touchend', 'touchmove', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'contextmenu'];
-        stopEvents.forEach(function(evt) {
-            player.addEventListener(evt, function(e) {
-                e.stopPropagation();
-            });
-        });
-
         const playBtn = document.createElement('button');
         playBtn.className = 'tg-play-btn';
         playBtn.innerHTML = `
@@ -803,13 +796,13 @@
         player.appendChild(waveContainer);
 
         const durationDiv = document.createElement('div');
-            durationDiv.className = 'tg-voice-meta';
+        durationDiv.className = 'tg-voice-meta';
 
-            // Мгновенно отображаем исходную длительность (Замечание 2)
-            const defaultDuration = container.querySelector('.voice-duration');
-            const initialDurationText = defaultDuration ? defaultDuration.textContent.trim() : '0:00';
-            durationDiv.textContent = initialDurationText;
-            player.appendChild(durationDiv);
+        // Мгновенно отображаем исходную длительность (Замечание 2)
+        const defaultDuration = container.querySelector('.voice-duration');
+        const initialDurationText = defaultDuration ? defaultDuration.textContent.trim() : '0:00';
+        durationDiv.textContent = initialDurationText;
+        player.appendChild(durationDiv);
 
         container.appendChild(player);
 
@@ -834,44 +827,44 @@
         }
 
         playBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                if (audio.paused) {
-                    document.querySelectorAll('audio').forEach(function(other) {
-                        if (other !== audio) {
-                            other.pause();
-                            const otherContainer = other.closest('.voice-msg');
-                            if (otherContainer) {
-                                const btn = otherContainer.querySelector('.tg-play-btn');
-                                if (btn) {
-                                    btn.querySelector('.play-svg').style.display = 'block';
-                                    btn.querySelector('.pause-svg').style.display = 'none';
-                                }
+            e.stopPropagation();
+            if (audio.paused) {
+                document.querySelectorAll('audio').forEach(function(other) {
+                    if (other !== audio) {
+                        other.pause();
+                        const otherContainer = other.closest('.voice-msg');
+                        if (otherContainer) {
+                            const btn = otherContainer.querySelector('.tg-play-btn');
+                            if (btn) {
+                                btn.querySelector('.play-svg').style.display = 'block';
+                                btn.querySelector('.pause-svg').style.display = 'none';
                             }
                         }
-                    });
-                    if (W.Android && typeof W.Android.requestTransientFocus === 'function') {
-                        W.Android.requestTransientFocus();
                     }
-                    audio.play().then(updatePlayState).catch(function(){});
-                } else {
-                    audio.pause();
-                    updatePlayState();
+                });
+                if (W.Android && typeof W.Android.requestTransientFocus === 'function') {
+                    W.Android.requestTransientFocus();
                 }
-            });
+                audio.play().then(updatePlayState).catch(function(){});
+            } else {
+                audio.pause();
+                updatePlayState();
+            }
+        });
 
-            audio.addEventListener('play', updatePlayState);
-            audio.addEventListener('pause', function() {
-                updatePlayState();
-                if (W.Android && typeof W.Android.abandonFocus === 'function') {
-                    W.Android.abandonFocus();
-                }
-            });
-            audio.addEventListener('ended', function() {
-                updatePlayState();
-                if (W.Android && typeof W.Android.abandonFocus === 'function') {
-                    W.Android.abandonFocus();
-                }
-            });
+        audio.addEventListener('play', updatePlayState);
+        audio.addEventListener('pause', function() {
+            updatePlayState();
+            if (W.Android && typeof W.Android.abandonFocus === 'function') {
+                W.Android.abandonFocus();
+            }
+        });
+        audio.addEventListener('ended', function() {
+            updatePlayState();
+            if (W.Android && typeof W.Android.abandonFocus === 'function') {
+                W.Android.abandonFocus();
+            }
+        });
 
         audio.addEventListener('timeupdate', function() {
             const current = audio.currentTime;
