@@ -6571,7 +6571,7 @@ Error generating stack: ` + e.message + `
         hr(l, E)
       }
       while (!0);
-      return t && l.shellSuspendCounter++, Jt = Xe = null, Nl = a, p.H = u, p.A = n, dl === null && (Ol = null, gl = 0, Pu()), c
+    return t && l.shellSuspendCounter++, Jt = Xe = null, Nl = a, p.H = u, p.A = n, dl === null && (Ol = null, gl = 0, Pu()), c
   }
 
   function Gh() {
@@ -6648,7 +6648,7 @@ Error generating stack: ` + e.message + `
         hr(l, E)
       }
       while (!0);
-      return Jt = Xe = null, p.H = a, p.A = u, Nl = e, dl !== null ? 0 : (Ol = null, gl = 0, Pu(), Xl)
+    return Jt = Xe = null, p.H = a, p.A = u, Nl = e, dl !== null ? 0 : (Ol = null, gl = 0, Pu(), Xl)
   }
 
   function Zh() {
@@ -9997,7 +9997,7 @@ function k0({
                     lineHeight: "1.3"
                   },
                   children: "Этот идентификатор жестко привязан к вашему устройству. Передайте его контакту в Telegram, чтобы он мог отправить вам запрос на добавление."
-                })
+})
               ]
             })
             ]
@@ -10407,6 +10407,14 @@ function I0({
           children: m.author
         }), m.replyTo && f.jsx("div", {
           className: "msg-reply",
+          onClick: e => {
+            e.stopPropagation();
+            if (m.replyTo && m.replyTo.id) {
+              window.dispatchEvent(new CustomEvent("nan0gram:scroll-to-reply", {
+                detail: m.replyTo.id
+              }));
+            }
+          },
           children: f.jsxs("div", {
             style: {
               display: "flex",
@@ -10847,7 +10855,7 @@ function tv({
       reader.onload = e => {
         const img = new Image();
         img.onload = () => {
-const canvas = document.createElement("canvas");
+          const canvas = document.createElement("canvas");
           const maxDim = 1440;
           let width = img.width,
             height = img.height;
@@ -11013,14 +11021,26 @@ const canvas = document.createElement("canvas");
       }), Tl(null), X.current?.focus())
     }, [o]),
     cl = T.useCallback(R => {
-      o && U(F => ({ ...F, [o]: F[o].filter(V => V.id !== R) }))
+      o && U(F => ({
+        ...F,
+        [o]: F[o].filter(V => V.id !== R)
+      }))
     }, [o]),
     r = T.useCallback(R => {}, []),
     x = T.useCallback((R, F) => {
-      o && U(V => ({ ...V, [o]: V[o].map(bl => bl.id === R ? { ...bl, reaction: bl.reaction === F ? null : F } : bl) }))
+      o && U(V => ({
+        ...V,
+        [o]: V[o].map(bl => bl.id === R ? {
+          ...bl,
+          reaction: bl.reaction === F ? null : F
+        } : bl)
+      }))
     }, [o]),
     H = T.useCallback((R, F) => {
-      fl(V => ({ ...V, [R]: F }))
+      fl(V => ({
+        ...V,
+        [R]: F
+      }))
     }, []),
     C = T.useCallback(R => {
       Ml(R)
@@ -11094,17 +11114,17 @@ const canvas = document.createElement("canvas");
     })]
   })
 }
-              color: "#ccc"
-            },
-            children: ["ID: ", m.userId]
-          }), f.jsx("div", {
-            className: "info-label",
-            children: "ID профиля"
-          })]
-        })]
-      })]
-    })]
-  })
+color: "#ccc"
+},
+children: ["ID: ", m.userId]
+}), f.jsx("div", {
+className: "info-label",
+children: "ID профиля"
+})]
+})]
+})]
+})]
+})
 }
 
 function av({
