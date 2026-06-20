@@ -799,7 +799,6 @@
         durationDiv.className = 'tg-voice-meta';
 
         // Мгновенно отображаем исходную длительность (Замечание 2)
-        const defaultDuration = container.querySelector('.voice-duration');
         const initialDurationText = defaultDuration ? defaultDuration.textContent.trim() : '0:00';
         durationDiv.textContent = initialDurationText;
         player.appendChild(durationDiv);
