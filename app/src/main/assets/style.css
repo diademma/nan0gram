@@ -2213,6 +2213,13 @@ body.tg-locked-active .send-mic-btn::after {
   min-width: 0;
 }
 
+@media (max-width: 767px) {
+  .tg-rec-wave {
+    max-width: 80px !important;
+    margin-right: 40px !important;
+  }
+}
+
 .tg-rec-bar {
   width: 3px;
   background: #a773d1;
