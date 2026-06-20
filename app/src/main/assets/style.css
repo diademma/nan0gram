@@ -2214,9 +2214,18 @@ body.tg-locked-active .send-mic-btn::after {
 }
 
 @media (max-width: 767px) {
+  .tg-recording-overlay-bar {
+    padding: 0 8px !important;
+    gap: 6px !important;
+  }
   .tg-rec-wave {
-    max-width: 80px !important;
-    margin-right: 40px !important;
+    max-width: 60px !important;
+    margin-left: 6px !important;
+    margin-right: 6px !important;
+  }
+  .input-area {
+    padding: 8px 8px !important;
+    gap: 6px !important;
   }
 }
 
