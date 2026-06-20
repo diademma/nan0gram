@@ -2077,7 +2077,7 @@ html, body, #root {
   font-weight: bold;
   min-width: 32px;
   text-align: right;
-  flex-shrink: 0;
+flex-shrink: 0;
 }
 
 /* --- Scarlet Stop Button (Сброс записи) --- */
@@ -2148,4 +2148,20 @@ html, body, #root {
 /* --- Изменение цвета кнопки микрофона на синий Самолётик в режиме фиксации --- */
 .send-mic-btn.tg-send-mode {
   background: #2563eb !important;
+}
+
+/* --- Подсветка сообщения при переходе по цитате --- */
+@keyframes replyHighlight {
+  0% {
+    background-color: rgba(167, 115, 209, 0.45);
+    filter: drop-shadow(0 0 8px rgba(167, 115, 209, 0.4));
+  }
+  100% {
+    background-color: transparent;
+    filter: none;
+  }
+}
+
+.msg-row.highlight .message {
+  animation: replyHighlight 1.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
