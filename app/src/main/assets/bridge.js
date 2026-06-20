@@ -795,7 +795,7 @@
         waveContainer.appendChild(activeContainer);
         player.appendChild(waveContainer);
 
-const durationDiv = document.createElement('div');
+        const durationDiv = document.createElement('div');
         durationDiv.className = 'tg-voice-meta';
 
         // Мгновенно отображаем исходную длительность (Замечание 2)
@@ -807,10 +807,6 @@ const durationDiv = document.createElement('div');
 
         function formatTime(secs) {
             if (isNaN(secs) || secs === Infinity) return '0:00';
-            const m = Math.floor(secs / 60);
-            const s = Math.floor(secs % 60).toString().padStart(2, '0');
-            return m + ':' + s;
-        }            if (isNaN(secs) || secs === Infinity) return '0:00';
             const m = Math.floor(secs / 60);
             const s = Math.floor(secs % 60).toString().padStart(2, '0');
             return m + ':' + s;
