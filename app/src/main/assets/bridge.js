@@ -1,17 +1,81 @@
 (function(W) {
     "use strict";
 
-    // --- Mic Button Sensitivity & Safety Recording Fix ---
+    // --- Mic Button Sensitivity, Gestures & Safety Recording Fix ---
+    let startY = 0;
+    let isLocked = false;
+
+    // Хелпер создания алой кнопки сброса ГС
+    function getOrCreateCancelBtn() {
+        let btn = document.querySelector('.tg-record-cancel-btn');
+        if (!btn) {
+            btn = document.createElement('div');
+            btn.className = 'tg-record-cancel-btn';
+            btn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                </svg>
+            `;
+            document.body.appendChild(btn);
+        }
+        return btn;
+    }
+
+    // Хелпер создания индикатора блокировки записи
+    function getOrCreateLockIndicator() {
+        let ind = document.querySelector('.tg-record-lock-indicator');
+        if (!ind) {
+            ind = document.createElement('div');
+            ind.className = 'tg-record-lock-indicator';
+            ind.innerHTML = `
+                <div class="lock-arrow">▲</div>
+                <div class="lock-icon">🔒</div>
+            `;
+            document.body.appendChild(ind);
+        }
+        return ind;
+    }
+
     const originalAddEventListener = HTMLElement.prototype.addEventListener;
     HTMLElement.prototype.addEventListener = function(type, listener, options) {
         if (this.classList && this.classList.contains('send-mic-btn')) {
             if (type === 'pointerleave' || type === 'mouseleave' || type === 'pointerout' || type === 'mouseout') {
-                return; // Игнорируем уход пальца за границы кнопки
+                return; // Полностью игнорируем уход пальца, чтобы жест управлялся глобально
             }
             if (type === 'pointerdown' || type === 'touchstart') {
                 const originalListener = listener;
                 listener = function(e) {
+                    const touch = e.touches ? e.touches[0] : e;
+                    startY = touch.clientY;
                     window.nan0gram_isRecording = true;
+                    isLocked = false;
+
+                    // Показываем индикатор блокировки
+                    const ind = getOrCreateLockIndicator();
+                    const btnRect = this.getBoundingClientRect();
+                    ind.style.left = (btnRect.left + btnRect.width / 2) + 'px';
+                    ind.style.bottom = (window.innerHeight - btnRect.top + 10) + 'px';
+                    ind.style.display = 'flex';
+                    ind.classList.remove('locked');
+
+                    // Скрываем алую кнопку
+                    const cancelBtn = getOrCreateCancelBtn();
+                    cancelBtn.style.display = 'none';
+
+                    return originalListener.call(this, e);
+                };
+            }
+            if (type === 'pointerup' || type === 'touchend') {
+                const originalListener = listener;
+                listener = function(e) {
+                    if (isLocked) {
+                        return; // Блокируем авто-отправку при зажатом замочке
+                    }
+                    window.nan0gram_isRecording = false;
+                    const ind = document.querySelector('.tg-record-lock-indicator');
+                    if (ind) ind.style.display = 'none';
+                    const cancelBtn = document.querySelector('.tg-record-cancel-btn');
+                    if (cancelBtn) cancelBtn.style.display = 'none';
                     return originalListener.call(this, e);
                 };
             }
@@ -19,46 +83,113 @@
         return originalAddEventListener.call(this, type, listener, options);
     };
 
-    // Глобальные слушатели для гарантированного завершения записи при поднятии пальца в любой точке экрана
-    window.addEventListener('pointerup', function(e) {
-        if (window.nan0gram_isRecording) {
-            window.nan0gram_isRecording = false;
-            const btn = document.querySelector('.send-mic-btn');
-            if (btn) {
-                btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
-            }
-        }
-    }, { capture: true, passive: true });
+    // Глобальный жест ведения пальца вверх (замочек)
+    const handleMove = function(e) {
+        if (window.nan0gram_isRecording && !isLocked) {
+            const touch = e.touches ? e.touches[0] : e;
+            const diffY = startY - touch.clientY; // Высота ведения вверх
 
-    window.addEventListener('touchend', function(e) {
-        if (window.nan0gram_isRecording) {
-            window.nan0gram_isRecording = false;
-            const btn = document.querySelector('.send-mic-btn');
-            if (btn) {
-                btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+            const ind = document.querySelector('.tg-record-lock-indicator');
+            if (ind) {
+                const offset = Math.max(0, Math.min(40, diffY));
+                ind.style.transform = `translateY(-${offset}px)`;
             }
-        }
-    }, { capture: true, passive: true });
 
-    window.addEventListener('pointercancel', function(e) {
-        if (window.nan0gram_isRecording) {
-            window.nan0gram_isRecording = false;
-            const btn = document.querySelector('.send-mic-btn');
-            if (btn) {
-                btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
-            }
-        }
-    }, { capture: true, passive: true });
+            if (diffY > 40) {
+                isLocked = true;
+                if (navigator.vibrate) navigator.vibrate(30);
 
-    window.addEventListener('touchcancel', function(e) {
+                const indEl = document.querySelector('.tg-record-lock-indicator');
+                if (indEl) {
+                    indEl.classList.add('locked');
+                    setTimeout(() => { indEl.style.display = 'none'; }, 600);
+                }
+
+                // Превращаем мик в самолетик (синий режим)
+                const btn = document.querySelector('.send-mic-btn');
+                if (btn) btn.classList.add('tg-send-mode');
+
+                // Показываем алую кнопку сброса слева от кнопки отправки
+                const cancelBtn = getOrCreateCancelBtn();
+                const btnRect = btn.getBoundingClientRect();
+                cancelBtn.style.left = (btnRect.left - 54) + 'px';
+                cancelBtn.style.top = (btnRect.top + (btnRect.height - 44) / 2) + 'px';
+                cancelBtn.style.display = 'flex';
+            }
+        }
+    };
+
+    window.addEventListener('pointermove', handleMove, { capture: true, passive: true });
+    window.addEventListener('touchmove', handleMove, { capture: true, passive: true });
+
+    // Глобальное отпускание пальца
+    const handleRelease = function(e) {
         if (window.nan0gram_isRecording) {
+            const ind = document.querySelector('.tg-record-lock-indicator');
+            if (ind && !isLocked) ind.style.display = 'none';
+
+            if (isLocked) {
+                return; // Если заблокировано — палец можно отпускать, запись идет
+            }
             window.nan0gram_isRecording = false;
             const btn = document.querySelector('.send-mic-btn');
             if (btn) {
-                btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+                btn.dispatchEvent(new PointerEvent('pointerup_original', { bubbles: true, cancelable: true }));
             }
         }
-    }, { capture: true, passive: true });
+    };
+
+    window.addEventListener('pointerup', handleRelease, { capture: true, passive: true });
+    window.addEventListener('touchend', handleRelease, { capture: true, passive: true });
+
+    const handleCancel = function(e) {
+        if (window.nan0gram_isRecording) {
+            window.nan0gram_isRecording = false;
+            const btn = document.querySelector('.send-mic-btn');
+            if (btn) btn.dispatchEvent(new PointerEvent('pointerup_original', { bubbles: true, cancelable: true }));
+        }
+    };
+
+    window.addEventListener('pointercancel', handleCancel, { capture: true, passive: true });
+    window.addEventListener('touchcancel', handleCancel, { capture: true, passive: true });
+
+    // Нажатие на Самолетик (когда запись заблокирована) или Алую кнопку Стоп
+    document.addEventListener('pointerdown', function(e) {
+        const btn = e.target.closest('.send-mic-btn');
+        if (btn && isLocked) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            isLocked = false;
+            window.nan0gram_isRecording = false;
+            btn.classList.remove('tg-send-mode');
+
+            const cancelBtn = document.querySelector('.tg-record-cancel-btn');
+            if (cancelBtn) cancelBtn.style.display = 'none';
+
+            // Инициируем стандартную отправку
+            btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+            return;
+        }
+
+        const cancelBtn = e.target.closest('.tg-record-cancel-btn');
+        if (cancelBtn) {
+            e.stopPropagation();
+            e.preventDefault();
+
+            window.nan0gram_cancelVoice = true; // Выставляем флаг блокировки
+
+            isLocked = false;
+            window.nan0gram_isRecording = false;
+            cancelBtn.style.display = 'none';
+
+            const micBtn = document.querySelector('.send-mic-btn');
+            if (micBtn) {
+                micBtn.classList.remove('tg-send-mode');
+                micBtn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+            }
+        }
+    }, { capture: true });
 
     // --- Audio Focus Hooks for Recording (Remark 2) ---
     if (W.navigator && W.navigator.mediaDevices && W.navigator.mediaDevices.getUserMedia) {
@@ -659,9 +790,13 @@
         player.appendChild(waveContainer);
 
         const durationDiv = document.createElement('div');
-        durationDiv.className = 'tg-voice-meta';
-        durationDiv.textContent = formatTime(audio.duration);
-        player.appendChild(durationDiv);
+            durationDiv.className = 'tg-voice-meta';
+
+            // Мгновенно отображаем исходную длительность (Замечание 2)
+            const defaultDuration = container.querySelector('.voice-duration');
+            const initialDurationText = defaultDuration ? defaultDuration.textContent.trim() : '0:00';
+            durationDiv.textContent = initialDurationText;
+            player.appendChild(durationDiv);
 
         container.appendChild(player);
 
