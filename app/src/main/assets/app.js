@@ -10854,10 +10854,10 @@ function tv({
         V = T.useRef([]),
         bl = T.useRef(0),
         rt = T.useRef(0),
-        Ut = T.useRef(0),
-        ae = T.useRef(!1),
-        Gt = T.useRef(0),
-        Ya = T.useCallback(D => {
+        Ut = T.useRef(0),                ae = T.useRef(!1),
+                Gt = T.useRef(0),
+                isRecReq = T.useRef(false),
+                Ya = T.useCallback(D => {
             const touch = D.touches[0];
             rt.current = touch.clientX;
             Ut.current = touch.clientY;
@@ -10959,6 +10959,7 @@ function tv({
             D.target.value = ""
         }, []),
         uc = T.useCallback(async () => {
+            isRecReq.current = true;
             try {
                 const D = await navigator.mediaDevices.getUserMedia({
                         audio: {
@@ -10969,8 +10970,12 @@ function tv({
                             noiseSuppression: true,
                             autoGainControl: true
                         }
-                    }),
-                    w = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm",
+                    });
+                if (!isRecReq.current) {
+                    D.getTracks().forEach(ue => ue.stop());
+                    return;
+                }
+                const w = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm",
                     sl = new MediaRecorder(D, {
                         mimeType: w,
                         audioBitsPerSecond: 128000
@@ -10996,6 +11001,7 @@ function tv({
             }
         }, [al, P, Gl]),
         Xa = T.useCallback(() => {
+            isRecReq.current = false;
             F.current && F.current.state !== "inactive" && (F.current.stop(), F.current = null), R(!1)
         }, []),
         dt = T.useCallback(() => {
@@ -11266,13 +11272,6 @@ function tv({
                     onClick: Gl,
                     children: "✕"
                 })]
-            }), tl && f.jsxs("div", {
-                className: "recording-bar",
-                children: [f.jsx("div", {
-                    className: "recording-dot"
-                }), f.jsx("span", {
-                    children: "Запись… отпустите для отправки"
-                })]
             }), f.jsxs("div", {
                 className: "input-area",
                 children: [f.jsx("button", {
@@ -11356,13 +11355,13 @@ function tv({
                         D.preventDefault(), Ba ? qa() : uc()
                     },
                     onPointerUp: () => {
-                        tl && Xa()
+                        Xa()
                     },
                     onPointerLeave: () => {
-                        tl && Xa()
+                        Xa()
                     },
                     onPointerCancel: () => {
-                        tl && Xa()
+                        Xa()
                     },
                     children: Ba ? f.jsx("svg", {
                         width: 18,
