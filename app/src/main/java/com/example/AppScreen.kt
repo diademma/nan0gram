@@ -424,9 +424,9 @@ private fun WebViewLayer(
                                     put("base64s", b64List)
                                 }
                             }
-                            val escaped = chatData.toString().replace("\\\\", "\\\\\\\\").replace("\"", "\\\\\"")
+                            val escaped = chatData.toString().replace("\\", "\\\\").replace("\"", "\\\"")
                             withContext(Dispatchers.Main) {
-                                val jsDispatch = "window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \\\"$escaped\\\" }));"
+                                val jsDispatch = "window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \"$escaped\" }));"
                                 messengerWebViewInstance?.evaluateJavascript(jsDispatch, null)
                             }
                         }
