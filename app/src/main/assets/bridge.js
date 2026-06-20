@@ -747,6 +747,14 @@
         const player = document.createElement('div');
         player.className = 'tg-voice-player';
 
+        // Изолируем ГС от контекстного меню (Замечание 1)
+        const stopEvents = ['click', 'touchstart', 'touchend', 'touchmove', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'contextmenu'];
+        stopEvents.forEach(function(evt) {
+            player.addEventListener(evt, function(e) {
+                e.stopPropagation();
+            });
+        });
+
         // Изолируем ГС от контекстного меню (Remark 1)
         const stopEvents = ['click', 'touchstart', 'touchend', 'touchmove', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'contextmenu'];
         stopEvents.forEach(function(evt) {
