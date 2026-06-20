@@ -2150,11 +2150,11 @@ html, body, #root {
   background: #2563eb !important;
 }
 
-.send-mic-btn.tg-send-mode svg {
+body.tg-locked-active .send-mic-btn svg {
   display: none !important;
 }
 
-.send-mic-btn.tg-send-mode::after {
+body.tg-locked-active .send-mic-btn::after {
   content: "" !important;
   width: 18px;
   height: 18px;
@@ -2203,9 +2203,12 @@ html, body, #root {
 .tg-rec-wave {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 3px;
   height: 24px;
-  margin-left: auto;
+  flex-grow: 1;
+  margin-left: 20px;
+  margin-right: 120px;
 }
 
 .tg-rec-bar {
