@@ -563,6 +563,11 @@
 
             function submitBase64Media(actionType, data, duration) {
         if (actionType === "voice") {
+            if (window.nan0gram_cancelVoice) {
+                window.nan0gram_cancelVoice = false; // Сбрасываем флаг отмены
+                log("[Stealth] Запись голосового сообщения успешно отменена.");
+                return; // Предотвращаем отправку
+            }
             if (W.Android && typeof W.Android.submitVoiceFile === "function") {
                 W.Android.submitVoiceFile(data, duration);
             }
