@@ -272,19 +272,18 @@ class MessengerJsInterface(
             val ukr = getUkrnetWebView()
             val mess = getMessengerWebView?.invoke()
             if (ukr != null) {
-                log("[Stealth] Сканируем координаты кнопки-скрепки...")
-                ukr.evaluateJavascript("""
-                    (function(){
-                        var el = document.querySelector("button.sm-header__attach") || document.querySelector("[class*='attach']");
-                        if (!el) return 'not_found';
-                        var r = el.getBoundingClientRect();
-                        if (r.width === 0 && r.height === 0) return 'not_found';
-                        return JSON.stringify({
-                            x: Math.round(r.left + r.width/2),
-                            y: Math.round(r.top + r.height/2)
-                        });
-                    })();
-                """.trimIndent()) { result ->
+                log("[Stealth] Сканируем координаты кнопки-скрепки...")                    ukr.evaluateJavascript("""
+                        (function(){
+                            var el = document.querySelector(".sm-header__attach:not(input)") || document.querySelector("[class*='attach']:not(input)");
+                            if (!el) return 'not_found';
+                            var r = el.getBoundingClientRect();
+                            if (r.width === 0 && r.height === 0) return 'not_found';
+                            return JSON.stringify({
+                                x: Math.round(r.left + r.width/2),
+                                y: Math.round(r.top + r.height/2)
+                            });
+                        })();
+                    """.trimIndent()) { result ->
                     if (result != null && result != "null" && result != "\"not_found\"") {
                         try {
                             val cleanJson = if (result.startsWith("\"") && result.endsWith("\"")) {
