@@ -505,4 +505,155 @@
             if (window.nan0gram) { window.nan0gram._composeOpen = false; window.nan0gram._openComposeIfNeeded(true); }
         }, 2000);
     });
+
+    // --- Custom Telegram-like Voice Player ---
+    function setupCustomVoicePlayer(container) {
+        if (container.querySelector('.tg-voice-player')) return;
+
+        const audio = container.querySelector('audio');
+        if (!audio) return;
+
+        audio.style.display = 'none';
+        const defaultWave = container.querySelector('.voice-wave');
+        if (defaultWave) defaultWave.style.display = 'none';
+        const defaultDuration = container.querySelector('.voice-duration');
+        if (defaultDuration) defaultDuration.style.display = 'none';
+
+        const player = document.createElement('div');
+        player.className = 'tg-voice-player';
+
+        const playBtn = document.createElement('button');
+        playBtn.className = 'tg-play-btn';
+        playBtn.innerHTML = `
+            <svg class="play-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <svg class="pause-svg" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        `;
+        player.appendChild(playBtn);
+
+        const waveContainer = document.createElement('div');
+        waveContainer.className = 'tg-waveform-container';
+
+        const barHeights = [10, 16, 8, 22, 12, 18, 6, 26, 14, 20, 10, 24, 16, 12, 22, 8, 18, 14, 28, 10, 22, 14, 18, 10, 14, 8, 16, 12, 24, 10];
+        const barCount = 28;
+
+        const bgWave = document.createElement('div');
+        bgWave.className = 'tg-waveform-bg';
+        const activeContainer = document.createElement('div');
+        activeContainer.className = 'tg-waveform-active-container';
+        const activeWave = document.createElement('div');
+        activeWave.className = 'tg-waveform-active';
+
+        for (let i = 0; i < barCount; i++) {
+            const h = barHeights[i % barHeights.length];
+            const bgBar = document.createElement('span');
+            bgBar.className = 'tg-wave-bar';
+            bgBar.style.height = h + 'px';
+            bgWave.appendChild(bgBar);
+
+            const activeBar = document.createElement('span');
+            activeBar.className = 'tg-wave-bar active';
+            activeBar.style.height = h + 'px';
+            activeWave.appendChild(activeBar);
+        }
+
+        activeContainer.appendChild(activeWave);
+        waveContainer.appendChild(bgWave);
+        waveContainer.appendChild(activeContainer);
+        player.appendChild(waveContainer);
+
+        const durationDiv = document.createElement('div');
+        durationDiv.className = 'tg-voice-meta';
+        durationDiv.textContent = formatTime(audio.duration);
+        player.appendChild(durationDiv);
+
+        container.appendChild(player);
+
+        function formatTime(secs) {
+            if (isNaN(secs) || secs === Infinity) return '0:00';
+            const m = Math.floor(secs / 60);
+            const s = Math.floor(secs % 60).toString().padStart(2, '0');
+            return m + ':' + s;
+        }
+
+        const playIcon = playBtn.querySelector('.play-svg');
+        const pauseIcon = playBtn.querySelector('.pause-svg');
+
+        function updatePlayState() {
+            if (audio.paused) {
+                playIcon.style.display = 'block';
+                pauseIcon.style.display = 'none';
+            } else {
+                playIcon.style.display = 'none';
+                pauseIcon.style.display = 'block';
+            }
+        }
+
+        playBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (audio.paused) {
+                document.querySelectorAll('audio').forEach(function(other) {
+                    if (other !== audio) {
+                        other.pause();
+                        const otherContainer = other.closest('.voice-msg');
+                        if (otherContainer) {
+                            const btn = otherContainer.querySelector('.tg-play-btn');
+                            if (btn) {
+                                btn.querySelector('.play-svg').style.display = 'block';
+                                btn.querySelector('.pause-svg').style.display = 'none';
+                            }
+                        }
+                    }
+                });
+                audio.play().then(updatePlayState).catch(function(){});
+            } else {
+                audio.pause();
+                updatePlayState();
+            }
+        });
+
+        audio.addEventListener('play', updatePlayState);
+        audio.addEventListener('pause', updatePlayState);
+
+        audio.addEventListener('timeupdate', function() {
+            const current = audio.currentTime;
+            const total = audio.duration || 0;
+            const pct = total > 0 ? (current / total) * 100 : 0;
+            activeContainer.style.width = pct + '%';
+            durationDiv.textContent = formatTime(current);
+        });
+
+        audio.addEventListener('loadedmetadata', function() {
+            durationDiv.textContent = formatTime(audio.duration);
+        });
+
+        waveContainer.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const rect = waveContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const pct = Math.max(0, Math.min(1, x / rect.width));
+            const total = audio.duration || 0;
+            if (total > 0) {
+                audio.currentTime = pct * total;
+                activeContainer.style.width = (pct * 100) + '%';
+                durationDiv.textContent = formatTime(audio.currentTime);
+            }
+        });
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                        const voiceMsgs = node.querySelectorAll ? node.querySelectorAll('.voice-msg') : [];
+                        if (node.classList && node.classList.contains('voice-msg')) {
+                            setupCustomVoicePlayer(node);
+                        }
+                        voiceMsgs.forEach(setupCustomVoicePlayer);
+                    }
+                });
+            });
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    });
 })(window);
