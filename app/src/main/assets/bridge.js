@@ -46,6 +46,12 @@
             if (type === 'pointerdown' || type === 'touchstart') {
                 const originalListener = listener;
                 listener = function(e) {
+                    // Блокируем любые фантомные нажатия во время кулдауна
+                    if (window.nan0gram_clickCooldown) {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        return;
+                    }
                     const touch = e.touches ? e.touches[0] : e;
                     startY = touch.clientY;
                     window.nan0gram_isRecording = true;
@@ -83,6 +89,17 @@
         }
         return originalAddEventListener.call(this, type, listener, options);
     };
+
+    // Перехватчики фазы Capture для абсолютной защиты от призрачных кликов (Ghost Clicks)
+    const blockGhostClicks = function(e) {
+        if (window.nan0gram_clickCooldown && e.target && typeof e.target.closest === 'function' && e.target.closest('.send-mic-btn')) {
+            e.stopPropagation();
+            e.preventDefault();
+        }
+    };
+    window.addEventListener('pointerdown', blockGhostClicks, { capture: true });
+    window.addEventListener('touchstart', blockGhostClicks, { capture: true });
+    window.addEventListener('mousedown', blockGhostClicks, { capture: true });
 
     // Глобальный жест ведения пальца вверх (замочек)
     const handleMove = function(e) {
@@ -133,6 +150,11 @@
                 return; // Если заблокировано — палец можно отпускать, запись идет
             }
             window.nan0gram_isRecording = false;
+
+            // Активируем кулдаун для полной защиты от фантомных кликов
+            window.nan0gram_clickCooldown = true;
+            setTimeout(function() { window.nan0gram_clickCooldown = false; }, 400);
+
             const btn = document.querySelector('.send-mic-btn');
             if (btn) {
                 btn.dispatchEvent(new PointerEvent('pointerup_original', { bubbles: true, cancelable: true }));
@@ -146,6 +168,11 @@
     const handleCancel = function(e) {
         if (window.nan0gram_isRecording) {
             window.nan0gram_isRecording = false;
+
+            // Активируем кулдаун
+            window.nan0gram_clickCooldown = true;
+            setTimeout(function() { window.nan0gram_clickCooldown = false; }, 400);
+
             const btn = document.querySelector('.send-mic-btn');
             if (btn) btn.dispatchEvent(new PointerEvent('pointerup_original', { bubbles: true, cancelable: true }));
         }
@@ -168,6 +195,10 @@
             const cancelBtn = document.querySelector('.tg-record-cancel-btn');
             if (cancelBtn) cancelBtn.style.display = 'none';
 
+            // Активируем кулдаун
+            window.nan0gram_clickCooldown = true;
+            setTimeout(function() { window.nan0gram_clickCooldown = false; }, 400);
+
             // Инициируем стандартную отправку
             btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
             return;
@@ -187,6 +218,11 @@
             const micBtn = document.querySelector('.send-mic-btn');
             if (micBtn) {
                 micBtn.classList.remove('tg-send-mode');
+
+                // Активируем кулдаун
+                window.nan0gram_clickCooldown = true;
+                setTimeout(function() { window.nan0gram_clickCooldown = false; }, 400);
+
                 micBtn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
             }
         }
