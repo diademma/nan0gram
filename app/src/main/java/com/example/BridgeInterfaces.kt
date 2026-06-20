@@ -275,7 +275,7 @@ class MessengerJsInterface(
                 log("[Stealth] Сканируем координаты кнопки-скрепки...")
                 ukr.evaluateJavascript("""
                     (function(){
-                        var el = document.querySelector("button.sm-header__attach") || document.querySelector("[class*='attach']");
+                        var el = document.querySelector(".sm-header__attach:not(input)") || document.querySelector("[class*='attach']:not(input)");
                         if (!el) return 'not_found';
                         var r = el.getBoundingClientRect();
                         if (r.width === 0 && r.height === 0) return 'not_found';
