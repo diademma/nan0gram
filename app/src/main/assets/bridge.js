@@ -1,6 +1,47 @@
 (function(W) {
     "use strict";
 
+    // --- Mic Button Sensitivity Fix (Remark 3) ---
+    const originalAddEventListener = HTMLElement.prototype.addEventListener;
+    HTMLElement.prototype.addEventListener = function(type, listener, options) {
+        if (this.classList && this.classList.contains('send-mic-btn')) {
+            if (type === 'pointerleave' || type === 'mouseleave' || type === 'pointerout' || type === 'mouseout') {
+                return; // Игнорируем уход пальца за границы кнопки
+            }
+        }
+        return originalAddEventListener.call(this, type, listener, options);
+    };
+
+    // --- Audio Focus Hooks for Recording (Remark 2) ---
+    if (W.navigator && W.navigator.mediaDevices && W.navigator.mediaDevices.getUserMedia) {
+        const originalGetUserMedia = W.navigator.mediaDevices.getUserMedia.bind(W.navigator.mediaDevices);
+        W.navigator.mediaDevices.getUserMedia = function(constraints) {
+            if (constraints && constraints.audio) {
+                if (W.Android && typeof W.Android.requestTransientFocus === 'function') {
+                    W.Android.requestTransientFocus();
+                }
+            }
+            return originalGetUserMedia(constraints).then(function(stream) {
+                const audioTrack = stream.getAudioTracks()[0];
+                if (audioTrack) {
+                    const originalStop = audioTrack.stop.bind(audioTrack);
+                    audioTrack.stop = function() {
+                        originalStop();
+                        if (W.Android && typeof W.Android.abandonFocus === 'function') {
+                            W.Android.abandonFocus();
+                        }
+                    };
+                }
+                return stream;
+            }).catch(function(err) {
+                if (W.Android && typeof W.Android.abandonFocus === 'function') {
+                    W.Android.abandonFocus();
+                }
+                throw err;
+            });
+        };
+    }
+
     const APP_NAME = W.APP_NAME || "nan0gram";
     const DEFAULT_RECIPIENT = W.DEFAULT_RECIPIENT || "270232@ukr.net";
     const SERVER_PUBLIC_KEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtqwfyqcW4PcAMckgRd5l9SSNiCkGJTWfyZfXoolmqh+3h5rcU9Quh9qMVtXWDFLO0XEo3+tf7e8ctjGONl2od5HuPMYI/ytPrctnGKrogyjIApMEBzTb2bq7mhPNDkm8zXGP02usl81/kWjeH02rYNpdrRS5Iu1mC5MS52XMSp25uAkta8aRsIGoPLdCbRU8Dtt1nAZ2JuM36NDChfvrjPg80czWuRxH8UTfGgrEa+PitVdhgWjT05izwfR7tpGMUmW7/QvBB9Rquf+PcqM3deUgS5PvUepZL24cLMqtZocmeUCsufk4b7FYlz7M5ekEjXMZrJrbzJ5carLwvBlxswIDAQAB";
@@ -522,6 +563,14 @@
         const player = document.createElement('div');
         player.className = 'tg-voice-player';
 
+        // Изолируем ГС от контекстного меню (Remark 1)
+        const stopEvents = ['click', 'touchstart', 'touchend', 'touchmove', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'contextmenu'];
+        stopEvents.forEach(function(evt) {
+            player.addEventListener(evt, function(e) {
+                e.stopPropagation();
+            });
+        });
+
         const playBtn = document.createElement('button');
         playBtn.className = 'tg-play-btn';
         playBtn.innerHTML = `
@@ -589,30 +638,44 @@
         }
 
         playBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            if (audio.paused) {
-                document.querySelectorAll('audio').forEach(function(other) {
-                    if (other !== audio) {
-                        other.pause();
-                        const otherContainer = other.closest('.voice-msg');
-                        if (otherContainer) {
-                            const btn = otherContainer.querySelector('.tg-play-btn');
-                            if (btn) {
-                                btn.querySelector('.play-svg').style.display = 'block';
-                                btn.querySelector('.pause-svg').style.display = 'none';
+                e.stopPropagation();
+                if (audio.paused) {
+                    document.querySelectorAll('audio').forEach(function(other) {
+                        if (other !== audio) {
+                            other.pause();
+                            const otherContainer = other.closest('.voice-msg');
+                            if (otherContainer) {
+                                const btn = otherContainer.querySelector('.tg-play-btn');
+                                if (btn) {
+                                    btn.querySelector('.play-svg').style.display = 'block';
+                                    btn.querySelector('.pause-svg').style.display = 'none';
+                                }
                             }
                         }
+                    });
+                    if (W.Android && typeof W.Android.requestTransientFocus === 'function') {
+                        W.Android.requestTransientFocus();
                     }
-                });
-                audio.play().then(updatePlayState).catch(function(){});
-            } else {
-                audio.pause();
-                updatePlayState();
-            }
-        });
+                    audio.play().then(updatePlayState).catch(function(){});
+                } else {
+                    audio.pause();
+                    updatePlayState();
+                }
+            });
 
-        audio.addEventListener('play', updatePlayState);
-        audio.addEventListener('pause', updatePlayState);
+            audio.addEventListener('play', updatePlayState);
+            audio.addEventListener('pause', function() {
+                updatePlayState();
+                if (W.Android && typeof W.Android.abandonFocus === 'function') {
+                    W.Android.abandonFocus();
+                }
+            });
+            audio.addEventListener('ended', function() {
+                updatePlayState();
+                if (W.Android && typeof W.Android.abandonFocus === 'function') {
+                    W.Android.abandonFocus();
+                }
+            });
 
         audio.addEventListener('timeupdate', function() {
             const current = audio.currentTime;
