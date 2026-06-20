@@ -1,10 +1,10 @@
 (function(W) {
-    "use strict";
-
-    // --- Mic Button Sensitivity, Gestures & Safety Recording Fix (Remark 3) ---
-// --- Mic Button Sensitivity, Gestures & Safety Recording Fix (Remark 3) ---
-    let startY = 0;
+    "use strict";    // --- Mic Button Timer-Based Lock (Bypasses UI Conflicts) ---
+    let isRecording = false;
     let isLocked = false;
+    let lockTimeout = null;
+    let recordingInterval = null;
+    let elapsedSeconds = 0;
 
     function getOrCreateCancelBtn() {
         let btn = document.querySelector('.tg-record-cancel-btn');
@@ -17,27 +17,50 @@
         return btn;
     }
 
-    function getOrCreateLockIndicator() {
-        let ind = document.querySelector('.tg-record-lock-indicator');
-        if (!ind) {
-            ind = document.createElement('div');
-            ind.className = 'tg-record-lock-indicator';
-            ind.innerHTML = `<div class="lock-arrow">▲</div><div class="lock-icon">🔒</div>`;
-            document.body.appendChild(ind);
-        }
-        return ind;
+    function formatTimer(sec) {
+        const m = Math.floor(sec / 60).toString().padStart(2, "0");
+        const s = (sec % 60).toString().padStart(2, "0");
+        return `${m}:${s}`;
     }
 
-    // --- БЕЗОПАСНЫЙ ПЕРЕХВАТ СОБЫТИЙ (БЕЗ ПОЛОМКИ REACT) ---
-    const blockLeaveEvents = function(e) {
-        if (e.target && typeof e.target.closest === 'function' && e.target.closest('.send-mic-btn')) {
-            e.stopPropagation();
+    function showRecordingUI() {
+        const inputBox = document.querySelector('.msg-input-box');
+        const inputArea = document.querySelector('.input-area');
+        if (!inputBox || !inputArea) return;
+
+        inputBox.style.display = 'none';
+        inputArea.querySelectorAll('.input-icon').forEach(el => el.style.display = 'none');
+
+        let bar = document.querySelector('.tg-recording-overlay-bar');
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.className = 'tg-recording-overlay-bar';
+            
+            let waveHTML = `<div class="tg-rec-wave">`;
+            for (let i = 0; i < 8; i++) {
+                waveHTML += `<span class="tg-rec-bar" style="animation-delay: ${0.1 * i}s"></span>`;
+            }
+            waveHTML += `</div>`;
+
+            bar.innerHTML = `
+                <div class="tg-rec-dot"></div>
+                <span class="tg-rec-label">REC</span>
+                <span class="tg-rec-timer">00:00</span>
+                ${waveHTML}
+            `;
+            inputArea.insertBefore(bar, inputArea.firstChild);
         }
-    };
-    window.addEventListener('pointerleave', blockLeaveEvents, { capture: true });
-    window.addEventListener('mouseleave', blockLeaveEvents, { capture: true });
-    window.addEventListener('pointerout', blockLeaveEvents, { capture: true });
-    window.addEventListener('mouseout', blockLeaveEvents, { capture: true });
+    }
+
+    function hideRecordingUI() {
+        const inputBox = document.querySelector('.msg-input-box');
+        const inputArea = document.querySelector('.input-area');
+        if (inputBox) inputBox.style.display = 'flex';
+        if (inputArea) inputArea.querySelectorAll('.input-icon').forEach(el => el.style.display = 'block');
+
+        const bar = document.querySelector('.tg-recording-overlay-bar');
+        if (bar) bar.remove();
+    }
 
     window.addEventListener('pointerdown', function(e) {
         if (window.nan0gram_clickCooldown && e.target && typeof e.target.closest === 'function' && e.target.closest('.send-mic-btn')) {
@@ -45,132 +68,92 @@
             e.preventDefault();
             return;
         }
+
         const btn = e.target && typeof e.target.closest === 'function' ? e.target.closest('.send-mic-btn') : null;
-        if (btn && !isLocked) {
-            const touch = e.touches ? e.touches[0] : e;
-            startY = touch ? touch.clientY : (e.clientY || 0);
-            window.nan0gram_isRecording = true;
+        if (btn) {
+            const input = document.querySelector('.msg-input');
+            const hasText = input && input.value.trim().length > 0;
+            if (hasText) return;
+
+            if (isLocked) {
+                isLocked = false;
+                isRecording = false;
+                btn.classList.remove('tg-send-mode');
+                
+                const cancelBtn = document.querySelector('.tg-record-cancel-btn');
+                if (cancelBtn) cancelBtn.style.display = 'none';
+
+                hideRecordingUI();
+                window.nan0gram_clickCooldown = true;
+                setTimeout(() => { window.nan0gram_clickCooldown = false; }, 400);
+
+                btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+                e.stopPropagation();
+                e.preventDefault();
+                return;
+            }
+
+            isRecording = true;
             isLocked = false;
+            elapsedSeconds = 0;
+            showRecordingUI();
 
-            const ind = getOrCreateLockIndicator();
-            const btnRect = btn.getBoundingClientRect();
-            ind.style.left = (btnRect.left + btnRect.width / 2) + 'px';
-            ind.style.bottom = (window.innerHeight - btnRect.top + 10) + 'px';
-            ind.style.display = 'flex';
-            ind.classList.remove('locked');
+            clearInterval(recordingInterval);
+            recordingInterval = setInterval(() => {
+                elapsedSeconds++;
+                const timerEl = document.querySelector('.tg-rec-timer');
+                if (timerEl) timerEl.textContent = formatTimer(elapsedSeconds);
+            }, 1000);
 
-            const cancelBtn = getOrCreateCancelBtn();
-            cancelBtn.style.display = 'none';
-        }
+            clearTimeout(lockTimeout);
+            lockTimeout = setTimeout(() => {
+                if (isRecording && !isLocked) {
+                    isLocked = true;
+                    if (navigator.vibrate) navigator.vibrate(50);
+
+                    btn.classList.add('tg-send-mode');
+                    const cancelBtn = getOrCreateCancelBtn();
+                    const btnRect = btn.getBoundingClientRect();
+                    cancelBtn.style.left = (btnRect.left - 54) + 'px';
+                    cancelBtn.style.top = (btnRect.top + (btnRect.height - 44) / 2) + 'px';
+                    cancelBtn.style.display = 'flex';
+                }
+            }, 10000);
+        } 
     }, { capture: true });
 
     window.addEventListener('pointerup', function(e) {
         const btn = e.target && typeof e.target.closest === 'function' ? e.target.closest('.send-mic-btn') : null;
         if (btn) {
+            const input = document.querySelector('.msg-input');
+            const hasText = input && input.value.trim().length > 0;
+            if (hasText) return;
+
             if (isLocked) {
-                e.stopPropagation(); 
-            } else {
-                window.nan0gram_isRecording = false;
-                const ind = document.querySelector('.tg-record-lock-indicator');
-                if (ind) ind.style.display = 'none';
-                const cancelBtn = document.querySelector('.tg-record-cancel-btn');
-                if (cancelBtn) cancelBtn.style.display = 'none';
+                e.stopPropagation();
+                e.preventDefault();
+                return;
+            }
+
+            if (isRecording) {
+                isRecording = false;
+                clearTimeout(lockTimeout);
+                clearInterval(recordingInterval);
+                hideRecordingUI();
             }
         }
     }, { capture: true });
 
-    const handleMove = function(e) {
-        if (window.nan0gram_isRecording && !isLocked) {
-            const touch = e.touches ? e.touches[0] : e;
-            const currentY = touch ? touch.clientY : (e.clientY || 0);
-            const diffY = startY - currentY;
-
-            const ind = document.querySelector('.tg-record-lock-indicator');
-            if (ind) {
-                const offset = Math.max(0, Math.min(40, diffY));
-                ind.style.transform = `translateY(-${offset}px)`;
-            }
-
-            if (diffY > 40) {
-                isLocked = true;
-                if (navigator.vibrate) navigator.vibrate(30);
-
-                const indEl = document.querySelector('.tg-record-lock-indicator');
-                if (indEl) {
-                    indEl.classList.add('locked');
-                    setTimeout(() => { indEl.style.display = 'none'; }, 600);
-                }
-
-                const btn = document.querySelector('.send-mic-btn');
-                if (btn) btn.classList.add('tg-send-mode');
-
-                const cancelBtn = getOrCreateCancelBtn();
-                const btnRect = btn.getBoundingClientRect();
-                cancelBtn.style.left = (btnRect.left - 54) + 'px';
-                cancelBtn.style.top = (btnRect.top + (btnRect.height - 44) / 2) + 'px';
-                cancelBtn.style.display = 'flex';
-            }
+    window.addEventListener('pointercancel', function(e) {
+        if (isRecording && !isLocked) {
+            isRecording = false;
+            clearTimeout(lockTimeout);
+            clearInterval(recordingInterval);
+            hideRecordingUI();
         }
-    };
-
-    window.addEventListener('pointermove', handleMove, { capture: true, passive: true });
-    window.addEventListener('touchmove', handleMove, { capture: true, passive: true });
-
-    const handleRelease = function(e) {
-        if (window.nan0gram_isRecording) {
-            const ind = document.querySelector('.tg-record-lock-indicator');
-            if (ind && !isLocked) ind.style.display = 'none';
-
-            if (isLocked) return;
-            
-            window.nan0gram_isRecording = false;
-            window.nan0gram_clickCooldown = true;
-            setTimeout(() => { window.nan0gram_clickCooldown = false; }, 400);
-
-            const btn = document.querySelector('.send-mic-btn');
-            if (btn && (!e.target || typeof e.target.closest !== 'function' || e.target.closest('.send-mic-btn') !== btn)) {
-                btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
-            }
-        }
-    };
-
-    window.addEventListener('pointerup', handleRelease, { capture: true, passive: true });
-    window.addEventListener('touchend', handleRelease, { capture: true, passive: true });
-
-    const handleCancel = function(e) {
-        if (window.nan0gram_isRecording) {
-            window.nan0gram_isRecording = false;
-            window.nan0gram_clickCooldown = true;
-            setTimeout(() => { window.nan0gram_clickCooldown = false; }, 400);
-
-            const btn = document.querySelector('.send-mic-btn');
-            if (btn) btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
-        }
-    };
-
-    window.addEventListener('pointercancel', handleCancel, { capture: true, passive: true });
-    window.addEventListener('touchcancel', handleCancel, { capture: true, passive: true });
+    }, { capture: true });
 
     document.addEventListener('pointerdown', function(e) {
-        const btn = e.target && typeof e.target.closest === 'function' ? e.target.closest('.send-mic-btn') : null;
-        if (btn && isLocked) {
-            e.stopPropagation();
-            e.preventDefault();
-
-            isLocked = false;
-            window.nan0gram_isRecording = false;
-            btn.classList.remove('tg-send-mode');
-
-            const cancelBtn = document.querySelector('.tg-record-cancel-btn');
-            if (cancelBtn) cancelBtn.style.display = 'none';
-
-            window.nan0gram_clickCooldown = true;
-            setTimeout(() => { window.nan0gram_clickCooldown = false; }, 400);
-
-            btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
-            return;
-        }
-
         const cancelBtn = e.target && typeof e.target.closest === 'function' ? e.target.closest('.tg-record-cancel-btn') : null;
         if (cancelBtn) {
             e.stopPropagation();
@@ -179,8 +162,12 @@
             window.nan0gram_cancelVoice = true;
 
             isLocked = false;
-            window.nan0gram_isRecording = false;
+            isRecording = false;
+            clearTimeout(lockTimeout);
+            clearInterval(recordingInterval);
+            
             cancelBtn.style.display = 'none';
+            hideRecordingUI();
 
             const micBtn = document.querySelector('.send-mic-btn');
             if (micBtn) {
