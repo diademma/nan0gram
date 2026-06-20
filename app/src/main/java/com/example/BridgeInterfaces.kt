@@ -524,45 +524,46 @@ class MessengerJsInterface(
     @JavascriptInterface
     fun postMessage(type: String, key: String, value: String) {}
 
-    private var focusRequest: Any? = null
+    private val focusChangeListener = android.media.AudioManager.OnAudioFocusChangeListener { }
+            private var focusRequest: Any? = null
 
-    @android.webkit.JavascriptInterface
-    fun requestTransientFocus() {
-        ui.post {
-            val context = getUkrnetWebView()?.context ?: return@post
-            val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                val attrib = android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build()
-                val request = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
-                    .setAudioAttributes(attrib)
-                    .setOnAudioFocusChangeListener { }
-                    .build()
-                focusRequest = request
-                am.requestAudioFocus(request)
-            } else {
-                @Suppress("DEPRECATION")
-                am.requestAudioFocus({}, android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
-            }
-        }
-    }
-
-    @android.webkit.JavascriptInterface
-    fun abandonFocus() {
-        ui.post {
-            val context = getUkrnetWebView()?.context ?: return@post
-            val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                val request = focusRequest as? android.media.AudioFocusRequest
-                if (request != null) {
-                    am.abandonAudioFocusRequest(request)
+            @android.webkit.JavascriptInterface
+            fun requestTransientFocus() {
+                ui.post {
+                    val context = getUkrnetWebView()?.context ?: return@post
+                    val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        val attrib = android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build()
+                        val request = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                            .setAudioAttributes(attrib)
+                            .setOnAudioFocusChangeListener { }
+                            .build()
+                        focusRequest = request
+                        am.requestAudioFocus(request)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        am.requestAudioFocus(focusChangeListener, android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
+                    }
                 }
-            } else {
-                @Suppress("DEPRECATION")
-                am.abandonAudioFocus({}, android.media.AudioManager.STREAM_MUSIC)
             }
-        }
-    }
+
+            @android.webkit.JavascriptInterface
+            fun abandonFocus() {
+                ui.post {
+                    val context = getUkrnetWebView()?.context ?: return@post
+                    val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        val request = focusRequest as? android.media.AudioFocusRequest
+                        if (request != null) {
+                            am.abandonAudioFocusRequest(request)
+                        }
+                    } else {
+                        @Suppress("DEPRECATION")
+                        am.abandonAudioFocus(focusChangeListener)
+                    }
+                }
+            }
 }
