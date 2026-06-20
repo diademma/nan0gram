@@ -601,15 +601,15 @@
                     return "4f0Q67gPe86N";
                 },
                 openCompose: (chatId, recipient) => {
-                    if (chatId) this.state.chatId = String(chatId);
-                    if (recipient) this.state.recipient = String(recipient);
-                    return this._openComposeIfNeeded(true);
+                    if (chatId) NanoBridge.state.chatId = String(chatId);
+                    if (recipient) NanoBridge.state.recipient = String(recipient);
+                    return NanoBridge._openComposeIfNeeded(true);
                 },
-                setComposeBody: (plainText) => this._pushBody(String(plainText || "")),
-                submitCompose: (plainText) => this._submitCompose(String(plainText || "")),
-                cancelCompose: () => this._cancelCompose(),
-                rebuild: () => this._pushBody(this._lastText),
-                state: () => ({ ...this.state })
+                setComposeBody: (plainText) => NanoBridge._pushBody(String(plainText || "")),
+                submitCompose: (plainText) => NanoBridge._submitCompose(String(plainText || "")),
+                cancelCompose: () => NanoBridge._cancelCompose(),
+                rebuild: () => NanoBridge._pushBody(NanoBridge._lastText),
+                state: () => ({ ...NanoBridge.state })
             };
         }
     };
@@ -894,18 +894,9 @@
 
     document.addEventListener("DOMContentLoaded", function() {
         const observer = new MutationObserver(function(mutations) {
-            mutations.forEach(function(mutation) {
-                mutation.addedNodes.forEach(function(node) {
-                    if (node.nodeType === Node.ELEMENT_NODE) {
-                        const voiceMsgs = node.querySelectorAll ? node.querySelectorAll('.voice-msg') : [];
-                        if (node.classList && node.classList.contains('voice-msg')) {
-                            setupCustomVoicePlayer(node);
-                        }
-                        voiceMsgs.forEach(setupCustomVoicePlayer);
-                    }
-                });
-            });
+            document.querySelectorAll('.voice-msg').forEach(setupCustomVoicePlayer);
         });
         observer.observe(document.body, { childList: true, subtree: true });
+        document.querySelectorAll('.voice-msg').forEach(setupCustomVoicePlayer);
     });
 })(window);
