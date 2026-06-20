@@ -1952,3 +1952,16 @@ html, body, #root {
   max-width: 100% !important;
   width: auto !important;
 }
+
+/* --- Visual Album Grouping for Consecutive Video Bubbles --- */
+.msg-row:has(.video-thumb-wrapper) + .msg-row:has(.video-thumb-wrapper) {
+  margin-top: -12px !important;
+}
+.msg-row.out:has(.video-thumb-wrapper) + .msg-row.out:has(.video-thumb-wrapper) .message {
+  border-top-right-radius: 4px !important;
+  border-bottom-right-radius: 4px !important;
+}
+.msg-row.in:has(.video-thumb-wrapper) + .msg-row.in:has(.video-thumb-wrapper) .message {
+  border-top-left-radius: 4px !important;
+  border-bottom-left-radius: 4px !important;
+}
