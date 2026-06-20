@@ -504,13 +504,19 @@ private fun WebViewLayer(
                             val chatData = JSONObject().apply {
                                 put("time", timeStr)
                                 if (isVideo) {
-                                    val b64 = uriToBase64(context, firstUri)
-                                    if (b64.isNotEmpty()) {
-                                        put("base64", b64)
-                                        put("isVideo", true)
-                                        val thumbB64 = getVideoThumbnailBase64(context, firstUri)
-                                        if (thumbB64.isNotEmpty()) put("videoThumbnail", "data:image/jpeg;base64,$thumbB64")
+                                    put("isVideo", true)
+                                    val b64List = org.json.JSONArray()
+                                    val thumbList = org.json.JSONArray()
+                                    for (vidUri in validUris) {
+                                        val b64 = uriToBase64(context, vidUri)
+                                        if (b64.isNotEmpty()) {
+                                            b64List.put(b64)
+                                            val thumbB64 = getVideoThumbnailBase64(context, vidUri)
+                                            if (thumbB64.isNotEmpty()) thumbList.put("data:image/jpeg;base64,$thumbB64")
+                                        }
                                     }
+                                    put("base64s", b64List)
+                                    put("thumbnails", thumbList)
                                 } else {
                                     val b64List = org.json.JSONArray()
                                     for (imgUri in validUris) {
@@ -520,9 +526,10 @@ private fun WebViewLayer(
                                     put("base64s", b64List)
                                 }
                             }
-                            val escaped = chatData.toString().replace("\\\\", "\\\\\\\\").replace("\"", "\\\\\"")
+                            val escaped = chatData.toString().replace("\\", "\\\\").replace("\"", "\\\"")
                             withContext(Dispatchers.Main) {
-                                messengerWebViewInstance?.evaluateJavascript("window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \\\"$escaped\\\" }));", null)
+                                val jsDispatch = "window.dispatchEvent(new CustomEvent('nan0gram:local-media-sent', { detail: \"$escaped\" }));"
+                                messengerWebViewInstance?.evaluateJavascript(jsDispatch, null)
                             }
                         }
                     } else {
