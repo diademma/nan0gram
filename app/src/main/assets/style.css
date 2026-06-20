@@ -1965,3 +1965,109 @@ html, body, #root {
   border-top-left-radius: 4px !important;
   border-bottom-left-radius: 4px !important;
 }
+
+/* --- Custom Telegram-like Voice Player Styles --- */
+.message:has(.tg-voice-player) {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+.tg-voice-player {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 12px;
+  background: rgba(46, 29, 60, 0.72) !important;
+  border: 1px solid rgba(167, 115, 209, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 8px 14px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+  user-select: none;
+  -webkit-user-select: none;
+  min-width: 240px;
+}
+
+.tg-play-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #a773d1;
+  color: #fff;
+  border: none;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s, background-color 0.15s;
+}
+
+.tg-play-btn:active {
+  transform: scale(0.92);
+  background: #8b5fb1;
+}
+
+.tg-play-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tg-waveform-container {
+  position: relative;
+  width: 130px;
+  height: 28px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tg-waveform-bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 2.2px;
+  opacity: 0.35;
+}
+
+.tg-waveform-active-container {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+  width: 0%;
+  display: flex;
+  align-items: center;
+}
+
+.tg-waveform-active {
+  display: flex;
+  align-items: center;
+  gap: 2.2px;
+  width: 130px;
+}
+
+.tg-wave-bar {
+  width: 2.5px;
+  background: #ffffff;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.tg-wave-bar.active {
+  background: #a773d1;
+}
+
+.tg-voice-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #a773d1;
+  font-weight: bold;
+  min-width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
