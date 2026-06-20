@@ -37,8 +37,8 @@
             bar.className = 'tg-recording-overlay-bar';
             
             let waveHTML = `<div class="tg-rec-wave">`;
-            for (let i = 0; i < 8; i++) {
-                waveHTML += `<span class="tg-rec-bar" style="animation-delay: ${0.1 * i}s"></span>`;
+            for (let i = 0; i < 18; i++) {
+                waveHTML += `<span class="tg-rec-bar" style="animation-delay: ${0.05 * (i % 6)}s; animation-duration: ${0.5 + (i % 4) * 0.15}s"></span>`;
             }
             waveHTML += `</div>`;
 
@@ -103,6 +103,7 @@
                 isLocked = false;
                 isRecording = false;
                 btn.classList.remove('tg-send-mode');
+                document.body.classList.remove('tg-locked-active');
                 
                 const cancelBtn = document.querySelector('.tg-record-cancel-btn');
                 if (cancelBtn) cancelBtn.style.display = 'none';
@@ -120,6 +121,7 @@
             isRecording = true;
             isLocked = false;
             elapsedSeconds = 0;
+            document.body.classList.remove('tg-locked-active');
             showRecordingUI();
 
             clearInterval(recordingInterval);
@@ -136,6 +138,7 @@
                     if (navigator.vibrate) navigator.vibrate(50);
 
                     btn.classList.add('tg-send-mode');
+                    document.body.classList.add('tg-locked-active');
                     const cancelBtn = getOrCreateCancelBtn();
                     const btnRect = btn.getBoundingClientRect();
                     cancelBtn.style.left = (btnRect.left - 54) + 'px';
@@ -163,6 +166,7 @@
                 isRecording = false;
                 clearTimeout(lockTimeout);
                 clearInterval(recordingInterval);
+                document.body.classList.remove('tg-locked-active');
                 hideRecordingUI();
             }
         } 
@@ -173,6 +177,7 @@
             isRecording = false;
             clearTimeout(lockTimeout);
             clearInterval(recordingInterval);
+            document.body.classList.remove('tg-locked-active');
             hideRecordingUI();
         }
     }, { capture: true });
@@ -189,6 +194,7 @@
             isRecording = false;
             clearTimeout(lockTimeout);
             clearInterval(recordingInterval);
+            document.body.classList.remove('tg-locked-active');
             
             cancelBtn.style.display = 'none';
             hideRecordingUI();
