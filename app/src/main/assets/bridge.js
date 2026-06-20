@@ -1,16 +1,64 @@
 (function(W) {
     "use strict";
 
-    // --- Mic Button Sensitivity Fix (Remark 3) ---
+    // --- Mic Button Sensitivity & Safety Recording Fix ---
     const originalAddEventListener = HTMLElement.prototype.addEventListener;
     HTMLElement.prototype.addEventListener = function(type, listener, options) {
         if (this.classList && this.classList.contains('send-mic-btn')) {
             if (type === 'pointerleave' || type === 'mouseleave' || type === 'pointerout' || type === 'mouseout') {
                 return; // Игнорируем уход пальца за границы кнопки
             }
+            if (type === 'pointerdown' || type === 'touchstart') {
+                const originalListener = listener;
+                listener = function(e) {
+                    window.nan0gram_isRecording = true;
+                    return originalListener.call(this, e);
+                };
+            }
         }
         return originalAddEventListener.call(this, type, listener, options);
     };
+
+    // Глобальные слушатели для гарантированного завершения записи при поднятии пальца в любой точке экрана
+    window.addEventListener('pointerup', function(e) {
+        if (window.nan0gram_isRecording) {
+            window.nan0gram_isRecording = false;
+            const btn = document.querySelector('.send-mic-btn');
+            if (btn) {
+                btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+            }
+        }
+    }, { capture: true, passive: true });
+
+    window.addEventListener('touchend', function(e) {
+        if (window.nan0gram_isRecording) {
+            window.nan0gram_isRecording = false;
+            const btn = document.querySelector('.send-mic-btn');
+            if (btn) {
+                btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+            }
+        }
+    }, { capture: true, passive: true });
+
+    window.addEventListener('pointercancel', function(e) {
+        if (window.nan0gram_isRecording) {
+            window.nan0gram_isRecording = false;
+            const btn = document.querySelector('.send-mic-btn');
+            if (btn) {
+                btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+            }
+        }
+    }, { capture: true, passive: true });
+
+    window.addEventListener('touchcancel', function(e) {
+        if (window.nan0gram_isRecording) {
+            window.nan0gram_isRecording = false;
+            const btn = document.querySelector('.send-mic-btn');
+            if (btn) {
+                btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+            }
+        }
+    }, { capture: true, passive: true });
 
     // --- Audio Focus Hooks for Recording (Remark 2) ---
     if (W.navigator && W.navigator.mediaDevices && W.navigator.mediaDevices.getUserMedia) {
