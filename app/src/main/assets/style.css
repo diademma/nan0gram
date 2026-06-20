@@ -1978,8 +1978,6 @@ html, body, #root {
   display: inline-flex !important;
   align-items: center;
   gap: 12px;
-  background: rgba(46, 29, 60, 0.72) !important;
-  border: 1px solid rgba(167, 115, 209, 0.2);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-radius: 20px;
@@ -1988,13 +1986,23 @@ html, body, #root {
   user-select: none;
   -webkit-user-select: none;
   min-width: 240px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Автоматически наследуем цвета баблов из настроек (Замечание 2) */
+.msg-row.out .tg-voice-player {
+  background: var(--msg-out) !important;
+}
+
+.msg-row.in .tg-voice-player {
+  background: var(--msg-in) !important;
 }
 
 .tg-play-btn {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: #a773d1;
+  background: rgba(255, 255, 255, 0.22) !important;
   color: #fff;
   border: none;
   outline: none;
@@ -2008,7 +2016,7 @@ html, body, #root {
 
 .tg-play-btn:active {
   transform: scale(0.92);
-  background: #8b5fb1;
+  background: rgba(255, 255, 255, 0.38) !important;
 }
 
 .tg-play-btn svg {
@@ -2053,21 +2061,91 @@ html, body, #root {
 
 .tg-wave-bar {
   width: 2.5px;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.28);
   border-radius: 2px;
   display: inline-block;
 }
 
 .tg-wave-bar.active {
-  background: #a773d1;
+  background: #ffffff !important;
 }
 
 .tg-voice-meta {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
-  color: #a773d1;
+  color: rgba(255, 255, 255, 0.88) !important;
   font-weight: bold;
   min-width: 32px;
   text-align: right;
   flex-shrink: 0;
+}
+
+/* --- Scarlet Stop Button (Сброс записи) --- */
+.tg-record-cancel-btn {
+  position: fixed;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #ef5350 !important; /* Алый роскошный цвет */
+  color: #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(239, 83, 80, 0.35);
+  z-index: 9999;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.tg-record-cancel-btn:active {
+  transform: scale(0.9);
+  background: #d32f2f !important;
+}
+
+.tg-record-cancel-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* --- Slide to Lock Indicator (Замочек) --- */
+.tg-record-lock-indicator {
+  position: fixed;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: 9999;
+  pointer-events: none;
+  transform: translateY(0);
+  transition: transform 0.1s ease-out, opacity 0.3s;
+}
+
+.tg-record-lock-indicator .lock-arrow {
+  font-size: 13px;
+  color: #a773d1;
+  animation: bounceArrow 1.2s infinite;
+}
+
+.tg-record-lock-indicator .lock-icon {
+  font-size: 18px;
+}
+
+.tg-record-lock-indicator.locked .lock-icon {
+  animation: lockPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes bounceArrow {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(-6px); opacity: 1; }
+}
+
+@keyframes lockPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+
+/* --- Изменение цвета кнопки микрофона на синий Самолётик в режиме фиксации --- */
+.send-mic-btn.tg-send-mode {
+  background: #2563eb !important;
 }
