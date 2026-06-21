@@ -10085,6 +10085,112 @@ function k0({
         });
     }
 
+    if(o === "storage") {
+        return f.jsxs("div", {
+            className: "settings-panel",
+            children: [
+                f.jsxs("div", {
+                    className: "settings-header",
+                    children: [
+                        f.jsx("button", {
+                            className: "theme-back-btn",
+                            onClick: () => _("main"),
+                            children: "←"
+                        }),
+                        f.jsx("span", {
+                            style: {
+                                fontWeight: 600,
+                                fontSize: 16
+                            },
+                            children: "Память и данные"
+                        }),
+                        f.jsx("div", {
+                            style: {
+                                width: 72
+                            }
+                        })
+                    ]
+                }),
+                f.jsxs("div", {
+                    className: "theme-panel-body",
+                    children: [
+                        f.jsxs("div", {
+                            className: "theme-section",
+                            children: [
+                                f.jsx("div", {
+                                    className: "theme-section-title",
+                                    children: "Управление кэшем"
+                                }),
+                                f.jsxs("button", {
+                                    className: "settings-item",
+                                    onClick: () => {
+                                        if (confirm("Вы действительно хотите удалить все загруженные картинки и видео из кэша устройства?")) {
+                                            if (window.Android && window.Android.clearMediaCache) {
+                                                window.Android.clearMediaCache();
+                                            } else {
+                                                alert("Кэш медиа очищен (демо).");
+                                            }
+                                        }
+                                    },
+                                    children: [
+                                        f.jsx("div", {
+                                            className: "settings-icon",
+                                            children: "🗑️"
+                                        }),
+                                        f.jsxs("div", {
+                                            className: "settings-item-content",
+                                            children: [
+                                                f.jsx("div", {
+                                                    className: "settings-item-title",
+                                                    children: "Очистить кэш медиа"
+                                                }),
+                                                f.jsx("div", {
+                                                    className: "settings-item-desc",
+                                                    children: "Удалит все загруженные изображения, видео и голосовые сообщения."
+                                                })
+                                            ]
+                                        })
+                                    ]
+                                }),
+                                f.jsxs("button", {
+                                    className: "settings-item",
+                                    onClick: () => {
+                                        if (confirm("ВНИМАНИЕ: Это действие безвозвратно удалит историю всех переписок, оставив только последние 100 сообщений в каждом чате! Продолжить?")) {
+                                            if (window.Android && window.Android.clearAllHistoryLog) {
+                                                window.Android.clearAllHistoryLog();
+                                            } else {
+                                                alert("История переписок очищена (демо).");
+                                            }
+                                        }
+                                    },
+                                    children: [
+                                        f.jsx("div", {
+                                            className: "settings-icon",
+                                            children: "💬"
+                                        }),
+                                        f.jsxs("div", {
+                                            className: "settings-item-content",
+                                            children: [
+                                                f.jsx("div", {
+                                                    className: "settings-item-title",
+                                                    children: "Очистить кэш переписок"
+                                                }),
+                                                f.jsx("div", {
+                                                    className: "settings-item-desc",
+                                                    children: "Удалит старую историю сообщений, сохранив до 100 СМС в каждом чате."
+                                                })
+                                            ]
+                                        })
+                                    ]
+                                })
+                            ]
+                        })
+                    ]
+                })
+            ]
+        });
+    }
+
     return f.jsxs("div", {
         className: "settings-panel",
         children: [
@@ -10217,112 +10323,6 @@ function k0({
                             f.jsx("div", {
                                 className: "settings-arrow",
                                 children: "›"
-                            })
-                        ]
-                    })
-                ]
-            })
-        ]
-    });
-}
-
-if(o === "storage") {
-    return f.jsxs("div", {
-        className: "settings-panel",
-        children: [
-            f.jsxs("div", {
-                className: "settings-header",
-                children: [
-                    f.jsx("button", {
-                        className: "theme-back-btn",
-                        onClick: () => _("main"),
-                        children: "←"
-                    }),
-                    f.jsx("span", {
-                        style: {
-                            fontWeight: 600,
-                            fontSize: 16
-                        },
-                        children: "Память и данные"
-                    }),
-                    f.jsx("div", {
-                        style: {
-                            width: 72
-                        }
-                    })
-                ]
-            }),
-            f.jsxs("div", {
-                className: "theme-panel-body",
-                children: [
-                    f.jsxs("div", {
-                        className: "theme-section",
-                        children: [
-                            f.jsx("div", {
-                                className: "theme-section-title",
-                                children: "Управление кэшем"
-                            }),
-                            f.jsxs("button", {
-                                className: "settings-item",
-                                onClick: () => {
-                                    if (confirm("Вы действительно хотите удалить все загруженные картинки и видео из кэша устройства?")) {
-                                        if (window.Android && window.Android.clearMediaCache) {
-                                            window.Android.clearMediaCache();
-                                        } else {
-                                            alert("Кэш медиа очищен (демо).");
-                                        }
-                                    }
-                                },
-                                children: [
-                                    f.jsx("div", {
-                                        className: "settings-icon",
-                                        children: "🗑️"
-                                    }),
-                                    f.jsxs("div", {
-                                        className: "settings-item-content",
-                                        children: [
-                                            f.jsx("div", {
-                                                className: "settings-item-title",
-                                                children: "Очистить кэш медиа"
-                                            }),
-                                            f.jsx("div", {
-                                                className: "settings-item-desc",
-                                                children: "Удалит все загруженные изображения, видео и голосовые сообщения."
-                                            })
-                                        ]
-                                    })
-                                ]
-                            }),
-                            f.jsxs("button", {
-                                className: "settings-item",
-                                onClick: () => {
-                                    if (confirm("ВНИМАНИЕ: Это действие безвозвратно удалит историю всех переписок, оставив только последние 100 сообщений в каждом чате! Продолжить?")) {
-                                        if (window.Android && window.Android.clearAllHistoryLog) {
-                                            window.Android.clearAllHistoryLog();
-                                        } else {
-                                            alert("История переписок очищена (демо).");
-                                        }
-                                    }
-                                },
-                                children: [
-                                    f.jsx("div", {
-                                        className: "settings-icon",
-                                        children: "💬"
-                                    }),
-                                    f.jsxs("div", {
-                                        className: "settings-item-content",
-                                        children: [
-                                            f.jsx("div", {
-                                                className: "settings-item-title",
-                                                children: "Очистить кэш переписок"
-                                            }),
-                                            f.jsx("div", {
-                                                className: "settings-item-desc",
-                                                children: "Удалит старую историю сообщений, сохранив до 100 СМС в каждом чате."
-                                            })
-                                        ]
-                                    })
-                                ]
                             })
                         ]
                     })
