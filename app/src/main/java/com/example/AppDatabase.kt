@@ -90,6 +90,14 @@ interface ChatDao {
     // Запрос для очистки медиа (извлекает все сохраненные пути)
     @Query("SELECT mediaPaths FROM messages WHERE mediaPaths != '' AND mediaPaths != '[]'")
     suspend fun getAllMediaPaths(): List<String>
+
+    // Удаление конкретного сообщения
+    @Query("DELETE FROM messages WHERE chatId = :chatId AND msgId = :msgId")
+    suspend fun deleteMessage(chatId: String, msgId: String)
+
+    // Обновление реакции
+    @Query("UPDATE messages SET reaction = :reaction WHERE chatId = :chatId AND msgId = :msgId")
+    suspend fun updateReaction(chatId: String, msgId: String, reaction: String)
 }
 
 // ============================================================================
@@ -187,6 +195,26 @@ class NanogramRepository(
             log("[DB] ВНИМАНИЕ: История всех переписок очищена пользователем!")
         } catch (e: Exception) {
             log("[DB Error] Ошибка полной очистки переписок: ${e.message}")
+        }
+    }
+
+    // Удаление конкретного сообщения
+    suspend fun deleteMessage(chatId: String, msgId: String) = withContext(Dispatchers.IO) {
+        try {
+            dao.deleteMessage(chatId, msgId)
+            log("[DB] Удалено сообщение [ID: $msgId] из чата $chatId")
+        } catch (e: Exception) {
+            log("[DB Error] Ошибка удаления сообщения: ${e.message}")
+        }
+    }
+
+    // Обновление реакции сообщения
+    suspend fun updateReaction(chatId: String, msgId: String, reaction: String) = withContext(Dispatchers.IO) {
+        try {
+            dao.updateReaction(chatId, msgId, reaction)
+            log("[DB] Обновлена реакция ($reaction) для сообщения $msgId в чате $chatId")
+        } catch (e: Exception) {
+            log("[DB Error] Ошибка обновления реакции: ${e.message}")
         }
     }
 }
