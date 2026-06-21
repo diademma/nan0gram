@@ -251,11 +251,13 @@ fun AppScreen(
     ukrnetInterface: UkrnetJsInterface,
     messengerInterface: MessengerJsInterface,
     coroutineScope: CoroutineScope,
+    repository: NanogramRepository,
+    mediaManager: MediaManager,
     log: (String) -> Unit
 ) {
     Scaffold(containerColor = Color(0xFF130E19), modifier = Modifier.fillMaxSize()) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding).background(Color(0xFF130E19))) {
-            WebViewLayer(isBgServiceActive, uiAlpha, ukrnetInterface, messengerInterface, onUkrnetViewReady, onMessengerViewReady, log)
+            WebViewLayer(isBgServiceActive, uiAlpha, ukrnetInterface, messengerInterface, mediaManager, onUkrnetViewReady, onMessengerViewReady, log)
             LogPanel(isLogPanelExpanded, onLogPanelToggle, logList, logListState, onLogClear, isBgServiceActive, uiAlpha, onUiAlphaChange, isParserEnabled, onParserToggle, coords, onUkrnetReload, onMessengerReload, coroutineScope, log)
         }
     }
@@ -268,6 +270,7 @@ private fun WebViewLayer(
     uiAlpha: Float,
     ukrnetInterface: UkrnetJsInterface,
     messengerInterface: MessengerJsInterface,
+    mediaManager: MediaManager,
     onUkrnetViewReady: (WebView) -> Unit,
     onMessengerViewReady: (WebView) -> Unit,
     log: (String) -> Unit
@@ -732,7 +735,21 @@ private fun WebViewLayer(
                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
                     settings.apply { javaScriptEnabled = true; domStorageEnabled = true; databaseEnabled = true; allowFileAccess = true; allowContentAccess = true; mediaPlaybackRequiresUserGesture = false }
                     addJavascriptInterface(messengerInterface, "Android")
+                    
+                    val assetLoader = androidx.webkit.WebViewAssetLoader.Builder()
+                        .setDomain("appassets.androidlocal")
+                        .addPathHandler("/media/", androidx.webkit.WebViewAssetLoader.InternalStoragePathHandler(ctx, mediaManager.getMediaDir()))
+                        .addPathHandler("/assets/", androidx.webkit.WebViewAssetLoader.AssetsPathHandler(ctx))
+                        .build()
+
                     webViewClient = object : WebViewClient() {
+                        override fun shouldInterceptRequest(view: WebView?, request: android.webkit.WebResourceRequest?): android.webkit.WebResourceResponse? {
+                            request?.url?.let { url ->
+                                assetLoader.shouldInterceptRequest(url)?.let { return it }
+                            }
+                            return super.shouldInterceptRequest(view, request)
+                        }
+
                         override fun onPageFinished(view: WebView?, url: String?) {
                             super.onPageFinished(view, url)
                             view?.evaluateJavascript("""
@@ -813,7 +830,7 @@ private fun WebViewLayer(
                             return true
                         }
                     }
-                    loadUrl("file:///android_asset/index.html")
+                    loadUrl("https://appassets.androidlocal/assets/index.html")
                 }
                 onMessengerViewReady(mWebView)
                 messengerWebViewInstance = mWebView
