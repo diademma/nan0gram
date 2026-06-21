@@ -571,13 +571,17 @@
 
             function submitStealthFile(actionType) {
                 window._n0gStealthPending = false;
+                let actionCode = 3;
+                if (actionType === 'video') actionCode = 4;
+                else if (actionType === 'file') actionCode = 5;
+
                 const meta = {
                     app: APP_NAME,
                     deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
                     senderName: localStorage.getItem("nan0gram_username") || "Я",
                     to: NanoBridge.state.recipient,
                     chatId: NanoBridge.state.chatId,
-                    action: actionType === 'video' ? 4 : 3,
+                    action: actionCode,
                     subjectX: NanoBridge.state.subjectX,
                     ts: Date.now()
                 };
@@ -678,7 +682,13 @@
                     time: data.time
                 };
                 
-                if (data.isVideo && data.base64s && data.base64s.length > 0) {
+                if (data.isFile) {
+                    msgObj.file = {
+                        name: data.fileName,
+                        size: data.fileSize
+                    };
+                    updated[cid].push(msgObj);
+                } else if (data.isVideo && data.base64s && data.base64s.length > 0) {
                     data.base64s.forEach((b64, idx) => {
                         const vidObj = { ...msgObj, id: Date.now() + Math.random(), video: b64 };
                         if (data.thumbnails && data.thumbnails[idx]) vidObj.videoThumbnail = data.thumbnails[idx];
