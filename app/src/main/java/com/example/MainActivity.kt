@@ -129,6 +129,10 @@ class MainActivity : ComponentActivity() {
                 ) ?: "unknown_device"
             }
 
+            val database = remember { AppDatabase.getDatabase(context) }
+            val repository = remember { NanogramRepository(database, ::log) }
+            val mediaManager = remember { MediaManager(context, ::log) }
+
             val messengerInterface = remember {
                 MessengerJsInterface(
                     log               = ::log,
@@ -168,6 +172,8 @@ class MainActivity : ComponentActivity() {
                 ukrnetInterface      = ukrnetInterface,
                 messengerInterface   = messengerInterface,
                 coroutineScope       = coroutineScope,
+                repository           = repository,
+                mediaManager         = mediaManager,
                 log                  = ::log
             )
         }
