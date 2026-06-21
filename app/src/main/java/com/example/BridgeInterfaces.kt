@@ -121,6 +121,8 @@ class MessengerJsInterface(
     private val androidId: String
 ) {
     lateinit var scope: CoroutineScope
+    var repository: NanogramRepository? = null
+    var mediaManager: MediaManager? = null
     private val ui = Handler(Looper.getMainLooper())
     @Volatile var lastComposeBody: String = ""
     @Volatile var getMessengerWebView: (() -> WebView?)? = null
@@ -530,6 +532,157 @@ class MessengerJsInterface(
 
     @JavascriptInterface
     fun postMessage(type: String, key: String, value: String) {}
+
+    @JavascriptInterface
+    fun saveSettingString(key: String, value: String) {
+        prefs?.edit()?.putString(key, value)?.apply()
+    }
+
+    @JavascriptInterface
+    fun getSettingString(key: String, defValue: String): String {
+        return prefs?.getString(key, defValue) ?: defValue
+    }
+
+    @JavascriptInterface
+    fun saveMessageToDb(jsonString: String) {
+        val repo = repository ?: return
+        scope.launch {
+            try {
+                val obj = JSONObject(jsonString)
+                val msg = MessageEntity(
+                    msgId = obj.optString("id", java.util.UUID.randomUUID().toString()),
+                    chatId = obj.optString("chatId", "inbox"),
+                    type = obj.optString("type", "in"),
+                    author = obj.optString("author", "Собеседник"),
+                    text = obj.optString("text", ""),
+                    timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
+                    mediaType = obj.optString("mediaType", "none"),
+                    mediaPaths = obj.optString("mediaPaths", "[]"),
+                    mediaThumbnails = obj.optString("mediaThumbnails", "[]"),
+                    fileName = obj.optString("fileName", ""),
+                    fileSize = obj.optLong("fileSize", 0L),
+                    audioDuration = obj.optInt("audioDuration", 0),
+                    replyToId = obj.optString("replyToId", ""),
+                    reaction = obj.optString("reaction", "")
+                )
+                repo.saveMessage(msg)
+            } catch (e: Exception) {
+                log("[DB Error] JS saveMessageToDb: ${e.message}")
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun saveChatToDb(jsonString: String) {
+        val repo = repository ?: return
+        scope.launch {
+            try {
+                val obj = JSONObject(jsonString)
+                val chat = ChatEntity(
+                    chatId = obj.optString("chatId"),
+                    name = obj.optString("name"),
+                    username = obj.optString("username"),
+                    avatarUrl = obj.optString("avatarUrl"),
+                    unreadCount = obj.optInt("unreadCount", 0),
+                    lastMessageTime = obj.optLong("lastMessageTime", System.currentTimeMillis()),
+                    lastMessagePreview = obj.optString("lastMessagePreview", ""),
+                    isPinned = obj.optBoolean("isPinned", false)
+                )
+                repo.saveChat(chat)
+            } catch (e: Exception) {
+                log("[DB Error] JS saveChatToDb: ${e.message}")
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun requestChatHistory(chatId: String, offset: Int, limit: Int) {
+        val repo = repository ?: return
+        scope.launch {
+            val msgs = repo.getMessages(chatId, limit, offset)
+            val jsonArray = JSONArray()
+            for (msg in msgs) {
+                val obj = JSONObject().apply {
+                    put("id", msg.msgId)
+                    put("chatId", msg.chatId)
+                    put("type", msg.type)
+                    put("author", msg.author)
+                    put("text", msg.text)
+                    put("timestamp", msg.timestamp)
+                    put("mediaType", msg.mediaType)
+                    put("mediaPaths", JSONArray(msg.mediaPaths))
+                    put("mediaThumbnails", JSONArray(msg.mediaThumbnails))
+                    put("fileName", msg.fileName)
+                    put("fileSize", msg.fileSize)
+                    put("audioDuration", msg.audioDuration)
+                    put("replyToId", msg.replyToId)
+                    put("reaction", msg.reaction)
+                }
+                jsonArray.put(obj)
+            }
+            val escaped = jsonArray.toString().replace("\\", "\\\\").replace("\"", "\\\"")
+            ui.post {
+                getMessengerWebView?.invoke()?.evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('nan0gram:chat-history', { detail: \"$escaped\" }));", null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun requestChatsList() {
+        val repo = repository ?: return
+        scope.launch {
+            val chats = repo.getChats()
+            val jsonArray = JSONArray()
+            for (chat in chats) {
+                val obj = JSONObject().apply {
+                    put("chatId", chat.chatId)
+                    put("name", chat.name)
+                    put("username", chat.username)
+                    put("avatarUrl", chat.avatarUrl)
+                    put("unreadCount", chat.unreadCount)
+                    put("lastMessageTime", chat.lastMessageTime)
+                    put("lastMessagePreview", chat.lastMessagePreview)
+                    put("isPinned", chat.isPinned)
+                }
+                jsonArray.put(obj)
+            }
+            val escaped = jsonArray.toString().replace("\\", "\\\\").replace("\"", "\\\"")
+            ui.post {
+                getMessengerWebView?.invoke()?.evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('nan0gram:chats-list', { detail: \"$escaped\" }));", null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun clearMediaCache() {
+        val mm = mediaManager ?: return
+        scope.launch {
+            val bytesFreed = mm.clearMediaCache()
+            val mbFreed = bytesFreed / (1024 * 1024)
+            ui.post {
+                getMessengerWebView?.invoke()?.evaluateJavascript(
+                    "alert('Кэш медиа очищен. Освобождено: $mbFreed MB');", null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun clearAllHistoryLog() {
+        val repo = repository ?: return
+        scope.launch {
+            repo.clearAllHistoryLog()
+            ui.post {
+                getMessengerWebView?.invoke()?.evaluateJavascript(
+                    "alert('История всех переписок полностью очищена.'); window.dispatchEvent(new CustomEvent('nan0gram:history-cleared'));", null
+                )
+            }
+        }
+    }
 
     private val focusChangeListener = android.media.AudioManager.OnAudioFocusChangeListener { }
             private var focusRequest: Any? = null
