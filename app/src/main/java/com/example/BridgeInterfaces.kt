@@ -126,6 +126,7 @@ class MessengerJsInterface(
     @Volatile var getMessengerWebView: (() -> WebView?)? = null
     @Volatile var isVoicePending: Boolean = false
     @Volatile var pendingVoiceUri: android.net.Uri? = null
+    @Volatile var pendingStealthMode: String = "media"
 
     @android.webkit.JavascriptInterface
     fun submitVoiceFile(base64Data: String, duration: Int) {
@@ -267,7 +268,13 @@ class MessengerJsInterface(
 
     @JavascriptInterface
     fun prepareForDirectAttach(mediaKey: String) {
+        prepareForDirectAttachWithMode(mediaKey, "media")
+    }
+
+    @JavascriptInterface
+    fun prepareForDirectAttachWithMode(mediaKey: String, mode: String) {
         pendingMediaKey = mediaKey
+        pendingStealthMode = mode
         ui.post {
             val ukr = getUkrnetWebView()
             val mess = getMessengerWebView?.invoke()
@@ -296,7 +303,7 @@ class MessengerJsInterface(
                             val x = coordsObj.getDouble("x").toFloat()
                             val y = coordsObj.getDouble("y").toFloat()
                             
-                            log("[Stealth] Скрепка найдена на X=$x, Y=$y. Активируем скрытый тап...")
+                            log("[Stealth] Скрепка найдена на X=$x, Y=$y. Активируем скрытый тап в режиме $mode...")
                             
                             ukr.isFocusable = true
                             ukr.isFocusableInTouchMode = true
