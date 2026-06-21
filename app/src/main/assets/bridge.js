@@ -358,11 +358,15 @@
         },
 
         _getChatId() {
+            const activeEl = W.document.querySelector('.chat-item.active');
+            if (activeEl && activeEl.dataset.chatId) {
+                return activeEl.dataset.chatId;
+            }
             const selectors = ['[class*="peer-title"]', '[class*="chat-title"]', '[class*="peer-name"]', '[class*="header"] h1', '[class*="header"] span', 'header h1', 'header span'];
             for (const selector of selectors) {
                 const el = W.document.querySelector(selector);
                 const text = (el && el.textContent ? el.textContent : "").trim();
-                if (text) return text;
+                if (text && text !== "Настройки" && text !== "Оформление" && text !== "Конфиденциальность" && text !== "Память и данные") return text;
             }
             return "chat";
         },
@@ -688,27 +692,109 @@
                         size: data.fileSize
                     };
                     updated[cid].push(msgObj);
+
+                    // Сохраняем файл в SQLite БД
+                    if (window.Android && window.Android.saveMessageToDb) {
+                        window.Android.saveMessageToDb(JSON.stringify({
+                            id: String(msgObj.id),
+                            chatId: cid,
+                            type: "out",
+                            author: "Я",
+                            timestamp: Date.now(),
+                            mediaType: "file",
+                            fileName: data.fileName,
+                            fileSize: data.fileSize
+                        }));
+                    }
                 } else if (data.isVideo && data.base64s && data.base64s.length > 0) {
                     data.base64s.forEach((b64, idx) => {
                         const vidObj = { ...msgObj, id: Date.now() + Math.random(), video: b64 };
                         if (data.thumbnails && data.thumbnails[idx]) vidObj.videoThumbnail = data.thumbnails[idx];
                         updated[cid].push(vidObj);
+
+                        // Сохраняем видео в SQLite БД
+                        if (window.Android && window.Android.saveMessageToDb) {
+                            window.Android.saveMessageToDb(JSON.stringify({
+                                id: String(vidObj.id),
+                                chatId: cid,
+                                type: "out",
+                                author: "Я",
+                                timestamp: Date.now(),
+                                mediaType: "video",
+                                mediaPaths: JSON.stringify([b64]),
+                                mediaThumbnails: JSON.stringify(data.thumbnails && data.thumbnails[idx] ? [data.thumbnails[idx]] : [])
+                            }));
+                        }
                     });
                 } else if (data.base64) {
                     if (data.isVideo) {
                         msgObj.video = data.base64;
                         if (data.videoThumbnail) msgObj.videoThumbnail = data.videoThumbnail;
                         updated[cid].push(msgObj);
+
+                        // Сохраняем одиночное видео в SQLite БД
+                        if (window.Android && window.Android.saveMessageToDb) {
+                            window.Android.saveMessageToDb(JSON.stringify({
+                                id: String(msgObj.id),
+                                chatId: cid,
+                                type: "out",
+                                author: "Я",
+                                timestamp: Date.now(),
+                                mediaType: "video",
+                                mediaPaths: JSON.stringify([data.base64]),
+                                mediaThumbnails: JSON.stringify(data.videoThumbnail ? [data.videoThumbnail] : [])
+                            }));
+                        }
                     } else if (data.base64.startsWith("data:audio")) {
                         msgObj.audio = data.base64;
                         updated[cid].push(msgObj);
+
+                        // Сохраняем голосовое сообщение в SQLite БД
+                        if (window.Android && window.Android.saveMessageToDb) {
+                            window.Android.saveMessageToDb(JSON.stringify({
+                                id: String(msgObj.id),
+                                chatId: cid,
+                                type: "out",
+                                author: "Я",
+                                timestamp: Date.now(),
+                                mediaType: "voice",
+                                mediaPaths: JSON.stringify([data.base64]),
+                                audioDuration: data.duration || 0
+                            }));
+                        }
                     } else {
                         msgObj.images = [data.base64];
                         updated[cid].push(msgObj);
+
+                        // Сохраняем одиночное фото в SQLite БД
+                        if (window.Android && window.Android.saveMessageToDb) {
+                            window.Android.saveMessageToDb(JSON.stringify({
+                                id: String(msgObj.id),
+                                chatId: cid,
+                                type: "out",
+                                author: "Я",
+                                timestamp: Date.now(),
+                                mediaType: "photo",
+                                mediaPaths: JSON.stringify([data.base64])
+                            }));
+                        }
                     }
                 } else if (data.base64s && data.base64s.length > 0) {
                     msgObj.images = data.base64s;
                     updated[cid].push(msgObj);
+
+                    // Сохраняем пачку фото в SQLite БД
+                    if (window.Android && window.Android.saveMessageToDb) {
+                        window.Android.saveMessageToDb(JSON.stringify({
+                            id: String(msgObj.id),
+                            chatId: cid,
+                            type: "out",
+                            author: "Я",
+                            timestamp: Date.now(),
+                            mediaType: "photo",
+                            mediaPaths: JSON.stringify(data.base64s)
+                        }));
+                    }
                 }
                 return updated;
             });
