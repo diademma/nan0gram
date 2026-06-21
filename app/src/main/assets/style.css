@@ -2282,6 +2282,46 @@ body.tg-locked-active .send-mic-btn::after {
   transform: scale(0.9);
 }
 
+/* --- Стили для сообщений-файлов --- */
+.file-msg {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.2) !important;
+  border-radius: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 220px;
+  max-width: 320px;
+  user-select: none;
+}
+
+.file-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.file-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex-grow: 1;
+}
+
+.file-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-size {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* 🎯 FLASH HIGHLIGHT & SCROLL DOWN BUTTON */
 @keyframes flash {
   0% { background-color: rgba(167, 115, 209, 0.4); }
