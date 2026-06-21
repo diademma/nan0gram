@@ -549,6 +549,8 @@ class MessengerJsInterface(
         scope.launch {
             try {
                 val obj = JSONObject(jsonString)
+                val mediaPathsJson = obj.optJSONArray("mediaPaths")?.toString() ?: obj.optString("mediaPaths", "[]")
+                val mediaThumbnailsJson = obj.optJSONArray("mediaThumbnails")?.toString() ?: obj.optString("mediaThumbnails", "[]")
                 val msg = MessageEntity(
                     msgId = obj.optString("id", java.util.UUID.randomUUID().toString()),
                     chatId = obj.optString("chatId", "inbox"),
@@ -557,8 +559,8 @@ class MessengerJsInterface(
                     text = obj.optString("text", ""),
                     timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
                     mediaType = obj.optString("mediaType", "none"),
-                    mediaPaths = obj.optString("mediaPaths", "[]"),
-                    mediaThumbnails = obj.optString("mediaThumbnails", "[]"),
+                    mediaPaths = mediaPathsJson,
+                    mediaThumbnails = mediaThumbnailsJson,
                     fileName = obj.optString("fileName", ""),
                     fileSize = obj.optLong("fileSize", 0L),
                     audioDuration = obj.optInt("audioDuration", 0),
@@ -610,8 +612,12 @@ class MessengerJsInterface(
                     put("text", msg.text)
                     put("timestamp", msg.timestamp)
                     put("mediaType", msg.mediaType)
-                    put("mediaPaths", JSONArray(msg.mediaPaths))
-                    put("mediaThumbnails", JSONArray(msg.mediaThumbnails))
+                    
+                    val pathsStr = if (msg.mediaPaths.trim().startsWith("[")) msg.mediaPaths else "[]"
+                    val thumbsStr = if (msg.mediaThumbnails.trim().startsWith("[")) msg.mediaThumbnails else "[]"
+                    put("mediaPaths", JSONArray(pathsStr))
+                    put("mediaThumbnails", JSONArray(thumbsStr))
+                    
                     put("fileName", msg.fileName)
                     put("fileSize", msg.fileSize)
                     put("audioDuration", msg.audioDuration)
