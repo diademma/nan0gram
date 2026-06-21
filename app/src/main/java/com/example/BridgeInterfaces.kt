@@ -129,6 +129,12 @@ class MessengerJsInterface(
     @Volatile var isVoicePending: Boolean = false
     @Volatile var pendingVoiceUri: android.net.Uri? = null
     @Volatile var pendingStealthMode: String = "media"
+    @Volatile var isWallpaperPending: Boolean = false
+
+    @JavascriptInterface
+    fun setWallpaperPending(pending: Boolean) {
+        isWallpaperPending = pending
+    }
 
     @android.webkit.JavascriptInterface
     fun submitVoiceFile(base64Data: String, duration: Int) {
@@ -546,11 +552,38 @@ class MessengerJsInterface(
     @JavascriptInterface
     fun saveMessageToDb(jsonString: String) {
         val repo = repository ?: return
+        val mm = mediaManager ?: return
         scope.launch {
             try {
                 val obj = JSONObject(jsonString)
-                val mediaPathsJson = obj.optJSONArray("mediaPaths")?.toString() ?: obj.optString("mediaPaths", "[]")
-                val mediaThumbnailsJson = obj.optJSONArray("mediaThumbnails")?.toString() ?: obj.optString("mediaThumbnails", "[]")
+                
+                val mediaPathsArray = obj.optJSONArray("mediaPaths") ?: if (obj.optString("mediaPaths").startsWith("[")) JSONArray(obj.optString("mediaPaths")) else JSONArray()
+                val savedPaths = JSONArray()
+                for (i in 0 until mediaPathsArray.length()) {
+                    val path = mediaPathsArray.getString(i)
+                    if (path.startsWith("data:")) {
+                        val ext = when {
+                            path.startsWith("data:video") -> "mp4"
+                            path.startsWith("data:audio") -> "webm"
+                            else -> "jpg"
+                        }
+                        savedPaths.put(mm.saveBase64Media(path, ext))
+                    } else {
+                        savedPaths.put(path)
+                    }
+                }
+                
+                val thumbsArray = obj.optJSONArray("mediaThumbnails") ?: if (obj.optString("mediaThumbnails").startsWith("[")) JSONArray(obj.optString("mediaThumbnails")) else JSONArray()
+                val savedThumbs = JSONArray()
+                for (i in 0 until thumbsArray.length()) {
+                    val thumb = thumbsArray.getString(i)
+                    if (thumb.startsWith("data:")) {
+                        savedThumbs.put(mm.saveBase64Media(thumb, "jpg"))
+                    } else {
+                        savedThumbs.put(thumb)
+                    }
+                }
+
                 val msg = MessageEntity(
                     msgId = obj.optString("id", java.util.UUID.randomUUID().toString()),
                     chatId = obj.optString("chatId", "inbox"),
@@ -559,8 +592,8 @@ class MessengerJsInterface(
                     text = obj.optString("text", ""),
                     timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
                     mediaType = obj.optString("mediaType", "none"),
-                    mediaPaths = mediaPathsJson,
-                    mediaThumbnails = mediaThumbnailsJson,
+                    mediaPaths = savedPaths.toString(),
+                    mediaThumbnails = savedThumbs.toString(),
                     fileName = obj.optString("fileName", ""),
                     fileSize = obj.optLong("fileSize", 0L),
                     audioDuration = obj.optInt("audioDuration", 0),
