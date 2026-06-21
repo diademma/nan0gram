@@ -12036,16 +12036,39 @@ function cv() {
         const handleChatHistory = (e) => {
             try {
                 const history = JSON.parse(e.detail);
-                const formatted = history.map(msg => ({
-                    id: msg.id,
-                    type: msg.type,
-                    author: msg.author,
-                    text: msg.text,
-                    time: msg.time || Pn(),
-                    mediaType: msg.mediaType,
-                    mediaPaths: msg.mediaPaths,
-                    file: msg.fileName ? { name: msg.fileName, size: msg.fileSize } : null
-                })).reverse();
+                const formatTime = (ts) => {
+                    if (!ts) return Pn();
+                    const d = new Date(ts);
+                    const hrs = d.getHours().toString().padStart(2, "0");
+                    const mins = d.getMinutes().toString().padStart(2, "0");
+                    return `${hrs}:${mins}`;
+                };
+
+                const formatted = history.map(msg => {
+                    const mapped = {
+                        id: msg.id,
+                        type: msg.type,
+                        author: msg.author,
+                        text: msg.text,
+                        time: formatTime(msg.timestamp),
+                        mediaType: msg.mediaType,
+                        file: msg.fileName ? { name: msg.fileName, size: msg.fileSize } : null
+                    };
+
+                    // Корректно восстанавливаем медиа-свойства для рендерера сообщений
+                    if (msg.mediaType === "photo" && Array.isArray(msg.mediaPaths)) {
+                        mapped.images = msg.mediaPaths;
+                    } else if (msg.mediaType === "voice" && Array.isArray(msg.mediaPaths) && msg.mediaPaths.length > 0) {
+                        mapped.audio = msg.mediaPaths[0];
+                        mapped.audioDuration = msg.audioDuration || 0;
+                    } else if (msg.mediaType === "video" && Array.isArray(msg.mediaPaths) && msg.mediaPaths.length > 0) {
+                        mapped.video = msg.mediaPaths[0];
+                        if (Array.isArray(msg.mediaThumbnails) && msg.mediaThumbnails.length > 0) {
+                            mapped.videoThumbnail = msg.mediaThumbnails[0];
+                        }
+                    }
+                    return mapped;
+                }).reverse();
 
                 U(prev => {
                     const current = prev[o] || [];
