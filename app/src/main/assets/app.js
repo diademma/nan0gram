@@ -10189,6 +10189,7 @@ function k0({
                                         if (confirm("ВНИМАНИЕ: Вы действительно хотите БЕЗВОЗВРАТНО удалить абсолютно все сообщения изо всех чатов?")) {
                                             if (window.Android && window.Android.clearAllHistoryLog) {
                                                 window.Android.clearAllHistoryLog();
+                                                localStorage.removeItem("nan0gram_pinned_messages");
                                             } else {
                                                 alert("Все сообщения удалены (демо).");
                                             }
@@ -11446,7 +11447,7 @@ function tv({
             }), f.jsx("div", {
                 className: "pin-close",
                 onClick: D => {
-                    D.stopPropagation(), r(null)
+                    D.stopPropagation(), r(null), fl(null)
                 },
                 children: "✕"
             })]
@@ -12306,18 +12307,35 @@ function cv() {
         }, [o]),
         p = T.useCallback((R, F, V) => {
             window.nan0gram && window.nan0gram.submitBase64Media && window.nan0gram.submitBase64Media("voice", R, F);
-            o && U(bl => ({
-                ...bl,
-                [o]: [...bl[o] ?? [], {
-                    id: ++lc,
-                    type: "out",
-                    author: "Я",
-                    audio: R,
-                    audioDuration: F,
-                    time: Pn(),
-                    replyTo: V
-                }]
-            }))
+            if (o) {
+                const newId = String(++lc);
+                if (window.Android && window.Android.saveMessageToDb) {
+                    window.Android.saveMessageToDb(JSON.stringify({
+                        id: newId,
+                        chatId: o,
+                        type: "out",
+                        author: "Я",
+                        text: "",
+                        timestamp: Date.now(),
+                        mediaType: "voice",
+                        mediaPaths: JSON.stringify([R]),
+                        audioDuration: F || 0,
+                        replyToId: V ? String(V.id) : ""
+                    }));
+                }
+                U(bl => ({
+                    ...bl,
+                    [o]: [...bl[o] ?? [], {
+                        id: newId,
+                        type: "out",
+                        author: "Я",
+                        audio: R,
+                        audioDuration: F,
+                        time: Pn(),
+                        replyTo: V
+                    }]
+                }));
+            }
         }, [o]),
         z = T.useCallback((R, F) => {
             window.nan0gram && window.nan0gram.submitStealthFile && window.nan0gram.submitStealthFile("video");
