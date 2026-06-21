@@ -10597,6 +10597,27 @@ function I0({
                             })
                         })
                     })]
+                }), m.file && f.jsxs("div", {
+                    className: "file-msg",
+                    onTouchStart: B => B.stopPropagation(),
+                    onTouchEnd: B => B.stopPropagation(),
+                    onPointerDown: B => B.stopPropagation(),
+                    onClick: rl => {
+                        rl.stopPropagation()
+                    },
+                    children: [f.jsx("div", {
+                        className: "file-icon",
+                        children: "📄"
+                    }), f.jsxs("div", {
+                        className: "file-details",
+                        children: [f.jsx("div", {
+                            className: "file-name",
+                            children: m.file.name
+                        }), f.jsx("div", {
+                            className: "file-size",
+                            children: (m.file.size / (1024 * 1024)).toFixed(2) + " MB"
+                        })]
+                    })]
                 }), m.text && f.jsx("div", {
                     style: {
                         userSelect: "text",
@@ -10712,7 +10733,7 @@ function lv({
     const {
         left: P,
         top: ml
-    } = P0(G.x, G.y), nl = !!(m?.images?.length || m?.audio || m?.video);
+    } = P0(G.x, G.y), nl = !!(m?.images?.length || m?.audio || m?.video || m?.file);
     return f.jsxs(f.Fragment, {
         children: [f.jsx("div", {
             className: "sheet-backdrop",
@@ -11331,6 +11352,7 @@ function tv({
                 className: "input-area",
                 children: [f.jsx("button", {
                     className: "input-icon",
+                    "data-mode": "media",
                     onClick: () => _l.current?.click(),
                     children: f.jsx("svg", {
                         width: 18,
@@ -11347,9 +11369,7 @@ function tv({
                     })
                 }), f.jsx("button", {
                     className: "input-icon",
-                    style: {
-                        fontSize: 18
-                    },
+                    "data-mode": "file",
                     onClick: () => vl.current?.click(),
                     children: f.jsx("svg", {
                         width: 18,
@@ -11360,24 +11380,18 @@ function tv({
                         strokeWidth: 2,
                         strokeLinecap: "round",
                         strokeLinejoin: "round",
-                        children: [f.jsx("path", {
-                            d: "M22 11V5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3"
-                        }), f.jsx("path", {
-                            d: "M2 8h20"
-                        }), f.jsx("path", {
-                            d: "M6 3L3 8"
-                        }), f.jsx("path", {
-                            d: "M11 3l-3 5"
-                        }), f.jsx("path", {
-                            d: "M16 3l-3 5"
-                        }), f.jsx("path", {
-                            d: "M21 3l-3 5"
-                        })]
+                        children: [
+                            f.jsx("path", { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" }),
+                            f.jsx("polyline", { points: "14 2 14 8 20 8" }),
+                            f.jsx("line", { x1: "16", y1: "13", x2: "8", y2: "13" }),
+                            f.jsx("line", { x1: "16", y1: "17", x2: "8", y2: "17" }),
+                            f.jsx("polyline", { points: "10 9 9 9 8 9" })
+                        ]
                     })
                 }), f.jsx("input", {
                     ref: _l,
                     type: "file",
-                    accept: "image/*",
+                    accept: "image/*,video/*",
                     multiple: !0,
                     style: {
                         display: "none"
@@ -11386,8 +11400,7 @@ function tv({
                 }), f.jsx("input", {
                     ref: vl,
                     type: "file",
-                    accept: "video/*",
-                    multiple: !0,
+                    accept: "*/*",
                     style: {
                         display: "none"
                     },
@@ -11781,7 +11794,7 @@ function Pn() {
 }
 
 function nv(m) {
-    return m.text ? m.text : m.images?.length ? m.images.length > 1 ? `📷 ${m.images.length} фото` : "📷 Фото" : m.audio ? "🎵 Голосовое" : m.video ? "🎬 Видео" : ""
+    return m.text ? m.text : m.images?.length ? m.images.length > 1 ? `📷 ${m.images.length} фото` : "📷 Фото" : m.audio ? "🎵 Голосовое" : m.video ? "🎬 Видео" : m.file ? "📄 Файл" : ""
 }
 let lc = 1e3;
 
