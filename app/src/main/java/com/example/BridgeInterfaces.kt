@@ -129,7 +129,9 @@ class MessengerJsInterface(
     @Volatile var isVoicePending: Boolean = false
     @Volatile var pendingVoiceUri: android.net.Uri? = null
     @Volatile var pendingStealthMode: String = "media"
-    @Volatile var isWallpaperPending: Boolean = false
+    @Volatile 
+    @set:kotlin.jvm.JvmName("setWallpaperPendingInternal")
+    var isWallpaperPending: Boolean = false
 
     @JavascriptInterface
     fun setWallpaperPending(pending: Boolean) {
