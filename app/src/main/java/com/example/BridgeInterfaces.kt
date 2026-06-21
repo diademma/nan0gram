@@ -626,7 +626,15 @@ class MessengerJsInterface(
                 }
                 jsonArray.put(obj)
             }
-            val escaped = jsonArray.toString().replace("\\", "\\\\").replace("\"", "\\\"")
+            
+            // Заворачиваем историю во внешний JSON объект для жесткой привязки к chatId
+            val responseObj = JSONObject().apply {
+                put("chatId", chatId)
+                put("offset", offset)
+                put("messages", jsonArray)
+            }
+            val escaped = responseObj.toString().replace("\\", "\\\\").replace("\"", "\\\"")
+            
             ui.post {
                 getMessengerWebView?.invoke()?.evaluateJavascript(
                     "window.dispatchEvent(new CustomEvent('nan0gram:chat-history', { detail: \"$escaped\" }));", null
