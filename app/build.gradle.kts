@@ -76,8 +76,15 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
+  
+  // ── БД Room ─────────────────────────────────────────────────────────
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
+  "ksp"(libs.androidx.room.compiler)
+
+  // ── WebView Asset Loader (для обхода ограничений file:// в React) ───
+  implementation("androidx.webkit:webkit:1.11.0")
+
   implementation(libs.converter.moshi)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
@@ -106,6 +113,5 @@ dependencies {
   androidTestImplementation(libs.androidx.runner)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
-  "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
