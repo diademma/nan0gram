@@ -739,6 +739,35 @@
                         const timeStr = date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0');
                         
                         let textVal = msg.text;
+
+                        // Автоматически кэшируем расшифрованное входящее сообщение в Room DB
+                        if (window.Android && window.Android.saveMessageToDb) {
+                            window.Android.saveMessageToDb(JSON.stringify({
+                                id: String(msg.msgId),
+                                chatId: cid,
+                                type: "in",
+                                author: msg.author,
+                                text: textVal,
+                                timestamp: msg.ts
+                            }));
+                        }
+
+                        // Обновляем превью чата и таймштамп в боковой панели
+                        if (window.Android && window.Android.saveChatToDb) {
+                            const activeChatEl = document.querySelector(`.chat-item[data-chat-id="${cid}"]`);
+                            const name = activeChatEl ? activeChatEl.querySelector('.chat-name').textContent : "Собеседник";
+                            const username = activeChatEl ? activeChatEl.querySelector('.chat-preview').textContent : "";
+                            const avatarUrl = activeChatEl ? activeChatEl.querySelector('.avatar').style.backgroundImage.slice(5, -2) : "";
+                            window.Android.saveChatToDb(JSON.stringify({
+                                chatId: cid,
+                                name: name,
+                                username: username,
+                                avatarUrl: avatarUrl,
+                                lastMessageTime: msg.ts,
+                                lastMessagePreview: textVal
+                            }));
+                        }
+
                         updated[cid].push({ 
                             id: msg.msgId, 
                             type: "in", 
@@ -748,6 +777,14 @@
                         });
                     }
                 });
+
+                // Перезапрашиваем список чатов для мгновенной авто-сортировки по времени СМС
+                setTimeout(() => {
+                    if (window.Android && window.Android.requestChatsList) {
+                        window.Android.requestChatsList();
+                    }
+                }, 100);
+
                 return updated;
             });
         } catch (e) { console.error("Ошибка обработки входящей почты в JS-мосте:", e); }
