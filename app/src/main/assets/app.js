@@ -10192,6 +10192,139 @@ function k0({
                                 children: "›"
                             })
                         ]
+                    }),
+                    f.jsxs("button", {
+                        className: "settings-item",
+                        onClick: () => _("storage"),
+                        children: [
+                            f.jsx("div", {
+                                className: "settings-icon",
+                                children: "💾"
+                            }),
+                            f.jsxs("div", {
+                                className: "settings-item-content",
+                                children: [
+                                    f.jsx("div", {
+                                        className: "settings-item-title",
+                                        children: "Память и данные"
+                                    }),
+                                    f.jsx("div", {
+                                        className: "settings-item-desc",
+                                        children: "Очистка медиафайлов и базы данных переписок"
+                                    })
+                                ]
+                            }),
+                            f.jsx("div", {
+                                className: "settings-arrow",
+                                children: "›"
+                            })
+                        ]
+                    })
+                ]
+            })
+        ]
+    });
+}
+
+if(o === "storage") {
+    return f.jsxs("div", {
+        className: "settings-panel",
+        children: [
+            f.jsxs("div", {
+                className: "settings-header",
+                children: [
+                    f.jsx("button", {
+                        className: "theme-back-btn",
+                        onClick: () => _("main"),
+                        children: "←"
+                    }),
+                    f.jsx("span", {
+                        style: {
+                            fontWeight: 600,
+                            fontSize: 16
+                        },
+                        children: "Память и данные"
+                    }),
+                    f.jsx("div", {
+                        style: {
+                            width: 72
+                        }
+                    })
+                ]
+            }),
+            f.jsxs("div", {
+                className: "theme-panel-body",
+                children: [
+                    f.jsxs("div", {
+                        className: "theme-section",
+                        children: [
+                            f.jsx("div", {
+                                className: "theme-section-title",
+                                children: "Управление кэшем"
+                            }),
+                            f.jsxs("button", {
+                                className: "settings-item",
+                                onClick: () => {
+                                    if (confirm("Вы действительно хотите удалить все загруженные картинки и видео из кэша устройства?")) {
+                                        if (window.Android && window.Android.clearMediaCache) {
+                                            window.Android.clearMediaCache();
+                                        } else {
+                                            alert("Кэш медиа очищен (демо).");
+                                        }
+                                    }
+                                },
+                                children: [
+                                    f.jsx("div", {
+                                        className: "settings-icon",
+                                        children: "🗑️"
+                                    }),
+                                    f.jsxs("div", {
+                                        className: "settings-item-content",
+                                        children: [
+                                            f.jsx("div", {
+                                                className: "settings-item-title",
+                                                children: "Очистить кэш медиа"
+                                            }),
+                                            f.jsx("div", {
+                                                className: "settings-item-desc",
+                                                children: "Удалит все загруженные изображения, видео и голосовые сообщения."
+                                            })
+                                        ]
+                                    })
+                                ]
+                            }),
+                            f.jsxs("button", {
+                                className: "settings-item",
+                                onClick: () => {
+                                    if (confirm("ВНИМАНИЕ: Это действие безвозвратно удалит историю всех переписок, оставив только последние 100 сообщений в каждом чате! Продолжить?")) {
+                                        if (window.Android && window.Android.clearAllHistoryLog) {
+                                            window.Android.clearAllHistoryLog();
+                                        } else {
+                                            alert("История переписок очищена (демо).");
+                                        }
+                                    }
+                                },
+                                children: [
+                                    f.jsx("div", {
+                                        className: "settings-icon",
+                                        children: "💬"
+                                    }),
+                                    f.jsxs("div", {
+                                        className: "settings-item-content",
+                                        children: [
+                                            f.jsx("div", {
+                                                className: "settings-item-title",
+                                                children: "Очистить кэш переписок"
+                                            }),
+                                            f.jsx("div", {
+                                                className: "settings-item-desc",
+                                                children: "Удалит старую историю сообщений, сохранив до 100 СМС в каждом чате."
+                                            })
+                                        ]
+                                    })
+                                ]
+                            })
+                        ]
                     })
                 ]
             })
@@ -10882,6 +11015,7 @@ function tv({
     onPinMessage: fl,
     onToggleReaction: Sl,
     onSwipeClose: Ml,
+    onLoadMore: onLoadMore,
     wallpaper: yl
 }) {
     const k = T.useRef(null),
@@ -11286,6 +11420,9 @@ function tv({
                 const { scrollTop, scrollHeight, clientHeight } = e.target;
                 const isNearBottom = (scrollHeight - scrollTop - clientHeight) < threshold;
                 setShowScrollDown(!isNearBottom);
+                if (scrollTop === 0 && onLoadMore) {
+                    onLoadMore();
+                }
             },
             children: o.map(D => f.jsx(I0, {
                 message: D,
@@ -11799,15 +11936,140 @@ function nv(m) {
 let lc = 1e3;
 
 function cv() {
-    const [m] = T.useState(qu), [G, U] = T.useState(V0), [o, _] = T.useState(null), [O, K] = T.useState(null), [el, M] = T.useState(null), [S, j] = T.useState(0), [I, P] = T.useState(null), [ml, nl] = T.useState(() => localStorage.getItem("wp")), [$, fl] = T.useState({}), [Sl, Ml] = T.useState(w0), [yl, k] = T.useState(() => window.innerWidth);
+    const [m, setChats] = T.useState([]), [G, U] = T.useState({}), [o, _] = T.useState(null), [O, K] = T.useState(null), [el, M] = T.useState(null), [S, j] = T.useState(0), [I, P] = T.useState(null), [ml, nl] = T.useState(() => localStorage.getItem("wp")), [$, fl] = T.useState({}), [Sl, Ml] = T.useState(w0), [yl, k] = T.useState(() => window.innerWidth);
+    const [offset, setOffset] = T.useState(0);
+
     T.useEffect(() => {
         const R = () => k(window.innerWidth);
         return window.addEventListener("resize", R), window.addEventListener("orientationchange", R), () => {
             window.removeEventListener("resize", R), window.removeEventListener("orientationchange", R)
         }
-    }, []), T.useEffect(() => {
+    }, []);
+
+    T.useEffect(() => {
         window.nan0gram_setMessages = U
     }, [U]);
+
+    // Синхронизация с БД SQLite (Контакты и Лента)
+    T.useEffect(() => {
+        const handleChatsList = (e) => {
+            try {
+                const list = JSON.parse(e.detail);
+                if (list && list.length > 0) {
+                    const formatted = list.map(c => ({
+                        id: c.chatId,
+                        name: c.name,
+                        username: c.username,
+                        avatar: c.avatarUrl,
+                        preview: c.lastMessagePreview,
+                        unread: c.unreadCount
+                    }));
+                    setChats(formatted);
+                } else {
+                    // Первичный запуск: наполняем БД дефолтными контактами
+                    qu.forEach(c => {
+                        if (window.Android && window.Android.saveChatToDb) {
+                            window.Android.saveChatToDb(JSON.stringify({
+                                chatId: c.id,
+                                name: c.name,
+                                username: c.username,
+                                avatarUrl: c.avatar,
+                                unreadCount: c.unread,
+                                lastMessageTime: Date.now(),
+                                lastMessagePreview: c.preview
+                            }));
+                        }
+                    });
+                    setTimeout(() => {
+                        if (window.Android && window.Android.requestChatsList) {
+                            window.Android.requestChatsList();
+                        }
+                    }, 200);
+                }
+            } catch(err) { console.error(err); }
+        };
+
+        const handleHistoryCleared = () => {
+            if (window.Android && window.Android.requestChatsList) window.Android.requestChatsList();
+            if (o && window.Android && window.Android.requestChatHistory) {
+                setOffset(0);
+                window.Android.requestChatHistory(o, 0, 100);
+            }
+        };
+
+        window.addEventListener('nan0gram:chats-list', handleChatsList);
+        window.addEventListener('nan0gram:history-cleared', handleHistoryCleared);
+        
+        // Чтение сохраненных настроек темы из SharedPreferences
+        if (window.Android && window.Android.getSettingString) {
+            try {
+                const savedTheme = window.Android.getSettingString("nan0gram_theme", "");
+                if (savedTheme) Ml(JSON.parse(savedTheme));
+            } catch(e) {}
+        }
+
+        // Запрашиваем список контактов
+        if (window.Android && window.Android.requestChatsList) {
+            window.Android.requestChatsList();
+        } else {
+            setChats(qu); // fallback
+        }
+
+        return () => {
+            window.removeEventListener('nan0gram:chats-list', handleChatsList);
+            window.removeEventListener('nan0gram:history-cleared', handleHistoryCleared);
+        };
+    }, [o]);
+
+    // Подгрузка истории при переключении активного чата
+    T.useEffect(() => {
+        if (o) {
+            setOffset(0);
+            if (window.Android && window.Android.requestChatHistory) {
+                window.Android.requestChatHistory(o, 0, 100);
+            }
+        }
+    }, [o]);
+
+    // Обработка входящего пакета истории сообщений из SQLite
+    T.useEffect(() => {
+        const handleChatHistory = (e) => {
+            try {
+                const history = JSON.parse(e.detail);
+                const formatted = history.map(msg => ({
+                    id: msg.id,
+                    type: msg.type,
+                    author: msg.author,
+                    text: msg.text,
+                    time: msg.time || Pn(),
+                    mediaType: msg.mediaType,
+                    mediaPaths: msg.mediaPaths,
+                    file: msg.fileName ? { name: msg.fileName, size: msg.fileSize } : null
+                })).reverse();
+
+                U(prev => {
+                    const current = prev[o] || [];
+                    if (offset === 0) {
+                        return { ...prev, [o]: formatted };
+                    } else {
+                        // Подгрузка старой истории наверх (Infinite Scroll)
+                        return { ...prev, [o]: [...formatted, ...current] };
+                    }
+                });
+            } catch(err) {}
+        };
+
+        window.addEventListener('nan0gram:chat-history', handleChatHistory);
+        return () => window.removeEventListener('nan0gram:chat-history', handleChatHistory);
+    }, [o, offset]);
+
+    const handleLoadMore = T.useCallback(() => {
+        const nextOffset = offset + 100;
+        setOffset(nextOffset);
+        if (window.Android && window.Android.requestChatHistory) {
+            window.Android.requestChatHistory(o, nextOffset, 100);
+        }
+    }, [o, offset]);
     T.useEffect(() => {
         const blur = localStorage.getItem("nan0gram_sidebar_blur") || "20",
             darkness = localStorage.getItem("nan0gram_sidebar_darkness") || "50";
@@ -11866,18 +12128,56 @@ function cv() {
         }, []),
         Bl = T.useCallback(() => M(null), []),
         rl = T.useCallback((R, F) => {
-            o && U(V => ({
-                ...V,
-                [o]: [...V[o] ?? [], {
-                    id: ++lc,
+            if (o) {
+                const newId = ++lc;
+                const timeStr = Pn();
+                const msgObj = {
+                    id: newId,
                     type: "out",
                     author: "Я",
                     text: R,
-                    time: Pn(),
+                    time: timeStr,
                     replyTo: F
-                }]
-            }))
-        }, [o]),
+                };
+
+                // Запись в SQLite
+                if (window.Android && window.Android.saveMessageToDb) {
+                    window.Android.saveMessageToDb(JSON.stringify({
+                        id: String(newId),
+                        chatId: o,
+                        type: "out",
+                        author: "Я",
+                        text: R,
+                        timestamp: Date.now(),
+                        replyToId: F ? String(F.id) : ""
+                    }));
+                }
+
+                // Обновление превью в списке чатов
+                if (window.Android && window.Android.saveChatToDb) {
+                    const currentChat = m.find(c => c.id === o);
+                    if (currentChat) {
+                        window.Android.saveChatToDb(JSON.stringify({
+                            chatId: o,
+                            name: currentChat.name,
+                            username: currentChat.username,
+                            avatarUrl: currentChat.avatar,
+                            lastMessageTime: Date.now(),
+                            lastMessagePreview: R
+                        }));
+                    }
+                }
+
+                setTimeout(() => {
+                    if (window.Android && window.Android.requestChatsList) window.Android.requestChatsList();
+                }, 100);
+
+                U(V => ({
+                    ...V,
+                    [o]: [...V[o] ?? [], msgObj]
+                }));
+            }
+        }, [o, m]),
         ll = T.useCallback((R, F) => {
             o && Promise.all(R.map(V => new Promise(bl => {
                 const rt = new FileReader;
@@ -12015,6 +12315,7 @@ function cv() {
                 onPinMessage: r,
                 onToggleReaction: x,
                 onSwipeClose: xl,
+                onLoadMore: handleLoadMore,
                 wallpaper: ml
             })]
         }), f.jsx(ev, {
