@@ -11016,7 +11016,8 @@ function tv({
     onToggleReaction: Sl,
     onSwipeClose: Ml,
     onLoadMore: onLoadMore,
-    wallpaper: yl
+    wallpaper: yl,
+    pinnedMessage: initialPinned
 }) {
     const k = T.useRef(null),
         messagesCountRef = T.useRef(o.length),
@@ -11068,6 +11069,12 @@ function tv({
             container && (container.removeEventListener("load", handleLoad, true), container.removeEventListener("loadeddata", handleLoad, true))
         }
     }, [o]);
+
+    // Синхронизируем стейт закрепа с персистентным пропом при смене чата
+    T.useEffect(() => {
+        r(initialPinned || null);
+    }, [initialPinned]);
+
     const Gl = T.useCallback(() => {
             Cl(null), Tl(null), rl(""), X.current && (X.current.style.height = "auto")
         }, []),
@@ -11939,6 +11946,15 @@ function cv() {
     const [m, setChats] = T.useState([]), [G, U] = T.useState({}), [o, _] = T.useState(null), [O, K] = T.useState(null), [el, M] = T.useState(null), [S, j] = T.useState(0), [I, P] = T.useState(null), [ml, nl] = T.useState(() => localStorage.getItem("wp")), [$, fl] = T.useState({}), [Sl, Ml] = T.useState(w0), [yl, k] = T.useState(() => window.innerWidth);
     const [offset, setOffset] = T.useState(0);
 
+    // Персистентно помним закрепленное сообщение для каждого чата
+    const [pinnedMsgs, setPinnedMsgs] = T.useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem("nan0gram_pinned_messages") || "{}");
+        } catch (e) {
+            return {};
+        }
+    });
+
     T.useEffect(() => {
         const R = () => k(window.innerWidth);
         return window.addEventListener("resize", R), window.addEventListener("orientationchange", R), () => {
@@ -12052,8 +12068,27 @@ function cv() {
                         text: msg.text,
                         time: formatTime(msg.timestamp),
                         mediaType: msg.mediaType,
-                        file: msg.fileName ? { name: msg.fileName, size: msg.fileSize } : null
+                        file: msg.fileName ? { name: msg.fileName, size: msg.fileSize } : null,
+                        reaction: msg.reaction || null
                     };
+
+                    // Восстанавливаем оригинальный объект ответа (replyTo)
+                    if (msg.replyToId) {
+                        const parentMsg = history.find(p => String(p.id) === String(msg.replyToId));
+                        if (parentMsg) {
+                            mapped.replyTo = {
+                                id: parentMsg.id,
+                                author: parentMsg.author,
+                                text: parentMsg.text || (parentMsg.mediaType !== "none" ? "Медиа" : "")
+                            };
+                        } else {
+                            mapped.replyTo = {
+                                id: msg.replyToId,
+                                author: "Сообщение",
+                                text: "Предыдущее сообщение"
+                            };
+                        }
+                    }
 
                     // Корректно восстанавливаем медиа-свойства для рендерера сообщений
                     if (msg.mediaType === "photo" && Array.isArray(msg.mediaPaths)) {
@@ -12260,21 +12295,46 @@ function cv() {
             }))
         }, [o]),
         cl = T.useCallback(R => {
-            o && U(F => ({
-                ...F,
-                [o]: F[o].filter(V => V.id !== R)
-            }))
+            if (o) {
+                U(F => ({
+                    ...F,
+                    [o]: F[o].filter(V => V.id !== R)
+                }));
+                // Стираем сообщение из SQLite базы данных Android
+                if (window.Android && window.Android.deleteMessageFromDb) {
+                    window.Android.deleteMessageFromDb(o, String(R));
+                }
+            }
         }, [o]),
-        r = T.useCallback(R => {}, []),
+        r = T.useCallback(R => {
+            if (o) {
+                setPinnedMsgs(prev => {
+                    const updated = { ...prev, [o]: R };
+                    localStorage.setItem("nan0gram_pinned_messages", JSON.stringify(updated));
+                    return updated;
+                });
+            }
+        }, [o]),
         x = T.useCallback((R, F) => {
-            o && U(V => ({
-                ...V,
-                [o]: V[o].map(bl => bl.id === R ? {
-                    ...bl,
-                    reaction: bl.reaction === F ? null : F
-                } : bl)
-            }))
-        }, [o]),
+            if (o) {
+                const chatMsgs = G[o] || [];
+                const targetMsg = chatMsgs.find(bl => bl.id === R);
+                const nextReaction = targetMsg?.reaction === F ? "" : F;
+
+                U(V => ({
+                    ...V,
+                    [o]: V[o].map(bl => bl.id === R ? {
+                        ...bl,
+                        reaction: nextReaction || null
+                    } : bl)
+                }));
+
+                // Синхронизируем реакцию в SQLite базе данных Android
+                if (window.Android && window.Android.updateMessageReactionInDb) {
+                    window.Android.updateMessageReactionInDb(o, String(R), nextReaction);
+                }
+            }
+        }, [o, G]),
         H = T.useCallback((R, F) => {
             fl(V => ({
                 ...V,
@@ -12339,7 +12399,8 @@ function cv() {
                 onToggleReaction: x,
                 onSwipeClose: xl,
                 onLoadMore: handleLoadMore,
-                wallpaper: ml
+                wallpaper: ml,
+                pinnedMessage: pinnedMsgs[o] || null
             })]
         }), f.jsx(ev, {
             profile: O,
