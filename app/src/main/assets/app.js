@@ -10380,12 +10380,14 @@ function I0({
 }) {
     const [j, I] = T.useState(0), P = T.useRef(0), ml = T.useRef(0), nl = T.useRef(!1), $ = T.useRef(!1), fl = T.useRef(null), Sl = T.useRef(!1), Ml = T.useRef(0), yl = T.useRef(null), k = T.useCallback(() => {
         fl.current && clearTimeout(fl.current), yl.current && clearTimeout(yl.current)
-    }, []), X = T.useCallback(rl => {
+    }, []),    X = T.useCallback(rl => {
+        if (rl.target.closest('.msg-reply')) return;
         const ll = rl.touches[0];
         P.current = ll.clientX, ml.current = ll.clientY, nl.current = !1, $.current = !1, Sl.current = !1, fl.current = setTimeout(() => {
             !$.current && !nl.current && (Sl.current = !0, navigator.vibrate && navigator.vibrate(50), o(m.id))
         }, 400)
     }, [m.id, o]), _l = T.useCallback(rl => {
+        if (rl.target.closest('.msg-reply')) return;
         if(Sl.current) return;
         const ll = rl.touches[0],
             p = P.current - ll.clientX,
@@ -10400,7 +10402,8 @@ function I0({
             B > 8 && (nl.current = !0, fl.current && clearTimeout(fl.current))
         }
         nl.current && p > 0 && cl < 50 && (rl.cancelable && rl.preventDefault(), I(Math.min(p, 75)))
-    }, []), vl = T.useCallback(rl => {
+    }, []),    vl = T.useCallback(rl => {
+        if (rl.target.closest('.msg-reply')) return;
         if(k(), Sl.current) {
             I(0);
             return
@@ -10423,7 +10426,8 @@ function I0({
                 clientY: ll.clientY
             })
         }, 280))
-    }, [k, m.id, U, K, el, _, O]), Y = T.useCallback(rl => {
+    }, [k, m.id, U, K, el, _, O]),    Y = T.useCallback(rl => {
+        if (rl.target.closest('.msg-reply')) return;
         rl.pointerType === "mouse" && (U ? el(m.id) : _(m.id, {
             clientX: rl.clientX,
             clientY: rl.clientY
@@ -10486,6 +10490,30 @@ function I0({
                     children: m.author
                 }), m.replyTo && f.jsx("div", {
                     className: "msg-reply",
+                    onTouchStart: e => e.stopPropagation(),
+                    onTouchEnd: e => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (m.replyTo && m.replyTo.id) {
+                            const targetEl = document.querySelector("[data-id='" + m.replyTo.id + "']");
+                            if (targetEl) {
+                                targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                                targetEl.classList.add("flash-highlight");
+                                setTimeout(() => targetEl.classList.remove("flash-highlight"), 1000);
+                            }
+                        }
+                    },
+                    onClick: e => {
+                        e.stopPropagation();
+                        if (m.replyTo && m.replyTo.id) {
+                            const targetEl = document.querySelector("[data-id='" + m.replyTo.id + "']");
+                            if (targetEl) {
+                                targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                                targetEl.classList.add("flash-highlight");
+                                setTimeout(() => targetEl.classList.remove("flash-highlight"), 1000);
+                            }
+                        }
+                    },
                     children: f.jsxs("div", {
                         style: {
                             display: "flex",
@@ -10848,9 +10876,9 @@ function tv({
         [z, B] = T.useState(new Set),
         [cl, r] = T.useState(null),
         [x, H] = T.useState(null),
-        [C, Z] = T.useState(null),
-        [tl, R] = T.useState(!1),
-        F = T.useRef(null),
+        [C, Z] = T.useState(null),            [tl, R] = T.useState(!1),
+            [showScrollDown, setShowScrollDown] = T.useState(!1),
+            F = T.useRef(null),
         V = T.useRef([]),
         bl = T.useRef(0),
         rt = T.useRef(0),
@@ -11048,10 +11076,10 @@ function tv({
         }, [o]),
         ic = T.useCallback(D => {
             Sl(D, "❤️")
-        }, [Sl]),
-        Je = T.useCallback(() => {
-            x && (Cl({
-                author: x.author || "Я",
+        }, [Sl]),    Je = T.useCallback(() => {
+        x && (Cl({
+            id: x.id,
+            author: x.author || "Я",
                 text: x.text || "Медиа"
             }), Tl(null), X.current?.focus())
         }, [x]),
@@ -11071,11 +11099,11 @@ function tv({
             x && (Tl(x.id), Cl(null), rl(x.text || ""), setTimeout(() => {
                 X.current && (X.current.style.height = "auto", X.current.style.height = Math.min(X.current.scrollHeight, 100) + "px", X.current.focus())
             }, 50))
-        }, [x]),
-        Re = T.useCallback(D => {
-            const w = o.find(sl => sl.id === D);
-            w && (Cl({
-                author: w.author || "Я",
+        }, [x]),    Re = T.useCallback(D => {
+        const w = o.find(sl => sl.id === D);
+        w && (Cl({
+            id: w.id,
+            author: w.author || "Я",
                 text: w.text || "Медиа"
             }), Tl(null), X.current?.focus())
         }, [o]),
@@ -11232,6 +11260,12 @@ function tv({
         }), f.jsx("div", {
             ref: k,
             className: "messages-container",
+            onScroll: e => {
+                const threshold = 150;
+                const { scrollTop, scrollHeight, clientHeight } = e.target;
+                const isNearBottom = (scrollHeight - scrollTop - clientHeight) < threshold;
+                setShowScrollDown(!isNearBottom);
+            },
             children: o.map(D => f.jsx(I0, {
                 message: D,
                 selected: z.has(D.id),
@@ -11245,6 +11279,27 @@ function tv({
                 onOpenLightbox: S,
                 onToggleReaction: Sl
             }, D.id))
+        }), showScrollDown && f.jsx("button", {
+            className: "scroll-down-btn",
+            onClick: () => {
+                k.current && k.current.scrollTo({
+                    top: k.current.scrollHeight,
+                    behavior: "smooth"
+                })
+            },
+            children: f.jsx("svg", {
+                width: "16",
+                height: "16",
+                viewBox: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                strokeWidth: "2.5",
+                strokeLinecap: "round",
+                strokeLinejoin: "round",
+                children: f.jsx("polyline", {
+                    points: "6 9 12 15 18 9"
+                    })
+            })
         }), f.jsxs("div", {
             className: "input-wrapper",
             children: [(al || xl !== null) && f.jsxs("div", {
