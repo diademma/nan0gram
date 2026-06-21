@@ -690,6 +690,22 @@ class MessengerJsInterface(
         }
     }
 
+    @JavascriptInterface
+    fun deleteMessageFromDb(chatId: String, msgId: String) {
+        val repo = repository ?: return
+        scope.launch {
+            repo.deleteMessage(chatId, msgId)
+        }
+    }
+
+    @JavascriptInterface
+    fun updateMessageReactionInDb(chatId: String, msgId: String, reaction: String) {
+        val repo = repository ?: return
+        scope.launch {
+            repo.updateReaction(chatId, msgId, reaction)
+        }
+    }
+
     private val focusChangeListener = android.media.AudioManager.OnAudioFocusChangeListener { }
             private var focusRequest: Any? = null
 
