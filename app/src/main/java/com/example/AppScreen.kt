@@ -286,80 +286,133 @@ private fun WebViewLayer(
             messengerWebView: WebView?,
             onResult: (List<Uri>) -> Unit
         ) {
-            val maxPhotos = 8
-            val maxVideos = 2
-            val maxSizeBytes = 15 * 1024 * 1024L
-            
-            val validUris = mutableListOf<Uri>()
-            var photoCount = 0
-            var videoCount = 0
-            var totalSize = 0L
-            
-            var photoDropped = false
-            var videoDropped = false
-            var sizeDropped = false
-            var droppedCount = 0
-            
-            for (uri in rawUris) {
-                val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
-                val isVideo = mimeType.startsWith("video")
-                val fileSize = getUriSize(context, uri)
+            if (messengerInterface.pendingStealthMode == "file") {
+                val maxSizeBytes = 17 * 1024 * 1024L
+                val validUris = mutableListOf<Uri>()
+                var droppedCount = 0
+                var sizeDropped = false
+                var countDropped = false
                 
-                if (isVideo) {
-                    if (videoCount >= maxVideos) {
-                        videoDropped = true
+                for (uri in rawUris) {
+                    if (validUris.size >= 1) {
+                        countDropped = true
                         droppedCount++
                         continue
                     }
-                } else {
-                    if (photoCount >= maxPhotos) {
-                        photoDropped = true
+                    val fileSize = getUriSize(context, uri)
+                    if (fileSize > maxSizeBytes) {
+                        sizeDropped = true
                         droppedCount++
                         continue
                     }
+                    validUris.add(uri)
                 }
                 
-                if (totalSize + fileSize > maxSizeBytes) {
-                    sizeDropped = true
-                    droppedCount++
-                    continue
+                if (droppedCount > 0 && messengerWebView != null) {
+                    val msg = buildString {
+                        append("Упс! Сработали лимиты 🤫<br><br>")
+                        if (countDropped) append("Максимум 1 файл за раз.<br>")
+                        if (sizeDropped) append("Превышен лимит размера (17 МБ).<br>")
+                        append("<br>Отсечено файлов: <b>$droppedCount</b>")
+                    }
+                    val popupJs = """
+                        (function(){
+                            var div = document.createElement('div');
+                            div.innerHTML = '$msg';
+                            div.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0.9); background:rgba(46, 29, 60, 0.95); backdrop-filter:blur(15px); -webkit-backdrop-filter:blur(15px); border:1px solid rgba(167, 115, 209, 0.4); box-shadow: 0 0 35px rgba(167, 115, 209, 0.6); color:#fff; padding:22px 26px; border-radius:18px; font-size:15px; text-align:center; z-index:9999; opacity:0; transition:all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events:none; font-weight:500; min-width:240px; line-height:1.4;';
+                            document.body.appendChild(div);
+                            requestAnimationFrame(() => {
+                                div.style.opacity = '1';
+                                div.style.transform = 'translate(-50%, -50%) scale(1)';
+                            });
+                            setTimeout(() => {
+                                div.style.opacity = '0';
+                                div.style.transform = 'translate(-50%, -50%) scale(0.9)';
+                                setTimeout(() => div.remove(), 400);
+                            }, 5500);
+                        })();
+                    """.trimIndent()
+                    messengerWebView.post {
+                        messengerWebView.evaluateJavascript(popupJs, null)
+                    }
+                }
+                onResult(validUris)
+            } else {
+                val maxPhotos = 8
+                val maxVideos = 2
+                val maxSizeBytes = 15 * 1024 * 1024L
+                
+                val validUris = mutableListOf<Uri>()
+                var photoCount = 0
+                var videoCount = 0
+                var totalSize = 0L
+                
+                var photoDropped = false
+                var videoDropped = false
+                var sizeDropped = false
+                var droppedCount = 0
+                
+                for (uri in rawUris) {
+                    val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+                    val isVideo = mimeType.startsWith("video")
+                    val fileSize = getUriSize(context, uri)
+                    
+                    if (isVideo) {
+                        if (videoCount >= maxVideos) {
+                            videoDropped = true
+                            droppedCount++
+                            continue
+                        }
+                    } else {
+                        if (photoCount >= maxPhotos) {
+                            photoDropped = true
+                            droppedCount++
+                            continue
+                        }
+                    }
+                    
+                    if (totalSize + fileSize > maxSizeBytes) {
+                        sizeDropped = true
+                        droppedCount++
+                        continue
+                    }
+                    
+                    validUris.add(uri)
+                    totalSize += fileSize
+                    if (isVideo) videoCount++ else photoCount++
                 }
                 
-                validUris.add(uri)
-                totalSize += fileSize
-                if (isVideo) videoCount++ else photoCount++
-            }
-            
-            if (droppedCount > 0 && messengerWebView != null) {
-                val msg = buildString {
-                    append("Упс! Сработали лимиты 🤫<br><br>")
-                    if (photoDropped) append("Максимум 8 фото.<br>")
-                    if (videoDropped) append("Максимум 2 видео.<br>")
-                    if (sizeDropped) append("Превышен лимит размера (15 МБ).<br>")
-                    append("<br>Отсечено файлов: <b>$droppedCount</b>")
+                if (droppedCount > 0 && messengerWebView != null) {
+                    val msg = buildString {
+                        append("Упс! Сработали лимиты 🤫<br><br>")
+                        if (photoDropped) append("Максимум 8 фото.<br>")
+                        if (videoDropped) append("Максимум 2 видео.<br>")
+                        if (sizeDropped) append("Превышен лимит размера (15 МБ).<br>")
+                        append("<br>Отсечено файлов: <b>$droppedCount</b>")
+                    }
+                    val popupJs = """
+                        (function(){
+                            var div = document.createElement('div');
+                            div.innerHTML = '$msg';
+                            div.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0.9); background:rgba(46, 29, 60, 0.95); backdrop-filter:blur(15px); -webkit-backdrop-filter:blur(15px); border:1px solid rgba(167, 115, 209, 0.4); box-shadow: 0 0 35px rgba(167, 115, 209, 0.6); color:#fff; padding:22px 26px; border-radius:18px; font-size:15px; text-align:center; z-index:9999; opacity:0; transition:all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events:none; font-weight:500; min-width:240px; line-height:1.4;';
+                            document.body.appendChild(div);
+                            requestAnimationFrame(() => {
+                                div.style.opacity = '1';
+                                div.style.transform = 'translate(-50%, -50%) scale(1)';
+                            });
+                            setTimeout(() => {
+                                div.style.opacity = '0';
+                                div.style.transform = 'translate(-50%, -50%) scale(0.9)';
+                                setTimeout(() => div.remove(), 400);
+                            }, 5500);
+                        })();
+                    """.trimIndent()
+                    messengerWebView.post {
+                        messengerWebView.evaluateJavascript(popupJs, null)
+                    }
                 }
-                val popupJs = """
-                    (function(){
-                        var div = document.createElement('div');
-                        div.innerHTML = '$msg';
-                        div.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%, -50%) scale(0.9); background:rgba(46, 29, 60, 0.95); backdrop-filter:blur(15px); -webkit-backdrop-filter:blur(15px); border:1px solid rgba(167, 115, 209, 0.4); box-shadow: 0 0 35px rgba(167, 115, 209, 0.6); color:#fff; padding:22px 26px; border-radius:18px; font-size:15px; text-align:center; z-index:9999; opacity:0; transition:all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); pointer-events:none; font-weight:500; min-width:240px; line-height:1.4;';
-                        document.body.appendChild(div);
-                        requestAnimationFrame(() => {
-                            div.style.opacity = '1';
-                            div.style.transform = 'translate(-50%, -50%) scale(1)';
-                        });
-                        setTimeout(() => {
-                            div.style.opacity = '0';
-                            div.style.transform = 'translate(-50%, -50%) scale(0.9)';
-                            setTimeout(() => div.remove(), 400);
-                        }, 5500);
-                    })();
-                """.trimIndent()
-                messengerWebView.post {
-                    messengerWebView.evaluateJavascript(popupJs, null)
-                }
+                onResult(validUris)
             }
-            onResult(validUris)
         }
 
         val messengerFileChooserLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -373,7 +426,7 @@ private fun WebViewLayer(
             if (rawUris.isNotEmpty()) {
                 processUrisWithLimits(context, rawUris, messengerWebViewInstance) { validUris ->
                     if (validUris.isNotEmpty()) {
-                        val isVideo = context.contentResolver.getType(validUris.first())?.startsWith("video") == true
+                        val firstUri = validUris.first()
                         val finalUris = mutableListOf<Uri>()
                         val mediaKey = messengerInterface.pendingMediaKey
                         for (originalUri in validUris) {
@@ -394,34 +447,44 @@ private fun WebViewLayer(
                         }
                         ukrnetFilePathCallback = null
                         
-                        val typeStr = if (isVideo) "video" else "photo"
+                        val typeStr = if (messengerInterface.pendingStealthMode == "file") "file" else {
+                            val isVideo = context.contentResolver.getType(firstUri)?.startsWith("video") == true
+                            if (isVideo) "video" else "photo"
+                        }
                         messengerWebViewInstance?.post { messengerWebViewInstance?.evaluateJavascript("if(window.nan0gram && window.nan0gram.submitStealthFile) window.nan0gram.submitStealthFile('$typeStr');", null) }
                         
                         scope.launch(Dispatchers.IO) {
                             val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                             val chatData = JSONObject().apply {
                                 put("time", timeStr)
-                                if (isVideo) {
-                                    put("isVideo", true)
-                                    val b64List = org.json.JSONArray()
-                                    val thumbList = org.json.JSONArray()
-                                    for (vidUri in validUris) {
-                                        val b64 = uriToBase64(context, vidUri)
-                                        if (b64.isNotEmpty()) {
-                                            b64List.put(b64)
-                                            val thumbB64 = getVideoThumbnailBase64(context, vidUri)
-                                            if (thumbB64.isNotEmpty()) thumbList.put("data:image/jpeg;base64,$thumbB64")
-                                        }
-                                    }
-                                    put("base64s", b64List)
-                                    put("thumbnails", thumbList)
+                                if (messengerInterface.pendingStealthMode == "file") {
+                                    put("isFile", true)
+                                    put("fileName", getOriginalFileName(context, firstUri))
+                                    put("fileSize", getUriSize(context, firstUri))
                                 } else {
-                                    val b64List = org.json.JSONArray()
-                                    for (imgUri in validUris) {
-                                        val b64 = uriToBase64(context, imgUri)
-                                        if (b64.isNotEmpty()) b64List.put(b64)
+                                    val isVideo = context.contentResolver.getType(firstUri)?.startsWith("video") == true
+                                    if (isVideo) {
+                                        put("isVideo", true)
+                                        val b64List = org.json.JSONArray()
+                                        val thumbList = org.json.JSONArray()
+                                        for (vidUri in validUris) {
+                                            val b64 = uriToBase64(context, vidUri)
+                                            if (b64.isNotEmpty()) {
+                                                b64List.put(b64)
+                                                val thumbB64 = getVideoThumbnailBase64(context, vidUri)
+                                                if (thumbB64.isNotEmpty()) thumbList.put("data:image/jpeg;base64,$thumbB64")
+                                            }
+                                        }
+                                        put("base64s", b64List)
+                                        put("thumbnails", thumbList)
+                                    } else {
+                                        val b64List = org.json.JSONArray()
+                                        for (imgUri in validUris) {
+                                            val b64 = uriToBase64(context, imgUri)
+                                            if (b64.isNotEmpty()) b64List.put(b64)
+                                        }
+                                        put("base64s", b64List)
                                     }
-                                    put("base64s", b64List)
                                 }
                             }
                             val escaped = chatData.toString().replace("\\", "\\\\").replace("\"", "\\\"")
@@ -495,35 +558,44 @@ private fun WebViewLayer(
                         }
                         
                         val firstUri = validUris.first()
-                        val isVideo = context.contentResolver.getType(firstUri)?.startsWith("video") == true
-                        val typeStr = if (isVideo) "video" else "photo"
+                        val typeStr = if (messengerInterface.pendingStealthMode == "file") "file" else {
+                            val isVideo = context.contentResolver.getType(firstUri)?.startsWith("video") == true
+                            if (isVideo) "video" else "photo"
+                        }
                         messengerWebViewInstance?.evaluateJavascript("if(window.nan0gram && window.nan0gram.submitStealthFile) window.nan0gram.submitStealthFile('$typeStr');", null)
                         
                         scope.launch(Dispatchers.IO) {
                             val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                             val chatData = JSONObject().apply {
                                 put("time", timeStr)
-                                if (isVideo) {
-                                    put("isVideo", true)
-                                    val b64List = org.json.JSONArray()
-                                    val thumbList = org.json.JSONArray()
-                                    for (vidUri in validUris) {
-                                        val b64 = uriToBase64(context, vidUri)
-                                        if (b64.isNotEmpty()) {
-                                            b64List.put(b64)
-                                            val thumbB64 = getVideoThumbnailBase64(context, vidUri)
-                                            if (thumbB64.isNotEmpty()) thumbList.put("data:image/jpeg;base64,$thumbB64")
-                                        }
-                                    }
-                                    put("base64s", b64List)
-                                    put("thumbnails", thumbList)
+                                if (messengerInterface.pendingStealthMode == "file") {
+                                    put("isFile", true)
+                                    put("fileName", getOriginalFileName(context, firstUri))
+                                    put("fileSize", getUriSize(context, firstUri))
                                 } else {
-                                    val b64List = org.json.JSONArray()
-                                    for (imgUri in validUris) {
-                                        val b64 = uriToBase64(context, imgUri)
-                                        if (b64.isNotEmpty()) b64List.put(b64)
+                                    val isVideo = context.contentResolver.getType(firstUri)?.startsWith("video") == true
+                                    if (isVideo) {
+                                        put("isVideo", true)
+                                        val b64List = org.json.JSONArray()
+                                        val thumbList = org.json.JSONArray()
+                                        for (vidUri in validUris) {
+                                            val b64 = uriToBase64(context, vidUri)
+                                            if (b64.isNotEmpty()) {
+                                                b64List.put(b64)
+                                                val thumbB64 = getVideoThumbnailBase64(context, vidUri)
+                                                if (thumbB64.isNotEmpty()) thumbList.put("data:image/jpeg;base64,$thumbB64")
+                                            }
+                                        }
+                                        put("base64s", b64List)
+                                        put("thumbnails", thumbList)
+                                    } else {
+                                        val b64List = org.json.JSONArray()
+                                        for (imgUri in validUris) {
+                                            val b64 = uriToBase64(context, imgUri)
+                                            if (b64.isNotEmpty()) b64List.put(b64)
+                                        }
+                                        put("base64s", b64List)
                                     }
-                                    put("base64s", b64List)
                                 }
                             }
                             val escaped = chatData.toString().replace("\\", "\\\\").replace("\"", "\\\"")
@@ -624,13 +696,22 @@ private fun WebViewLayer(
                             }
                             ukrnetFilePathCallback = filePathCallbackParams
                             try {
-                                val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
-                                    addCategory(android.content.Intent.CATEGORY_OPENABLE)
-                                    type = "*/*"
-                                    putExtra(android.content.Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*"))
-                                    putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+                                if (messengerInterface.pendingStealthMode == "file") {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+                                        addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                                        type = "*/*"
+                                        putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, false)
+                                    }
+                                    ukrnetFileChooserLauncher.launch(intent)
+                                } else {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+                                        addCategory(android.content.Intent.CATEGORY_OPENABLE)
+                                        type = "*/*"
+                                        putExtra(android.content.Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*"))
+                                        putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE, true)
+                                    }
+                                    ukrnetFileChooserLauncher.launch(intent)
                                 }
-                                ukrnetFileChooserLauncher.launch(intent)
                             } catch (e: Exception) {
                                 ukrnetFilePathCallback?.onReceiveValue(null)
                                 ukrnetFilePathCallback = null
@@ -659,11 +740,11 @@ private fun WebViewLayer(
                                     if(window._n0gDirectPickerPatch)return;
                                     window._n0gDirectPickerPatch=true;
                                     var _attachDebounce = false;
-                                    function triggerStealthAttach() {
+                                    function triggerStealthAttach(mode) {
                                         if (_attachDebounce) return;
                                         _attachDebounce = true;
                                         setTimeout(function(){ _attachDebounce = false; }, 2000);
-                                        if (window.Android && window.Android.prepareForDirectAttach) {
+                                        if (window.Android) {
                                             var mk = "";
                                             if (window.nanoUtils && window.nanoUtils.randomKey) {
                                                 mk = window.nanoUtils.randomKey();
@@ -673,12 +754,36 @@ private fun WebViewLayer(
                                                 for(var i=0; i<16; i++) { mk += arr[i].toString(16).padStart(2,'0'); }
                                             }
                                             window.nan0gram_pendingMediaKey = mk;
-                                            window.Android.prepareForDirectAttach(mk);
+                                            if (typeof window.Android.prepareForDirectAttachWithMode === 'function') {
+                                                window.Android.prepareForDirectAttachWithMode(mk, mode || "media");
+                                            } else if (typeof window.Android.prepareForDirectAttach === 'function') {
+                                                window.Android.prepareForDirectAttach(mk);
+                                            }
                                         }
                                     }
-                                    document.addEventListener('touchstart', function(e) { var t = e.target.closest('.input-icon'); if (t) { window._n0gStealthPending = true; triggerStealthAttach(); } }, true);
-                                    document.addEventListener('mousedown', function(e) { var t = e.target.closest('.input-icon'); if (t) { window._n0gStealthPending = true; triggerStealthAttach(); } }, true);
-                                    document.addEventListener('click', function(e) { var t = e.target.closest('.input-icon'); if (t) { e.preventDefault(); e.stopPropagation(); } }, true);
+                                    document.addEventListener('touchstart', function(e) {
+                                        var t = e.target.closest('.input-icon');
+                                        if (t) {
+                                            window._n0gStealthPending = true;
+                                            var mode = t.getAttribute('data-mode') || 'media';
+                                            triggerStealthAttach(mode);
+                                        }
+                                    }, true);
+                                    document.addEventListener('mousedown', function(e) {
+                                        var t = e.target.closest('.input-icon');
+                                        if (t) {
+                                            window._n0gStealthPending = true;
+                                            var mode = t.getAttribute('data-mode') || 'media';
+                                            triggerStealthAttach(mode);
+                                        }
+                                    }, true);
+                                    document.addEventListener('click', function(e) {
+                                        var t = e.target.closest('.input-icon');
+                                        if (t) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                        }
+                                    }, true);
                                 })();
                             """.trimIndent(), null)
                             view?.evaluateJavascript("""
