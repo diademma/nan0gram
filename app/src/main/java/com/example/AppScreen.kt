@@ -431,6 +431,12 @@ private fun WebViewLayer(
             }
             
             if (rawUris.isNotEmpty()) {
+                if (messengerInterface.isWallpaperPending) {
+                    messengerInterface.isWallpaperPending = false
+                    messengerFilePathCallback?.onReceiveValue(rawUris.toTypedArray())
+                    messengerFilePathCallback = null
+                    return@rememberLauncherForActivityResult
+                }
                 processUrisWithLimits(context, rawUris, messengerWebViewInstance) { validUris ->
                     if (validUris.isNotEmpty()) {
                         val firstUri = validUris.first()
