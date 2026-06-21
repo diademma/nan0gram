@@ -255,6 +255,10 @@ fun AppScreen(
     mediaManager: MediaManager,
     log: (String) -> Unit
 ) {
+    // Подключаем БД и медиа-менеджер к JS-мосту перед отрисовкой
+    messengerInterface.repository = repository
+    messengerInterface.mediaManager = mediaManager
+
     Scaffold(containerColor = Color(0xFF130E19), modifier = Modifier.fillMaxSize()) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding).background(Color(0xFF130E19))) {
             WebViewLayer(isBgServiceActive, uiAlpha, ukrnetInterface, messengerInterface, mediaManager, onUkrnetViewReady, onMessengerViewReady, log)
