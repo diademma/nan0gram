@@ -11996,6 +11996,24 @@ function cv() {
                             }));
                         }
                     });
+                    
+                    // Наполняем БД дефолтной историей переписок, чтобы сообщения не пропадали при первом запуске
+                    Object.keys(V0).forEach(cid => {
+                        const msgs = V0[cid] || [];
+                        msgs.forEach(msg => {
+                            if (window.Android && window.Android.saveMessageToDb) {
+                                window.Android.saveMessageToDb(JSON.stringify({
+                                    id: "default_" + msg.id,
+                                    chatId: cid,
+                                    type: msg.type,
+                                    author: msg.author,
+                                    text: msg.text,
+                                    timestamp: Date.now() - (1000 * 60 * 60)
+                                }));
+                            }
+                        });
+                    });
+
                     setTimeout(() => {
                         if (window.Android && window.Android.requestChatsList) {
                             window.Android.requestChatsList();
@@ -12051,7 +12069,7 @@ function cv() {
     T.useEffect(() => {
         const handleChatHistory = (e) => {
             try {
-                const history = JSON.parse(e.detail);
+                const { chatId, offset, messages } = JSON.parse(e.detail);
                 const formatTime = (ts) => {
                     if (!ts) return Pn();
                     const d = new Date(ts);
@@ -12060,9 +12078,9 @@ function cv() {
                     return `${hrs}:${mins}`;
                 };
 
-                const formatted = history.map(msg => {
+                const formatted = messages.map(msg => {
                     const mapped = {
-                        id: msg.id,
+                        id: String(msg.id),
                         type: msg.type,
                         author: msg.author,
                         text: msg.text,
@@ -12074,16 +12092,16 @@ function cv() {
 
                     // Восстанавливаем оригинальный объект ответа (replyTo)
                     if (msg.replyToId) {
-                        const parentMsg = history.find(p => String(p.id) === String(msg.replyToId));
+                        const parentMsg = messages.find(p => String(p.id) === String(msg.replyToId));
                         if (parentMsg) {
                             mapped.replyTo = {
-                                id: parentMsg.id,
+                                id: String(parentMsg.id),
                                 author: parentMsg.author,
                                 text: parentMsg.text || (parentMsg.mediaType !== "none" ? "Медиа" : "")
                             };
                         } else {
                             mapped.replyTo = {
-                                id: msg.replyToId,
+                                id: String(msg.replyToId),
                                 author: "Сообщение",
                                 text: "Предыдущее сообщение"
                             };
@@ -12106,12 +12124,12 @@ function cv() {
                 }).reverse();
 
                 U(prev => {
-                    const current = prev[o] || [];
+                    const current = prev[chatId] || [];
                     if (offset === 0) {
-                        return { ...prev, [o]: formatted };
+                        return { ...prev, [chatId]: formatted };
                     } else {
                         // Подгрузка старой истории наверх (Infinite Scroll)
-                        return { ...prev, [o]: [...formatted, ...current] };
+                        return { ...prev, [chatId]: [...formatted, ...current] };
                     }
                 });
             } catch(err) {}
@@ -12187,7 +12205,7 @@ function cv() {
         Bl = T.useCallback(() => M(null), []),
         rl = T.useCallback((R, F) => {
             if (o) {
-                const newId = ++lc;
+                const newId = String(++lc);
                 const timeStr = Pn();
                 const msgObj = {
                     id: newId,
@@ -12201,7 +12219,7 @@ function cv() {
                 // Запись в SQLite
                 if (window.Android && window.Android.saveMessageToDb) {
                     window.Android.saveMessageToDb(JSON.stringify({
-                        id: String(newId),
+                        id: newId,
                         chatId: o,
                         type: "out",
                         author: "Я",
