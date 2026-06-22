@@ -132,6 +132,7 @@ class MessengerJsInterface(
     @Volatile 
     @set:kotlin.jvm.JvmName("setWallpaperPendingInternal")
     var isWallpaperPending: Boolean = false
+    @Volatile var isWallpaperJustSelected: Boolean = false
 
     @JavascriptInterface
     fun setWallpaperPending(pending: Boolean) {
@@ -266,6 +267,12 @@ class MessengerJsInterface(
 
     @JavascriptInterface
     fun notifyMediaSelection(sysBlock: String) {
+        if (isWallpaperJustSelected) {
+            log("[Stealth] Wallpaper режим — пропускаем отправку метаданных, сбрасываем флаг")
+            isWallpaperJustSelected = false
+            pendingMediaKey = ""
+            return
+        }
         log("[Stealth] Получены метаданные медиа. Прикрепляем к письму...")
         pendingMediaKey = "" // Очищаем временный ключ после подтверждения отправки из JS
         ui.post {
