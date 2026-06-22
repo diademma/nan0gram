@@ -978,38 +978,6 @@ function k0({
                                             ]
                                         })
                                     ]
-                                }),
-                                f.jsxs("button", {
-                                    className: "settings-item",
-                                    onClick: () => {
-                                        if (confirm("ВНИМАНИЕ: Вы действительно хотите БЕЗВОЗВРАТНО удалить абсолютно все сообщения изо всех чатов?")) {
-                                            if (window.Android && window.Android.clearAllHistoryLog) {
-                                                window.Android.clearAllHistoryLog();
-                                                localStorage.removeItem("nan0gram_pinned_messages");
-                                            } else {
-                                                alert("Все сообщения удалены (демо).");
-                                            }
-                                        }
-                                    },
-                                    children: [
-                                        f.jsx("div", {
-                                            className: "settings-icon",
-                                            children: "🗑️"
-                                        }),
-                                        f.jsxs("div", {
-                                            className: "settings-item-content",
-                                            children: [
-                                                f.jsx("div", {
-                                                    className: "settings-item-title",
-                                                    children: "Полная очистка сообщений"
-                                                }),
-                                                f.jsx("div", {
-                                                    className: "settings-item-desc",
-                                                    children: "Безвозвратно сотрет всю историю переписки на устройстве."
-                                                })
-                                            ]
-                                        })
-                                    ]
                                 })
                             ]
                         })
