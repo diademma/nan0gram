@@ -2123,7 +2123,12 @@ function tv({
                 className: "header-actions",
                 children: [f.jsx("span", {
                     title: "Сменить обои",
-                    onClick: () => Y.current?.click(),
+                    onClick: () => {
+                        if (window.Android && window.Android.setWallpaperPending) {
+                            window.Android.setWallpaperPending(true);
+                        }
+                        Y.current?.click();
+                    },
                     style: {
                         cursor: "pointer"
                     },
