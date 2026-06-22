@@ -433,6 +433,7 @@ private fun WebViewLayer(
             if (rawUris.isNotEmpty()) {
                 if (messengerInterface.isWallpaperPending) {
                     messengerInterface.isWallpaperPending = false
+                    messengerInterface.isWallpaperJustSelected = true
                     messengerFilePathCallback?.onReceiveValue(rawUris.toTypedArray())
                     messengerFilePathCallback = null
                     return@rememberLauncherForActivityResult
