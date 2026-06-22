@@ -6,7 +6,7 @@ const Z0 = "https://ui-avatars.com/api/?name=%D0%AF&background=2f65e0&color=fff&
         userId: "109823746",
         status: "150 участников",
         avatar: "https://images.unsplash.com/photo-1555854877-bab0e564b8d5?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
-        preview: "Тот самый тест",
+        preview: "",
         unread: 0
     }, {
         id: "chat_2",
@@ -15,8 +15,8 @@ const Z0 = "https://ui-avatars.com/api/?name=%D0%AF&background=2f65e0&color=fff&
         userId: "543812993",
         status: "в сети",
         avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
-        preview: "Приветик!",
-        unread: 2
+        preview: "",
+        unread: 0
     }, {
         id: "chat_3",
         name: "Работа",
@@ -24,111 +24,40 @@ const Z0 = "https://ui-avatars.com/api/?name=%D0%AF&background=2f65e0&color=fff&
         userId: "88339211",
         status: "12 участников",
         avatar: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=60",
-        preview: "Отчет готов?",
-        unread: 5
+        preview: "",
+        unread: 0
     }],
-    V0 = {
-        chat_1: [{
-            id: 1,
-            type: "in",
-            author: "Кай",
-            avatar: qu[0].avatar,
-            text: "Альбомы, кликабельные аватарки и свайп вправо!",
-            time: "10:30"
-        }, {
-            id: 2,
-            type: "out",
-            author: "Я",
-            text: "Все работает как швейцарские часы ⏰",
-            time: "10:35"
-        }, {
-            id: 3,
-            type: "in",
-            author: "Кай",
-            avatar: qu[0].avatar,
-            text: "Свайп влево на сообщение — ответить. Свайп вправо с края — закрыть чат.",
-            time: "10:36"
-        }, {
-            id: 4,
-            type: "out",
-            author: "Я",
-            text: "Работаем под планшет в первую очередь 🔥",
-            time: "10:40"
-        }],
-        chat_2: [{
-            id: 10,
-            type: "in",
-            author: "Алиса",
-            avatar: qu[1].avatar,
-            text: "Приветик!",
-            time: "12:00"
-        }, {
-            id: 11,
-            type: "out",
-            author: "Я",
-            text: "Привет! Как дела?",
-            time: "12:01"
-        }],
-        chat_3: [{
-            id: 20,
-            type: "in",
-            author: "Босс",
-            avatar: qu[2].avatar,
-            text: "Где отчет?",
-            time: "09:00"
-        }]
-    },
     L0 = ["👍", "❤️", "🔥", "🥰", "👏", "😁", "🤔", "🤯"],
     K0 = ["🙊", "❤️", "👍", "👎", "🔥", "🥰", "👏", "😁", "🤔", "🤯", "😱", "🤬", "😢", "🎉", "🤩", "🤮", "💩", "🙏", "👌", "🕊️", "🤡", "🥱", "🥴", "😍", "🐳", "❤️‍🔥", "🌚", "🌭", "💯", "🤣", "⚡", "🍌", "🏆", "💔", "🤨", "😐", "🍓", "🍾", "💋", "🖕", "😈", "😴", "😭", "🤓", "👻", "👨‍💻", "👀", "🎃", "😇", "😨", "🤝", "✍️", "🤗", "🫡", "🎅", "🎄", "☃️", "💅", "🤪", "🗿", "🆒", "💘", "🙉", "🦄", "😘", "💊", "😎", "👾", "🤷‍♂️", "🤷", "🤷‍♀️", "😡"],
-    pd = [{
-        id: "purple",
-        label: "Фиолет",
-        gradient: "linear-gradient(135deg,#6b21a8,#a21caf)",
-        inRgb: "65,35,80",
-        outRgb: "65,35,80"
-    }, {
-        id: "blue",
-        label: "Синий",
-        gradient: "linear-gradient(135deg,#1e40af,#2563eb)",
-        inRgb: "18,38,90",
-        outRgb: "22,55,120"
-    }, {
-        id: "green",
-        label: "Зелёный",
-        gradient: "linear-gradient(135deg,#065f46,#059669)",
-        inRgb: "12,55,38",
-        outRgb: "16,75,48"
-    }, {
-        id: "teal",
-        label: "Бирюза",
-        gradient: "linear-gradient(135deg,#0f766e,#06b6d4)",
-        inRgb: "10,58,68",
-        outRgb: "14,80,88"
-    }, {
-        id: "rose",
-        label: "Роза",
-        gradient: "linear-gradient(135deg,#9f1239,#e11d48)",
-        inRgb: "80,18,42",
-        outRgb: "110,24,56"
-    }, {
-        id: "amber",
-        label: "Янтарь",
-        gradient: "linear-gradient(135deg,#92400e,#d97706)",
-        inRgb: "80,38,10",
-        outRgb: "105,52,12"
-    }, {
-        id: "dark",
-        label: "Чёрный",
-        gradient: "linear-gradient(135deg,#18181b,#27272a)",
-        inRgb: "18,18,22",
-        outRgb: "28,28,36"
-    }],
     w0 = {
-        schemeId: "purple",
+        schemeId: "custom",
         inRgb: "65,35,80",
         outRgb: "65,35,80",
-        opacity: .88
+        opacity: .88,
+        customHue: 260
     };
+
+const hslToRgb = (h, s, l) => {
+    let r, g, b;
+    if(s === 0) {
+        r = g = b = l;
+    } else {
+        const hue2rgb = (p, q, t) => {
+            if(t < 0) t += 1;
+            if(t > 1) t -= 1;
+            if(t < 1 / 6) return p + (q - p) * 6 * t;
+            if(t < 1 / 2) return q;
+            if(t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+            return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1 / 3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1 / 3);
+    }
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+};
 
 function J0({
     contactName: m,
@@ -136,14 +65,31 @@ function J0({
     onSave: U,
     onClose: o
 }) {
-    const [_, O] = T.useState(G), K = T.useCallback(S => {
-        O(j => ({
-            ...j,
-            schemeId: S.id,
-            inRgb: S.inRgb,
-            outRgb: S.outRgb
-        }))
-    }, []), el = T.useCallback(() => {
+    const [_, O] = T.useState(G);
+    const handleHueChange = T.useCallback((e) => {
+        const val = Number(e.target.value);
+        let r, g, b;
+        if(val <= 0) {
+            r = 240; g = 240; b = 240;
+        } else if(val >= 380) {
+            r = 30; g = 30; b = 30;
+        } else {
+            let h = (val - 10) / 360;
+            if(h < 0) h = 0;
+            if(h > 1) h = 1;
+            const rgb = hslToRgb(h, 0.75, 0.45);
+            r = rgb[0]; g = rgb[1]; b = rgb[2];
+        }
+        const outRgbStr = `${r},${g},${b}`;
+        O(prev => ({
+            ...prev,
+            schemeId: "custom",
+            outRgb: outRgbStr,
+            inRgb: outRgbStr,
+            customHue: val
+        }));
+    }, []);
+    const el = T.useCallback(() => {
         U(_), o()
     }, [_, U, o]), M = {
         in: `rgba(${_.inRgb},${_.opacity})`,
@@ -244,26 +190,57 @@ function J0({
                 className: "theme-section",
                 children: [f.jsx("div", {
                     className: "theme-section-title",
-                    children: "Цветовая гамма"
-                }), f.jsx("div", {
-                    className: "color-scheme-grid",
-                    children: pd.map(S => f.jsxs("button", {
-                        className: `scheme-btn${_.schemeId===S.id?" active":""}`,
-                        onClick: () => K(S),
-                        title: S.label,
-                        children: [f.jsx("div", {
-                            className: "scheme-preview",
+                    children: "Цвет сообщений (Оттенок)"
+                }), f.jsxs("div", {
+                    style: {
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "16px",
+                        background: "#15101b",
+                        border: "1px solid rgba(255,255,255,0.05)",
+                        borderRadius: "16px",
+                        padding: "16px"
+                    },
+                    children: [f.jsxs("div", {
+                        style: {
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between"
+                        },
+                        children: [f.jsx("span", {
                             style: {
-                                background: S.gradient
-                            }
+                                fontSize: "14px",
+                                color: "#fff",
+                                fontWeight: 500
+                            },
+                            children: "Оттенок"
                         }), f.jsx("div", {
-                            className: "scheme-name",
-                            children: S.label
-                        }), _.schemeId === S.id && f.jsx("div", {
-                            className: "scheme-check",
-                            children: "✓"
+                            style: {
+                                width: "28px",
+                                height: "28px",
+                                borderRadius: "50%",
+                                background: `rgb(${_.outRgb})`,
+                                border: "2px solid rgba(255,255,255,0.8)",
+                                boxShadow: "0 2px 8px rgba(0,0,0,0.5)"
+                            }
                         })]
-                    }, S.id))
+                    }), f.jsx("input", {
+                        type: "range",
+                        min: 0,
+                        max: 380,
+                        value: _.customHue !== undefined ? _.customHue : 260,
+                        onChange: handleHueChange,
+                        className: "hue-slider",
+                        style: {
+                            width: "100%",
+                            WebkitAppearance: "none",
+                            height: "14px",
+                            borderRadius: "8px",
+                            background: "linear-gradient(to right, #f0f0f0 0%, #ff0000 5%, #ffff00 20%, #00ff00 35%, #00ffff 50%, #0000ff 65%, #ff00ff 80%, #ff0000 95%, #1e1e1e 100%)",
+                            outline: "none",
+                            margin: 0
+                        }
+                    })]
                 })]
             })]
         })]
@@ -2833,7 +2810,7 @@ function cv() {
                     }));
                     setChats(formatted);
                 } else {
-                    // Первичный запуск: наполняем БД дефолтными контактами
+                    // Первичный запуск: наполняем БД дефолтными контактами (прототипы без СМС)
                     qu.forEach(c => {
                         if (window.Android && window.Android.saveChatToDb) {
                             window.Android.saveChatToDb(JSON.stringify({
@@ -2841,28 +2818,11 @@ function cv() {
                                 name: c.name,
                                 username: c.username,
                                 avatarUrl: c.avatar,
-                                unreadCount: c.unread,
+                                unreadCount: 0,
                                 lastMessageTime: Date.now(),
-                                lastMessagePreview: c.preview
+                                lastMessagePreview: ""
                             }));
                         }
-                    });
-                    
-                    // Наполняем БД дефолтной историей переписок, чтобы сообщения не пропадали при первом запуске
-                    Object.keys(V0).forEach(cid => {
-                        const msgs = V0[cid] || [];
-                        msgs.forEach(msg => {
-                            if (window.Android && window.Android.saveMessageToDb) {
-                                window.Android.saveMessageToDb(JSON.stringify({
-                                    id: "default_" + msg.id,
-                                    chatId: cid,
-                                    type: msg.type,
-                                    author: msg.author,
-                                    text: msg.text,
-                                    timestamp: Date.now() - (1000 * 60 * 60)
-                                }));
-                            }
-                        });
                     });
 
                     setTimeout(() => {
@@ -2997,19 +2957,6 @@ function cv() {
             window.Android.requestChatHistory(o, nextOffset, 100);
         }
     }, [o, offset]);
-    T.useEffect(() => {
-        const blur = localStorage.getItem("nan0gram_sidebar_blur") || "20",
-            darkness = localStorage.getItem("nan0gram_sidebar_darkness") || "50";
-        document.documentElement.style.setProperty("--sidebar-blur", blur + "px");
-        document.documentElement.style.setProperty("--sidebar-brightness", (100 - Number(darkness)) / 100)
-    }, []);
-    T.useEffect(() => {
-        if(ml) {
-            document.documentElement.style.setProperty("--wallpaper-url", `url('${ml}')`)
-        } else {
-            document.documentElement.style.setProperty("--wallpaper-url", "url('https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=1000&auto=format&fit=crop')")
-        }
-    }, [ml]);
     T.useEffect(() => {
         const blur = localStorage.getItem("nan0gram_sidebar_blur") || "20",
             darkness = localStorage.getItem("nan0gram_sidebar_darkness") || "50";
