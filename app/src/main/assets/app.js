@@ -2059,12 +2059,17 @@ function tv({
             }, 50))
         }, [x]),    Re = T.useCallback(D => {
         const w = o.find(sl => sl.id === D);
-        w && (Cl({
-            id: w.id,
-            author: w.author || "Я",
-                text: w.text || "Медиа"
-            }), Tl(null), X.current?.focus())
-        }, [o]),
+        if (w) {
+            const textDesc = w.text || (w.images?.length > 1 ? "Альбом" : w.images ? "Фото" : w.audio ? "Голосовое сообщение" : w.video ? "Видео" : w.file ? "Файл" : "Сообщение");
+            Cl({
+                id: w.id,
+                author: w.author || "Я",
+                text: textDesc
+            });
+            Tl(null);
+            X.current?.focus();
+        }
+    }, [o]),
         fc = T.useCallback(() => {
             if (cl) {
                 const targetId = cl.id || cl;
@@ -3113,20 +3118,57 @@ function cv() {
                     const updatedList = V[o].map(bl => {
                         if (bl.id === R) {
                             const newMsg = { ...bl, text: F, edited: !0 };
+                            const mediaType = bl.mediaType || (bl.images ? "photo" : bl.video ? "video" : bl.audio ? "voice" : bl.file ? "file" : "none");
+                            let mediaPaths = [];
+                            let mediaThumbnails = [];
+                            if (mediaType === "photo" && bl.images) {
+                                mediaPaths = bl.images;
+                            } else if (mediaType === "video" && bl.video) {
+                                mediaPaths = [bl.video];
+                                if (bl.videoThumbnail) mediaThumbnails = [bl.videoThumbnail];
+                            } else if (mediaType === "voice" && bl.audio) {
+                                mediaPaths = [bl.audio];
+                            }
+                            const cleanPaths = mediaPaths.map(p => {
+                                if (typeof p === "string" && p.startsWith("https://appassets.androidlocal/media/")) {
+                                    return p.replace("https://appassets.androidlocal/media/", "");
+                                }
+                                return p;
+                            });
+                            const cleanThumbs = mediaThumbnails.map(p => {
+                                if (typeof p === "string" && p.startsWith("https://appassets.androidlocal/media/")) {
+                                    return p.replace("https://appassets.androidlocal/media/", "");
+                                }
+                                return p;
+                            });
+                            const fileName = bl.file ? bl.file.name : (bl.fileName || "");
+                            const fileSize = bl.file ? bl.file.size : (bl.fileSize || 0);
+                            const audioDuration = bl.audioDuration || 0;
                             if (window.Android && window.Android.saveMessageToDb) {
                                 window.Android.saveMessageToDb(JSON.stringify({
                                     id: String(newMsg.id),
                                     chatId: o,
-                                    type: "out",
-                                    author: "Я",
+                                    type: newMsg.type || "out",
+                                    author: newMsg.author || "Я",
                                     text: F + "\u200E",
-                                    timestamp: Date.now(),
-                                    mediaType: newMsg.mediaType || "none",
-                                    mediaPaths: newMsg.images ? JSON.stringify(newMsg.images) : "[]",
-                                    replyToId: newMsg.replyTo ? String(newMsg.replyTo.id) : ""
+                                    timestamp: newMsg.timestamp || Date.now(),
+                                    mediaType: mediaType,
+                                    mediaPaths: JSON.stringify(cleanPaths),
+                                    mediaThumbnails: JSON.stringify(cleanThumbs),
+                                    fileName: fileName,
+                                    fileSize: fileSize,
+                                    audioDuration: audioDuration,
+                                    replyToId: newMsg.replyTo ? String(newMsg.replyTo.id) : "",
+                                    reaction: newMsg.reaction || ""
                                 }));
                             }
-                            return newMsg;
+                            return { 
+                                ...newMsg, 
+                                mediaType: mediaType,
+                                fileName: fileName,
+                                fileSize: fileSize,
+                                audioDuration: audioDuration
+                            };
                         }
                         return bl;
                     });
