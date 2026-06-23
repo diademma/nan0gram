@@ -1575,7 +1575,7 @@ function I0({
                                 B.stopPropagation(), Yl && Yl(m.id, m.reaction)
                             },
                             onTouchEnd: B => {
-                                B.cancelable && B.preventDefault(), B.stopPropagation(), Yl && Yl(m.id, m.reaction)
+                                B.stopPropagation(), Yl && Yl(m.id, m.reaction)
                             },
                             children: [f.jsx("span", {
                                 children: m.reaction
@@ -2594,6 +2594,21 @@ function av({
         K(1);
         M({ x: 0, y: 0 });
     }, [o]);
+
+    // Enforce non-passive listeners with container ref to prevent passive touch handler crash
+    const containerRef = T.useRef(null);
+    T.useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        el.addEventListener('touchstart', X, { passive: false });
+        el.addEventListener('touchmove', _l, { passive: false });
+        el.addEventListener('touchend', vl, { passive: false });
+        return () => {
+            el.removeEventListener('touchstart', X);
+            el.removeEventListener('touchmove', _l);
+            el.removeEventListener('touchend', vl);
+        };
+    }, [X, _l, vl]);
 
     // Enforce non-passive listeners with container ref to prevent passive touch handler crash
     const containerRef = T.useRef(null);
