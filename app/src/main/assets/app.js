@@ -2594,8 +2594,24 @@ function av({
         K(1);
         M({ x: 0, y: 0 });
     }, [o]);
---- OLD CODE START ---
+
+    // Enforce non-passive listeners with container ref to prevent passive touch handler crash
+    const containerRef = T.useRef(null);
+    T.useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        el.addEventListener('touchstart', X, { passive: false });
+        el.addEventListener('touchmove', _l, { passive: false });
+        el.addEventListener('touchend', vl, { passive: false });
+        return () => {
+            el.removeEventListener('touchstart', X);
+            el.removeEventListener('touchmove', _l);
+            el.removeEventListener('touchend', vl);
+        };
+    }, [X, _l, vl]);
+
     return !m || !$ ? null : f.jsxs("div", {
+        ref: containerRef,
         className: "lightbox",
         style: {
             display: "flex"
