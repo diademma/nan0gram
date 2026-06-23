@@ -972,14 +972,6 @@
             });
         });
 
-        // Жесткая изоляция звуковой волны (спектрограммы): она всегда блокирует свайпы, чтобы перемотка работала идеально
-        const waveStopEvents = ['touchstart', 'touchmove', 'touchend'];
-        waveStopEvents.forEach(function(evt) {
-            waveContainer.addEventListener(evt, function(e) {
-                e.stopPropagation();
-            });
-        });
-
         const playBtn = document.createElement('button');
         playBtn.className = 'tg-play-btn';
         playBtn.innerHTML = `
@@ -1018,6 +1010,14 @@
         waveContainer.appendChild(bgWave);
         waveContainer.appendChild(activeContainer);
         player.appendChild(waveContainer);
+
+        // Жесткая изоляция звуковой волны (спектрограммы): она всегда блокирует свайпы, чтобы перемотка работала идеально
+        const waveStopEvents = ['touchstart', 'touchmove', 'touchend'];
+        waveStopEvents.forEach(function(evt) {
+            waveContainer.addEventListener(evt, function(e) {
+                e.stopPropagation();
+            });
+        });
 
         const durationDiv = document.createElement('div');
         durationDiv.className = 'tg-voice-meta';
