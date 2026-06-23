@@ -683,7 +683,8 @@
                     id: Date.now(),
                     type: "out",
                     author: "Я",
-                    time: data.time
+                    time: data.time,
+                    timestamp: Date.now()
                 };
                 
                 if (data.isFile) {
@@ -891,7 +892,8 @@
                             type: "in", 
                             author: msg.author, 
                             text: textVal, 
-                            time: timeStr 
+                            time: timeStr,
+                            timestamp: msg.ts
                         });
                     }
                 });
