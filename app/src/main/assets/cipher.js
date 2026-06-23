@@ -131,6 +131,9 @@
         decode: function(maskedText, key, domain = "msg") {
             const clean = String(maskedText || "").replace(/\s+/g, "");
             return decryptPayload(clean, `${key}:${domain}`);
+        },
+        customToStd: function(customB64) {
+            return custom64ToStd(customB64);
         }
     };
 
