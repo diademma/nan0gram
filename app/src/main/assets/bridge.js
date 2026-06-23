@@ -1011,14 +1011,6 @@
         waveContainer.appendChild(activeContainer);
         player.appendChild(waveContainer);
 
-        // Жесткая изоляция звуковой волны (спектрограммы): она всегда блокирует свайпы, чтобы перемотка работала идеально
-        const waveStopEvents = ['touchstart', 'touchmove', 'touchend'];
-        waveStopEvents.forEach(function(evt) {
-            waveContainer.addEventListener(evt, function(e) {
-                e.stopPropagation();
-            });
-        });
-
         const durationDiv = document.createElement('div');
         durationDiv.className = 'tg-voice-meta';
 
@@ -1101,10 +1093,11 @@
             durationDiv.textContent = formatTime(audio.duration);
         });
 
-        waveContainer.addEventListener('click', function(e) {
-            e.stopPropagation();
+        let isDraggingWave = false;
+        function updateWavePosition(e) {
             const rect = waveContainer.getBoundingClientRect();
-            const x = e.clientX - rect.left;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const x = clientX - rect.left;
             const pct = Math.max(0, Math.min(1, x / rect.width));
             const total = audio.duration || 0;
             if (total > 0) {
@@ -1112,6 +1105,27 @@
                 activeContainer.style.width = (pct * 100) + '%';
                 durationDiv.textContent = formatTime(audio.currentTime);
             }
+        }
+
+        waveContainer.addEventListener('touchstart', function(e) {
+            e.stopPropagation();
+            isDraggingWave = true;
+            updateWavePosition(e);
+        }, {passive: true});
+
+        waveContainer.addEventListener('touchmove', function(e) {
+            e.stopPropagation();
+            if (isDraggingWave) updateWavePosition(e);
+        }, {passive: true});
+
+        waveContainer.addEventListener('touchend', function(e) {
+            e.stopPropagation();
+            isDraggingWave = false;
+        });
+
+        waveContainer.addEventListener('click', function(e) {
+            e.stopPropagation();
+            updateWavePosition(e);
         });
     }
 
