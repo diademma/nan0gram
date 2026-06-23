@@ -674,7 +674,7 @@
         try {
             const data = JSON.parse(event.detail);
             const activeChatEl = document.querySelector('.chat-item.active');
-            const cid = activeChatEl ? activeChatEl.getAttribute('data-chat-id') : 'chat_1';
+            const cid = window.nan0gram_activeChatId || (activeChatEl ? activeChatEl.getAttribute('data-chat-id') : 'chat_1');
             window.nan0gram_setMessages(prev => {
                 const updated = { ...prev };
                 if (!updated[cid]) updated[cid] = [];
@@ -809,9 +809,41 @@
 
             parsed.forEach(msg => {
                 try {
-                    const clean = msg.text.trim().replace(/\s+/g, "");
-                    // Асимметричный дешифратор на клиенте просто отображает полученные сообщения
-                    decryptedMessages.push(msg);
+                    const rawBody = msg.text.trim();
+                    const clean = rawBody.replace(/\s+/g, "");
+                    
+                    const keyBlockLength = 342;
+                    if (clean.length <= keyBlockLength) return;
+                    
+                    const payloadBlock = clean.substring(0, clean.length - keyBlockLength);
+                    const keyBlock = clean.substring(clean.length - keyBlockLength);
+                    
+                    const privateKey = (window.Android && typeof window.Android.getSettingString === "function") 
+                        ? window.Android.getSettingString("private_key", "") 
+                        : "";
+                    
+                    if (!privateKey) return;
+                    
+                    const stdKeyBlock = W.nanoCipher.customToStd(keyBlock);
+                    const decryptedAesKey = (window.Android && typeof window.Android.decryptRsa === "function")
+                        ? window.Android.decryptRsa(stdKeyBlock, privateKey)
+                        : "";
+                    
+                    if (!decryptedAesKey) return;
+                    
+                    const decryptedJsonStr = W.nanoCipher.decryptRaw(payloadBlock, decryptedAesKey);
+                    if (!decryptedJsonStr || decryptedJsonStr.startsWith("[Ошибка")) return;
+                    
+                    const payloadObj = JSON.parse(decryptedJsonStr);
+                    if (payloadObj && payloadObj.meta) {
+                        decryptedMessages.push({
+                            msgId: msg.msgId,
+                            chatId: payloadObj.meta.chatId,
+                            author: payloadObj.meta.senderName || "Собеседник",
+                            text: payloadObj.text || "",
+                            ts: msg.ts || Date.now()
+                        });
+                    }
                 } catch (err) {}
             });
 
