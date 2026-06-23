@@ -2891,6 +2891,7 @@ function cv() {
                         text: cleanText,
                         edited: isEdited,
                         time: formatTime(msg.timestamp),
+                        timestamp: msg.timestamp,
                         mediaType: msg.mediaType,
                         file: msg.fileName ? { name: msg.fileName, size: msg.fileSize } : null,
                         reaction: msg.reaction || null
@@ -3144,6 +3145,9 @@ function cv() {
                             const fileName = bl.file ? bl.file.name : (bl.fileName || "");
                             const fileSize = bl.file ? bl.file.size : (bl.fileSize || 0);
                             const audioDuration = bl.audioDuration || 0;
+                            const parts = String(newMsg.id).split("_");
+                            const idTimestamp = parts[1] ? Number(parts[1]) : null;
+                            const originalTimestamp = bl.timestamp || idTimestamp || Date.now();
                             if (window.Android && window.Android.saveMessageToDb) {
                                 window.Android.saveMessageToDb(JSON.stringify({
                                     id: String(newMsg.id),
@@ -3151,7 +3155,7 @@ function cv() {
                                     type: newMsg.type || "out",
                                     author: newMsg.author || "Я",
                                     text: F + "\u200E",
-                                    timestamp: newMsg.timestamp || Date.now(),
+                                    timestamp: originalTimestamp,
                                     mediaType: mediaType,
                                     mediaPaths: JSON.stringify(cleanPaths),
                                     mediaThumbnails: JSON.stringify(cleanThumbs),
@@ -3167,7 +3171,8 @@ function cv() {
                                 mediaType: mediaType,
                                 fileName: fileName,
                                 fileSize: fileSize,
-                                audioDuration: audioDuration
+                                audioDuration: audioDuration,
+                                timestamp: originalTimestamp
                             };
                         }
                         return bl;
