@@ -100,8 +100,7 @@
                 return;
             }
 
-            isRecording = true;
-            isLocked = false;
+            if (isLocked) {
                 isLocked = false;
                 isRecording = false;
                 btn.classList.remove('tg-send-mode');
