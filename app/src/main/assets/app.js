@@ -1477,8 +1477,6 @@ function I0({
                             src: p,
                             alt: "",
                             className: "album-img",
-                            onTouchStart: B => B.stopPropagation(),
-                            onTouchEnd: B => B.stopPropagation(),
                             onPointerDown: B => B.stopPropagation(),
                             onClick: B => {
                                 B.stopPropagation(), S(p, Tl, z)
@@ -1501,8 +1499,6 @@ function I0({
                     })]
                 }), m.video && f.jsxs("div", {
                     className: "video-thumb-wrapper",
-                    onTouchStart: B => B.stopPropagation(),
-                    onTouchEnd: B => B.stopPropagation(),
                     onPointerDown: B => B.stopPropagation(),
                     onClick: rl => {
                         rl.stopPropagation(), S(m.video, void 0, void 0, m.videoThumbnail)
@@ -1528,8 +1524,6 @@ function I0({
                     })]
                 }), m.file && f.jsxs("div", {
                     className: "file-msg",
-                    onTouchStart: B => B.stopPropagation(),
-                    onTouchEnd: B => B.stopPropagation(),
                     onPointerDown: B => B.stopPropagation(),
                     onClick: rl => {
                         rl.stopPropagation()
