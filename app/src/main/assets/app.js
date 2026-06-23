@@ -2684,28 +2684,25 @@ function av({
         };
     }, []);
 
-    return !m || !$ ? null : f.jsxs("div", {
-        ref: lightboxRef,
-        className: "lightbox",
-        style: {
-            display: "flex"
-        },
-        children: [f.jsx("button", {
-            className: "lightbox-close",
-            onClick: U,
-// ==========================================
-// PATH: app/src/main/java/com/example/BridgeInterfaces.kt
-// COMMIT: fix: show correct album labels on downloads
-// --- OLD CODE START ---
                 val success = saveBytesToDownloadsFolder(context, bytes, finalName, mimeType)
                 if (success) {
                     val russianLabel = when (ext) {
-                        "jpg", "png" -> "Фотография сохранена в загрузки 🖼️"
+                        "jpg", "png" -> {
+                            if (finalName.startsWith("album_")) {
+                                "Альбом сохранен в загрузки 📚"
+                            } else {
+                                "Фотография сохранена в загрузки 🖼️"
+                            }
+                        }
                         "mp4" -> "Видео сохранено в загрузки 🎬"
                         "webm" -> "Голосовое сообщение сохранено в загрузки 🎵"
                         else -> "Файл сохранен в загрузки 📄"
                     }
-                    showNativeSuccessPopup(getMessengerWebView?.invoke(), "$russianLabel<br><small style='opacity:0.6;font-size:11px;'>$finalName</small>")
+                    if (finalName.startsWith("album_")) {
+                        showNativeSuccessPopup(getMessengerWebView?.invoke(), russianLabel)
+                    } else {
+                        showNativeSuccessPopup(getMessengerWebView?.invoke(), "$russianLabel<br><small style='opacity:0.6;font-size:11px;'>$finalName</small>")
+                    }
                 } else {
 --- NEW CODE START ---
                 val success = saveBytesToDownloadsFolder(context, bytes, finalName, mimeType)
