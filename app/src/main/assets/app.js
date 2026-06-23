@@ -2584,7 +2584,7 @@ function av({
     initialIndex: G = 0,
     onClose: U
 }) {
-    const [o, _] = T.useState(G), [O, K] = T.useState(1), [el, M] = T.useState({
+    const [o, _] = T.useState(G), [showDownloadChoice, setShowDownloadChoice] = T.useState(false), [O, K] = T.useState(1), [el, M] = T.useState({
         x: 0,
         y: 0
     }), S = T.useRef(null), j = T.useRef(null), I = T.useRef(0), P = T.useRef(0), ml = T.useRef(0), nl = T.useRef(!1), $ = m ? m[o] : null, fl = $?.isVideo ?? !1, Sl = (m?.length ?? 0) > 1;
