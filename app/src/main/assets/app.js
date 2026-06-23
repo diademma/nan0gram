@@ -2092,9 +2092,11 @@ function tv({
             x.images && D.push(...x.images);
             x.audio && D.push(x.audio);
             x.video && D.push(x.video);
+            const isAlbum = x.images && x.images.length > 1;
             D.forEach((w, sl) => {
                 const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
-                const suggestedName = `media_${Date.now()}_${sl+1}.${ext}`;
+                const prefix = isAlbum ? "album_" : "media_";
+                const suggestedName = `${prefix}${Date.now()}_${sl+1}.${ext}`;
                 if (window.Android && typeof window.Android.saveMediaToDownloads === "function") {
                     window.Android.saveMediaToDownloads(w, suggestedName);
                 } else {
