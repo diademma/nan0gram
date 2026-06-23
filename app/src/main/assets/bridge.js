@@ -458,6 +458,7 @@
             W.setTimeout(() => { if (this._lastSentSignature === signature) this._lastSentSignature = ""; }, 5000);
 
             this._sendPending = true;
+            this._openComposeIfNeeded(true);
             this._pushBody(text);
             callAndroid("submitCompose");
             this._composeOpen = false;
