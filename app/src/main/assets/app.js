@@ -2714,25 +2714,124 @@ function av({
             onPointerDown: Y => Y.stopPropagation(),
             onClick: Y => {
                 Y.stopPropagation();
-                const w = $.src;
-                const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
-                const suggestedName = `media_${Date.now()}.${ext}`;
-                if (window.Android && typeof window.Android.saveMediaToDownloads === "function") {
-                    window.Android.saveMediaToDownloads(w, suggestedName);
+                if (Sl) {
+                    setShowDownloadChoice(true);
                 } else {
-                    const Hl = document.createElement("a");
-                    Hl.href = w;
-                    Hl.download = suggestedName;
-                    Hl.style.cssText = "position:fixed;opacity:0";
-                    document.body.appendChild(Hl);
-                    Hl.click();
-                    document.body.removeChild(Hl);
+                    const w = $.src;
+                    const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
+                    const suggestedName = `media_${Date.now()}.${ext}`;
+                    if (window.Android && typeof window.Android.saveMediaToDownloads === "function") {
+                        window.Android.saveMediaToDownloads(w, suggestedName);
+                    } else {
+                        const Hl = document.createElement("a");
+                        Hl.href = w;
+                        Hl.download = suggestedName;
+                        Hl.style.cssText = "position:fixed;opacity:0";
+                        document.body.appendChild(Hl);
+                        Hl.click();
+                        document.body.removeChild(Hl);
+                    }
                 }
             },
             children: "⬇ Скачать"
         }), !fl && O > 1 && f.jsxs("div", {
             className: "lightbox-zoom-hint",
             children: [Math.round(O * 100), "% · двойной тап для сброса"]
+        }), showDownloadChoice && f.jsxs("div", {
+            style: {
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0,0,0,0.85)",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "center",
+                zIndex: 400,
+                gap: "14px",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)"
+            },
+            onPointerDown: e => e.stopPropagation(),
+            onClick: e => {
+                e.stopPropagation();
+                setShowDownloadChoice(false);
+            },
+            children: [
+                f.jsx("div", {
+                    style: {
+                        color: "#fff",
+                        fontSize: "16px",
+                        fontWeight: "600",
+                        marginBottom: "6px"
+                    },
+                    children: "Что вы хотите скачать?"
+                }),
+                f.jsx("button", {
+                    style: {
+                        background: "var(--accent-blue)",
+                        border: "none",
+                        color: "#fff",
+                        padding: "12px 24px",
+                        borderRadius: "16px",
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        width: "200px"
+                    },
+                    onClick: e => {
+                        e.stopPropagation();
+                        setShowDownloadChoice(false);
+                        const w = $.src;
+                        const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
+                        const name = `media_${Date.now()}.${ext}`;
+                        if (window.Android && window.Android.saveMediaToDownloads) {
+                            window.Android.saveMediaToDownloads(w, name);
+                        }
+                    },
+                    children: "🖼️ Только это фото"
+                }),
+                f.jsx("button", {
+                    style: {
+                        background: "#382b46",
+                        border: "1px solid rgba(167, 115, 209, 0.4)",
+                        color: "#fff",
+                        padding: "12px 24px",
+                        borderRadius: "16px",
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        width: "200px"
+                    },
+                    onClick: e => {
+                        e.stopPropagation();
+                        setShowDownloadChoice(false);
+                        m.forEach((item, sl) => {
+                            const w = item.src;
+                            const ext = w.startsWith("data:video") ? "mp4" : "jpg";
+                            const name = `album_${Date.now()}_${sl+1}.${ext}`;
+                            if (window.Android && window.Android.saveMediaToDownloads) {
+                                window.Android.saveMediaToDownloads(w, name);
+                            }
+                        });
+                    },
+                    children: "📚 Весь альбом"
+                }),
+                f.jsx("button", {
+                    style: {
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--text-muted)",
+                        fontSize: "14px",
+                        cursor: "pointer",
+                        marginTop: "6px"
+                    },
+                    onClick: e => {
+                        e.stopPropagation();
+                        setShowDownloadChoice(false);
+                    },
+                    children: "Отмена"
+                })
+            ]
         })]
     })
 }
