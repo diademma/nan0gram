@@ -2051,8 +2051,8 @@ function tv({
             document.body.removeChild(D)
         }, [x]),
         Qt = T.useCallback(() => {
-            x && (fl(x.id), r(x))
-        }, [x, fl]),
+            x && (fl(x), r(x))
+        }, [x, fl, r]),
         $e = T.useCallback(() => {
             x && (Tl(x.id), Cl(null), rl(x.text || ""), setTimeout(() => {
                 X.current && (X.current.style.height = "auto", X.current.style.height = Math.min(X.current.scrollHeight, 100) + "px", X.current.focus())
@@ -2066,10 +2066,15 @@ function tv({
             }), Tl(null), X.current?.focus())
         }, [o]),
         fc = T.useCallback(() => {
-            cl && k.current?.querySelector(`[data-id="${cl.id}"]`)?.scrollIntoView({
-                behavior: "smooth",
-                block: "center"
-            })
+            if (cl) {
+                const targetId = cl.id || cl;
+                const targetEl = k.current?.querySelector(`[data-id="${targetId}"]`);
+                if (targetEl) {
+                    targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+                    targetEl.classList.add("flash-highlight");
+                    setTimeout(() => targetEl.classList.remove("flash-highlight"), 1000);
+                }
+            }
         }, [cl]),
         Qu = T.useCallback(() => {
             if(!x) return;
@@ -2211,7 +2216,7 @@ function tv({
                     children: "Закреплённое сообщение"
                 }), f.jsx("div", {
                     className: "pin-text",
-                    children: cl.text || "Медиа"
+                    children: cl.text || (cl.images?.length ? "📷 Фото" : cl.audio ? "🎵 Голосовое" : cl.video ? "🎬 Видео" : cl.file ? "📄 Файл" : "Сообщение")
                 })]
             }), f.jsx("div", {
                 className: "pin-close",
@@ -2752,6 +2757,10 @@ function cv() {
         window.nan0gram_activeChatId = o;
     }, [o]);
 
+    T.useEffect(() => {
+        window.nan0gram_activeChatId = o;
+    }, [o]);
+
     // Персистентно помним закрепленное сообщение для каждого чата
     const [pinnedMsgs, setPinnedMsgs] = T.useState(() => {
         try {
@@ -2868,11 +2877,14 @@ function cv() {
                 };
 
                 const formatted = messages.map(msg => {
+                    const isEdited = msg.text && msg.text.endsWith("\u200E");
+                    const cleanText = isEdited ? msg.text.slice(0, -1) : msg.text;
                     const mapped = {
                         id: String(msg.id),
                         type: msg.type,
                         author: msg.author,
-                        text: msg.text,
+                        text: cleanText,
+                        edited: isEdited,
                         time: formatTime(msg.timestamp),
                         mediaType: msg.mediaType,
                         file: msg.fileName ? { name: msg.fileName, size: msg.fileSize } : null,
@@ -3096,14 +3108,31 @@ function cv() {
             }))
         }, [o]),
         B = T.useCallback((R, F) => {
-            o && U(V => ({
-                ...V,
-                [o]: V[o].map(bl => bl.id === R ? {
-                    ...bl,
-                    text: F,
-                    edited: !0
-                } : bl)
-            }))
+            if (o) {
+                U(V => {
+                    const updatedList = V[o].map(bl => {
+                        if (bl.id === R) {
+                            const newMsg = { ...bl, text: F, edited: !0 };
+                            if (window.Android && window.Android.saveMessageToDb) {
+                                window.Android.saveMessageToDb(JSON.stringify({
+                                    id: String(newMsg.id),
+                                    chatId: o,
+                                    type: "out",
+                                    author: "Я",
+                                    text: F + "\u200E",
+                                    timestamp: Date.now(),
+                                    mediaType: newMsg.mediaType || "none",
+                                    mediaPaths: newMsg.images ? JSON.stringify(newMsg.images) : "[]",
+                                    replyToId: newMsg.replyTo ? String(newMsg.replyTo.id) : ""
+                                }));
+                            }
+                            return newMsg;
+                        }
+                        return bl;
+                    });
+                    return { ...V, [o]: updatedList };
+                });
+            }
         }, [o]),
         cl = T.useCallback(R => {
             if (o) {
