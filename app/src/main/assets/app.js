@@ -2916,14 +2916,14 @@ function cv() {
 
                     // Корректно восстанавливаем медиа-свойства для рендерера сообщений
                     if (msg.mediaType === "photo" && Array.isArray(msg.mediaPaths)) {
-                        mapped.images = msg.mediaPaths;
+                        mapped.images = msg.mediaPaths.map(p => (p.startsWith("http") || p.startsWith("data:")) ? p : "https://appassets.androidlocal/media/" + p);
                     } else if (msg.mediaType === "voice" && Array.isArray(msg.mediaPaths) && msg.mediaPaths.length > 0) {
-                        mapped.audio = msg.mediaPaths[0];
+                        mapped.audio = (msg.mediaPaths[0].startsWith("http") || msg.mediaPaths[0].startsWith("data:")) ? msg.mediaPaths[0] : "https://appassets.androidlocal/media/" + msg.mediaPaths[0];
                         mapped.audioDuration = msg.audioDuration || 0;
                     } else if (msg.mediaType === "video" && Array.isArray(msg.mediaPaths) && msg.mediaPaths.length > 0) {
-                        mapped.video = msg.mediaPaths[0];
+                        mapped.video = (msg.mediaPaths[0].startsWith("http") || msg.mediaPaths[0].startsWith("data:")) ? msg.mediaPaths[0] : "https://appassets.androidlocal/media/" + msg.mediaPaths[0];
                         if (Array.isArray(msg.mediaThumbnails) && msg.mediaThumbnails.length > 0) {
-                            mapped.videoThumbnail = msg.mediaThumbnails[0];
+                            mapped.videoThumbnail = (msg.mediaThumbnails[0].startsWith("http") || msg.mediaThumbnails[0].startsWith("data:")) ? msg.mediaThumbnails[0] : "https://appassets.androidlocal/media/" + msg.mediaThumbnails[0];
                         }
                     }
                     return mapped;
