@@ -2741,11 +2741,16 @@ function Pn() {
 function nv(m) {
     return m.text ? m.text : m.images?.length ? m.images.length > 1 ? `📷 ${m.images.length} фото` : "📷 Фото" : m.audio ? "🎵 Голосовое" : m.video ? "🎬 Видео" : m.file ? "📄 Файл" : ""
 }
+const generateUniqueId = () => "msg_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
 let lc = 1e3;
 
 function cv() {
     const [m, setChats] = T.useState([]), [G, U] = T.useState({}), [o, _] = T.useState(null), [O, K] = T.useState(null), [el, M] = T.useState(null), [S, j] = T.useState(0), [I, P] = T.useState(null), [ml, nl] = T.useState(() => localStorage.getItem("wp")), [$, fl] = T.useState({}), [Sl, Ml] = T.useState(w0), [yl, k] = T.useState(() => window.innerWidth);
     const [offset, setOffset] = T.useState(0);
+
+    T.useEffect(() => {
+        window.nan0gram_activeChatId = o;
+    }, [o]);
 
     // Персистентно помним закрепленное сообщение для каждого чата
     const [pinnedMsgs, setPinnedMsgs] = T.useState(() => {
@@ -2976,7 +2981,7 @@ function cv() {
         Bl = T.useCallback(() => M(null), []),
         rl = T.useCallback((R, F) => {
             if (o) {
-                const newId = String(++lc);
+                const newId = generateUniqueId();
                 const timeStr = Pn();
                 const msgObj = {
                     id: newId,
@@ -3034,7 +3039,7 @@ function cv() {
                 U(bl => ({
                     ...bl,
                     [o]: [...bl[o] ?? [], {
-                        id: ++lc,
+                        id: generateUniqueId(),
                         type: "out",
                         author: "Я",
                         images: V,
@@ -3047,7 +3052,7 @@ function cv() {
         p = T.useCallback((R, F, V) => {
             window.nan0gram && window.nan0gram.submitBase64Media && window.nan0gram.submitBase64Media("voice", R, F);
             if (o) {
-                const newId = String(++lc);
+                const newId = generateUniqueId();
                 if (window.Android && window.Android.saveMessageToDb) {
                     window.Android.saveMessageToDb(JSON.stringify({
                         id: newId,
@@ -3081,7 +3086,7 @@ function cv() {
             o && U(V => ({
                 ...V,
                 [o]: [...V[o] ?? [], {
-                    id: ++lc,
+                    id: generateUniqueId(),
                     type: "out",
                     author: "Я",
                     video: R,
