@@ -161,10 +161,13 @@ class MessengerJsInterface(
                             mimeType.contains("image") -> "jpg"
                             else -> "bin"
                         }
-                        var cleanB64 = parts[1].replace(" ", "+")
-                        try {
-                            cleanB64 = java.net.URLDecoder.decode(cleanB64, "UTF-8")
-                        } catch (e: Exception) {}
+                        var cleanB64 = parts[1]
+                        if (cleanB64.contains("%")) {
+                            try {
+                                cleanB64 = java.net.URLDecoder.decode(cleanB64, "UTF-8")
+                            } catch (e: Exception) {}
+                        }
+                        cleanB64 = cleanB64.replace(" ", "+")
                         bytes = android.util.Base64.decode(cleanB64.trim(), android.util.Base64.DEFAULT)
                     }
                 } else if (urlOrBase64.contains("appassets.androidlocal/media/")) {
