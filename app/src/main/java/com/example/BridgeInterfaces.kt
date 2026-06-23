@@ -133,7 +133,6 @@ class MessengerJsInterface(
     @set:kotlin.jvm.JvmName("setWallpaperPendingInternal")
     var isWallpaperPending: Boolean = false
     @Volatile var isWallpaperJustSelected: Boolean = false
-    @Volatile var lastAlbumPopupShowMs: Long = 0L
 
     @JavascriptInterface
     fun setWallpaperPending(pending: Boolean) {
@@ -228,22 +227,13 @@ class MessengerJsInterface(
 
                 val success = saveBytesToDownloadsFolder(context, bytes, finalName, mimeType)
                 if (success) {
-                    val isAlbum = suggestedName.startsWith("album_") || finalName.startsWith("album_")
-                    if (isAlbum) {
-                        val now = System.currentTimeMillis()
-                        if (now - lastAlbumPopupShowMs > 4000) {
-                            lastAlbumPopupShowMs = now
-                            showNativeSuccessPopup(getMessengerWebView?.invoke(), "Альбом скачан")
-                        }
-                    } else {
-                        val russianLabel = when (ext) {
-                            "jpg", "png" -> "Фотография сохранена в загрузки 🖼️"
-                            "mp4" -> "Видео сохранено в загрузки 🎬"
-                            "webm" -> "Голосовое сообщение сохранено в загрузки 🎵"
-                            else -> "Файл сохранен в загрузки 📄"
-                        }
-                        showNativeSuccessPopup(getMessengerWebView?.invoke(), "$russianLabel<br><small style='opacity:0.6;font-size:11px;'>$finalName</small>")
+                    val russianLabel = when (ext) {
+                        "jpg", "png" -> "Фотография сохранена в загрузки 🖼️"
+                        "mp4" -> "Видео сохранено в загрузки 🎬"
+                        "webm" -> "Голосовое сообщение сохранено в загрузки 🎵"
+                        else -> "Файл сохранен в загрузки 📄"
                     }
+                    showNativeSuccessPopup(getMessengerWebView?.invoke(), "$russianLabel<br><small style='opacity:0.6;font-size:11px;'>$finalName</small>")
                 } else {
                     showNativeSuccessPopup(getMessengerWebView?.invoke(), "Не удалось сохранить файл ❌")
                 }
@@ -617,11 +607,7 @@ class MessengerJsInterface(
         val now = System.currentTimeMillis()
         val msSinceSubmit = now - lastSubmitMs
         if (msSinceSubmit < RECOIL_MS) {
-            val delayMs = RECOIL_MS - msSinceSubmit
-            log("[Compose] Откат-блок $msSinceSubmit мс — планируем открытие через $delayMs мс")
-            ui.postDelayed({
-                openCompose(configJson)
-            }, delayMs)
+            log("[Compose] Откат-блок $msSinceSubmit мс — ждём конца recoil")
             return
         }
         val msSinceOpen = now - lastOpenMs
