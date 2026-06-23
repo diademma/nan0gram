@@ -3007,6 +3007,7 @@ function cv() {
                     author: "Я",
                     text: R,
                     time: timeStr,
+                    timestamp: Date.now(),
                     replyTo: F
                 };
 
@@ -3062,6 +3063,7 @@ function cv() {
                         author: "Я",
                         images: V,
                         time: Pn(),
+                        timestamp: Date.now(),
                         replyTo: F
                     }]
                 }))
@@ -3094,6 +3096,7 @@ function cv() {
                         audio: R,
                         audioDuration: F,
                         time: Pn(),
+                        timestamp: Date.now(),
                         replyTo: V
                     }]
                 }));
@@ -3109,6 +3112,7 @@ function cv() {
                     author: "Я",
                     video: R,
                     time: Pn(),
+                    timestamp: Date.now(),
                     replyTo: F
                 }]
             }))
