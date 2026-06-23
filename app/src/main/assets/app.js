@@ -2590,9 +2590,16 @@ function av({
         x: 0,
         y: 0
     }), S = T.useRef(null), j = T.useRef(null), I = T.useRef(0), P = T.useRef(0), ml = T.useRef(0), nl = T.useRef(!1), $ = m ? m[o] : null, fl = $?.isVideo ?? !1, Sl = (m?.length ?? 0) > 1;
+    
+    const prevItemsRef = T.useRef(null);
     T.useEffect(() => {
-        _(G)
-    }, [G, m]), T.useEffect(() => {
+        if (m && m !== prevItemsRef.current) {
+            _(G);
+            prevItemsRef.current = m;
+        }
+    }, [G, m]);
+
+    T.useEffect(() => {
         K(1), M({
             x: 0,
             y: 0
@@ -2643,7 +2650,7 @@ function av({
                     })) : K(2.5);
                     return
                 }
-                if(I.current = Bl, O <= 1 && Math.abs(xl) > 50 && Tl < 80 && Sl) {
+                if(O <= 1 && Math.abs(xl) > 50 && Tl < 80 && Sl) {
                     xl < 0 ? Ml() : yl();
                     return
                 }
@@ -2651,17 +2658,76 @@ function av({
                 O <= 1 && rl > 100 && Math.abs(xl) < 60 && U()
             }
         }, [O, Sl, fl, Ml, yl, U]);
+
+    const lightboxRef = T.useRef(null);
+    const handlersRef = T.useRef({ X, _l, vl });
+    T.useEffect(() => {
+        handlersRef.current = { X, _l, vl };
+    });
+
+    T.useEffect(() => {
+        const el = lightboxRef.current;
+        if (!el) return;
+        
+        const handleStart = (e) => handlersRef.current.X(e);
+        const handleMove = (e) => handlersRef.current._l(e);
+        const handleEnd = (e) => handlersRef.current.vl(e);
+        
+        el.addEventListener('touchstart', handleStart, { passive: false });
+        el.addEventListener('touchmove', handleMove, { passive: false });
+        el.addEventListener('touchend', handleEnd, { passive: false });
+        
+        return () => {
+            el.removeEventListener('touchstart', handleStart);
+            el.removeEventListener('touchmove', handleMove);
+            el.removeEventListener('touchend', handleEnd);
+        };
+    }, []);
+
     return !m || !$ ? null : f.jsxs("div", {
+        ref: lightboxRef,
         className: "lightbox",
         style: {
             display: "flex"
         },
-        onTouchStart: X,
-        onTouchMove: _l,
-        onTouchEnd: vl,
         children: [f.jsx("button", {
             className: "lightbox-close",
             onClick: U,
+// ==========================================
+// PATH: app/src/main/java/com/example/BridgeInterfaces.kt
+// COMMIT: fix: show correct album labels on downloads
+// --- OLD CODE START ---
+                val success = saveBytesToDownloadsFolder(context, bytes, finalName, mimeType)
+                if (success) {
+                    val russianLabel = when (ext) {
+                        "jpg", "png" -> "Фотография сохранена в загрузки 🖼️"
+                        "mp4" -> "Видео сохранено в загрузки 🎬"
+                        "webm" -> "Голосовое сообщение сохранено в загрузки 🎵"
+                        else -> "Файл сохранен в загрузки 📄"
+                    }
+                    showNativeSuccessPopup(getMessengerWebView?.invoke(), "$russianLabel<br><small style='opacity:0.6;font-size:11px;'>$finalName</small>")
+                } else {
+--- NEW CODE START ---
+                val success = saveBytesToDownloadsFolder(context, bytes, finalName, mimeType)
+                if (success) {
+                    val russianLabel = when (ext) {
+                        "jpg", "png" -> {
+                            if (finalName.startsWith("album_")) {
+                                "Альбом сохранен в загрузки 📚"
+                            } else {
+                                "Фотография сохранена в загрузки 🖼️"
+                            }
+                        }
+                        "mp4" -> "Видео сохранено в загрузки 🎬"
+                        "webm" -> "Голосовое сообщение сохранено в загрузки 🎵"
+                        else -> "Файл сохранен в загрузки 📄"
+                    }
+                    if (finalName.startsWith("album_")) {
+                        showNativeSuccessPopup(getMessengerWebView?.invoke(), russianLabel)
+                    } else {
+                        showNativeSuccessPopup(getMessengerWebView?.invoke(), "$russianLabel<br><small style='opacity:0.6;font-size:11px;'>$finalName</small>")
+                    }
+                } else {
             children: "✕"
         }), Sl && f.jsxs("div", {
             className: "lightbox-counter",
