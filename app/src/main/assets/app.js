@@ -2092,11 +2092,9 @@ function tv({
             x.images && D.push(...x.images);
             x.audio && D.push(x.audio);
             x.video && D.push(x.video);
-            const isAlbum = x.images && x.images.length > 1;
             D.forEach((w, sl) => {
                 const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
-                const prefix = isAlbum ? "album_" : "media_";
-                const suggestedName = `${prefix}${Date.now()}_${sl+1}.${ext}`;
+                const suggestedName = `media_${Date.now()}_${sl+1}.${ext}`;
                 if (window.Android && typeof window.Android.saveMediaToDownloads === "function") {
                     window.Android.saveMediaToDownloads(w, suggestedName);
                 } else {
@@ -2590,16 +2588,9 @@ function av({
         x: 0,
         y: 0
     }), S = T.useRef(null), j = T.useRef(null), I = T.useRef(0), P = T.useRef(0), ml = T.useRef(0), nl = T.useRef(!1), $ = m ? m[o] : null, fl = $?.isVideo ?? !1, Sl = (m?.length ?? 0) > 1;
-    
-    const prevItemsRef = T.useRef(null);
     T.useEffect(() => {
-        if (m && m !== prevItemsRef.current) {
-            _(G);
-            prevItemsRef.current = m;
-        }
-    }, [G, m]);
-
-    T.useEffect(() => {
+        _(G)
+    }, [G, m]), T.useEffect(() => {
         K(1), M({
             x: 0,
             y: 0
@@ -2658,38 +2649,14 @@ function av({
                 O <= 1 && rl > 100 && Math.abs(xl) < 60 && U()
             }
         }, [O, Sl, fl, Ml, yl, U]);
-
-    const lightboxRef = T.useRef(null);
-    const handlersRef = T.useRef({ X, _l, vl });
-    T.useEffect(() => {
-        handlersRef.current = { X, _l, vl };
-    });
-
-    T.useEffect(() => {
-        const el = lightboxRef.current;
-        if (!el) return;
-        
-        const handleStart = (e) => handlersRef.current.X(e);
-        const handleMove = (e) => handlersRef.current._l(e);
-        const handleEnd = (e) => handlersRef.current.vl(e);
-        
-        el.addEventListener('touchstart', handleStart, { passive: false });
-        el.addEventListener('touchmove', handleMove, { passive: false });
-        el.addEventListener('touchend', handleEnd, { passive: false });
-        
-        return () => {
-            el.removeEventListener('touchstart', handleStart);
-            el.removeEventListener('touchmove', handleMove);
-            el.removeEventListener('touchend', handleEnd);
-        };
-    }, []);
-
     return !m || !$ ? null : f.jsxs("div", {
-        ref: lightboxRef,
         className: "lightbox",
         style: {
             display: "flex"
         },
+        onTouchStart: X,
+        onTouchMove: _l,
+        onTouchEnd: vl,
         children: [f.jsx("button", {
             className: "lightbox-close",
             onClick: U,

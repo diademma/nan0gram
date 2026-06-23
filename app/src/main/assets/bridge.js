@@ -88,20 +88,19 @@
     });
 
     window.addEventListener('pointerdown', function(e) {
+        if (window.nan0gram_clickCooldown && e.target && typeof e.target.closest === 'function' && e.target.closest('.send-mic-btn')) {
+            e.stopPropagation();
+            e.preventDefault();
+            return;
+        }
+
         const btn = e.target && typeof e.target.closest === 'function' ? e.target.closest('.send-mic-btn') : null;
         if (btn) {
             const input = document.querySelector('.msg-input');
             const hasText = input && input.value.trim().length > 0;
             if (hasText) return;
 
-            if (window.nan0gram_clickCooldown && e.target && typeof e.target.closest === 'function' && e.target.closest('.send-mic-btn')) {
-                e.stopPropagation();
-                e.preventDefault();
-                return;
-            }
-
-            isRecording = true;
-            isLocked = false;
+            if (isLocked) {
                 isLocked = false;
                 isRecording = false;
                 btn.classList.remove('tg-send-mode');
