@@ -911,6 +911,10 @@
     window.document.addEventListener('pointerdown', function(e) {
         var btn = e.target.closest('.send-mic-btn');
         if (btn) {
+            var isEditing = document.querySelector('#activeReplyPreview');
+            if (isEditing && isEditing.textContent.indexOf('Редактирование') !== -1) {
+                return;
+            }
             var input = document.querySelector('.msg-input');
             if (input && input.value.trim() && window.nan0gram && window.nan0gram.submitCompose) {
                 window.nan0gram.submitCompose(input.value.trim());
