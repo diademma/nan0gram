@@ -1310,7 +1310,7 @@ function I0({
     const [j, I] = T.useState(0), P = T.useRef(0), ml = T.useRef(0), nl = T.useRef(!1), $ = T.useRef(!1), fl = T.useRef(null), Sl = T.useRef(!1), Ml = T.useRef(0), yl = T.useRef(null), k = T.useCallback(() => {
         fl.current && clearTimeout(fl.current), yl.current && clearTimeout(yl.current)
     }, []),    X = T.useCallback(rl => {
-        if (rl.target.closest('.msg-reply')) return;
+        if (rl.target.closest('.msg-reply') || rl.target.closest('.voice-msg') || rl.target.closest('.tg-voice-player')) return;
         const ll = rl.touches[0];
         P.current = ll.clientX, ml.current = ll.clientY, nl.current = !1, $.current = !1, Sl.current = !1, fl.current = setTimeout(() => {
             !$.current && !nl.current && (Sl.current = !0, navigator.vibrate && navigator.vibrate(50), o(m.id))
@@ -1333,6 +1333,7 @@ function I0({
         nl.current && p > 0 && cl < 50 && (rl.cancelable && rl.preventDefault(), I(Math.min(p, 75)))
     }, []),    vl = T.useCallback(rl => {
         if (rl.target.closest('.msg-reply')) return;
+        const isVoiceMsg = rl.target.closest('.voice-msg') || rl.target.closest('.tg-voice-player');
         if(k(), Sl.current) {
             I(0);
             return
@@ -1343,6 +1344,7 @@ function I0({
             I(0), p > 40 && (navigator.vibrate && navigator.vibrate(30), K(m.id)), nl.current = !1;
             return
         }
+        if (isVoiceMsg) return;
         if(I(0), $.current) return;
         if(U) {
             el(m.id);
@@ -1356,7 +1358,7 @@ function I0({
             })
         }, 280))
     }, [k, m.id, U, K, el, _, O]),    Y = T.useCallback(rl => {
-        if (rl.target.closest('.msg-reply')) return;
+        if (rl.target.closest('.msg-reply') || rl.target.closest('.voice-msg') || rl.target.closest('.tg-voice-player')) return;
         rl.pointerType === "mouse" && (U ? el(m.id) : _(m.id, {
             clientX: rl.clientX,
             clientY: rl.clientY
