@@ -206,6 +206,25 @@ class MessengerJsInterface(
     }
 
     @JavascriptInterface
+    fun decryptRsa(encryptedB64: String, privateKeyB64: String): String {
+        return try {
+            val keyBytes = android.util.Base64.decode(privateKeyB64, android.util.Base64.NO_WRAP)
+            val spec = java.security.spec.PKCS8EncodedKeySpec(keyBytes)
+            val kf = java.security.KeyFactory.getInstance("RSA")
+            val privateKey = kf.generatePrivate(spec)
+
+            val cipher = javax.crypto.Cipher.getInstance("RSA/ECB/PKCS1Padding")
+            cipher.init(javax.crypto.Cipher.DECRYPT_MODE, privateKey)
+            val encryptedBytes = android.util.Base64.decode(encryptedB64, android.util.Base64.NO_WRAP)
+            val decryptedBytes = cipher.doFinal(encryptedBytes)
+            String(decryptedBytes, Charsets.UTF_8)
+        } catch (e: Exception) {
+            log("[Crypto Error] RSA decryption failed: ${e.message}")
+            ""
+        }
+    }
+
+    @JavascriptInterface
     fun encryptGcm(plainText: String, keyStr: String): String {
         return try {
             val keyBytes = keyStr.toByteArray(Charsets.UTF_8)
