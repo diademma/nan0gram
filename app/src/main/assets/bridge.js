@@ -1081,7 +1081,11 @@
             }
         });
 
+        let isDraggingWave = false;
+        let dragPct = 0;
+
         audio.addEventListener('timeupdate', function() {
+            if (isDraggingWave) return;
             const current = audio.currentTime;
             const total = audio.duration || 0;
             const pct = total > 0 ? (current / total) * 100 : 0;
@@ -1093,39 +1097,56 @@
             durationDiv.textContent = formatTime(audio.duration);
         });
 
-        let isDraggingWave = false;
-        function updateWavePosition(e) {
+        function updateWaveVisuals(e) {
             const rect = waveContainer.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let clientX = 0;
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+            } else if (e.changedTouches && e.changedTouches.length > 0) {
+                clientX = e.changedTouches[0].clientX;
+            } else {
+                clientX = e.clientX;
+            }
             const x = clientX - rect.left;
-            const pct = Math.max(0, Math.min(1, x / rect.width));
+            dragPct = Math.max(0, Math.min(1, x / rect.width));
             const total = audio.duration || 0;
-            if (total > 0) {
-                audio.currentTime = pct * total;
-                activeContainer.style.width = (pct * 100) + '%';
-                durationDiv.textContent = formatTime(audio.currentTime);
+            if (total > 0 && total !== Infinity) {
+                activeContainer.style.width = (dragPct * 100) + '%';
+                durationDiv.textContent = formatTime(dragPct * total);
             }
         }
 
         waveContainer.addEventListener('touchstart', function(e) {
             e.stopPropagation();
             isDraggingWave = true;
-            updateWavePosition(e);
+            updateWaveVisuals(e);
         }, {passive: true});
 
         waveContainer.addEventListener('touchmove', function(e) {
             e.stopPropagation();
-            if (isDraggingWave) updateWavePosition(e);
+            if (isDraggingWave) updateWaveVisuals(e);
         }, {passive: true});
 
         waveContainer.addEventListener('touchend', function(e) {
             e.stopPropagation();
-            isDraggingWave = false;
+            if (isDraggingWave) {
+                isDraggingWave = false;
+                const total = audio.duration || 0;
+                if (total > 0 && total !== Infinity) {
+                    audio.currentTime = dragPct * total;
+                }
+            }
         });
 
         waveContainer.addEventListener('click', function(e) {
             e.stopPropagation();
-            updateWavePosition(e);
+            if (!isDraggingWave) {
+                updateWaveVisuals(e);
+                const total = audio.duration || 0;
+                if (total > 0 && total !== Infinity) {
+                    audio.currentTime = dragPct * total;
+                }
+            }
         });
     }
 
