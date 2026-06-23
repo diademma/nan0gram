@@ -964,22 +964,19 @@
         const player = document.createElement('div');
         player.className = 'tg-voice-player';
 
-        // Изолируем ГС от контекстного меню (Замечание 1)
-        const stopEvents = ['click', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'contextmenu'];
-        stopEvents.forEach(function(evt) {
+        // Изолируем ГС от кликов контекстного меню (блокируем только клики и мышь на уровне всего плеера)
+        const mainStopEvents = ['click', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'contextmenu'];
+        mainStopEvents.forEach(function(evt) {
             player.addEventListener(evt, function(e) {
                 e.stopPropagation();
             });
         });
 
-        // Особый обработчик для тач-событий (разрешаем свайп реплая только в начальной точке (0 сек) или в самом конце аудио)
-        const touchEvents = ['touchstart', 'touchmove', 'touchend'];
-        touchEvents.forEach(function(evt) {
-            player.addEventListener(evt, function(e) {
-                const allowSwipe = (audio.currentTime === 0 || audio.ended);
-                if (!allowSwipe) {
-                    e.stopPropagation();
-                }
+        // Жесткая изоляция звуковой волны (спектрограммы): она всегда блокирует свайпы, чтобы перемотка работала идеально
+        const waveStopEvents = ['touchstart', 'touchmove', 'touchend'];
+        waveStopEvents.forEach(function(evt) {
+            waveContainer.addEventListener(evt, function(e) {
+                e.stopPropagation();
             });
         });
 
