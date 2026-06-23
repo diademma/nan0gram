@@ -1490,7 +1490,7 @@ function I0({
                             className: "album-img",
                             onPointerDown: B => B.stopPropagation(),
                             onClick: B => {
-                                B.stopPropagation(), S(p, Tl, z)
+                                B.stopPropagation(), k(), S(p, Tl, z)
                             }
                         }, z))
                     }, ll))
@@ -1512,7 +1512,7 @@ function I0({
                     className: "video-thumb-wrapper",
                     onPointerDown: B => B.stopPropagation(),
                     onClick: rl => {
-                        rl.stopPropagation(), S(m.video, void 0, void 0, m.videoThumbnail)
+                        rl.stopPropagation(), k(), S(m.video, void 0, void 0, m.videoThumbnail)
                     },
                     children: [f.jsx("video", {
                         src: m.video,
