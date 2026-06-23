@@ -228,12 +228,12 @@ class MessengerJsInterface(
 
                 val success = saveBytesToDownloadsFolder(context, bytes, finalName, mimeType)
                 if (success) {
-                    val isAlbum = finalName.startsWith("album_")
+                    val isAlbum = suggestedName.startsWith("album_") || finalName.startsWith("album_")
                     if (isAlbum) {
                         val now = System.currentTimeMillis()
                         if (now - lastAlbumPopupShowMs > 4000) {
                             lastAlbumPopupShowMs = now
-                            showNativeSuccessPopup(getMessengerWebView?.invoke(), "Альбом скачан 🖼️")
+                            showNativeSuccessPopup(getMessengerWebView?.invoke(), "Альбом скачан")
                         }
                     } else {
                         val russianLabel = when (ext) {
