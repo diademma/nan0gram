@@ -1083,34 +1083,46 @@
 
         let isDraggingWave = false;
         let dragPct = 0;
+        let lastTouchEnd = 0;
+
+        let parsedDuration = 0;
+        const timeParts = initialDurationText.split(':').map(Number);
+        if (timeParts.length === 2) parsedDuration = timeParts[0] * 60 + timeParts[1];
+        else if (timeParts.length === 3) parsedDuration = timeParts[0] * 3600 + timeParts[1] * 60 + timeParts[2];
+
+        function getAudioTotal() {
+            const d = audio.duration;
+            return (d && d > 0 && d !== Infinity && !isNaN(d)) ? d : parsedDuration;
+        }
 
         audio.addEventListener('timeupdate', function() {
             if (isDraggingWave) return;
             const current = audio.currentTime;
-            const total = audio.duration || 0;
+            const total = getAudioTotal();
             const pct = total > 0 ? (current / total) * 100 : 0;
             activeContainer.style.width = pct + '%';
             durationDiv.textContent = formatTime(current);
         });
 
         audio.addEventListener('loadedmetadata', function() {
-            durationDiv.textContent = formatTime(audio.duration);
+            const total = getAudioTotal();
+            if (total > 0) durationDiv.textContent = formatTime(total);
         });
 
         function updateWaveVisuals(e) {
             const rect = waveContainer.getBoundingClientRect();
-            let clientX = 0;
+            let clientX = rect.left;
             if (e.touches && e.touches.length > 0) {
                 clientX = e.touches[0].clientX;
             } else if (e.changedTouches && e.changedTouches.length > 0) {
                 clientX = e.changedTouches[0].clientX;
-            } else {
+            } else if (typeof e.clientX === 'number') {
                 clientX = e.clientX;
             }
             const x = clientX - rect.left;
             dragPct = Math.max(0, Math.min(1, x / rect.width));
-            const total = audio.duration || 0;
-            if (total > 0 && total !== Infinity) {
+            const total = getAudioTotal();
+            if (total > 0) {
                 activeContainer.style.width = (dragPct * 100) + '%';
                 durationDiv.textContent = formatTime(dragPct * total);
             }
@@ -1129,10 +1141,11 @@
 
         waveContainer.addEventListener('touchend', function(e) {
             e.stopPropagation();
+            lastTouchEnd = Date.now();
             if (isDraggingWave) {
                 isDraggingWave = false;
-                const total = audio.duration || 0;
-                if (total > 0 && total !== Infinity) {
+                const total = getAudioTotal();
+                if (total > 0) {
                     audio.currentTime = dragPct * total;
                 }
             }
@@ -1140,10 +1153,11 @@
 
         waveContainer.addEventListener('click', function(e) {
             e.stopPropagation();
+            if (Date.now() - lastTouchEnd < 500) return;
             if (!isDraggingWave) {
                 updateWaveVisuals(e);
-                const total = audio.duration || 0;
-                if (total > 0 && total !== Infinity) {
+                const total = getAudioTotal();
+                if (total > 0) {
                     audio.currentTime = dragPct * total;
                 }
             }
