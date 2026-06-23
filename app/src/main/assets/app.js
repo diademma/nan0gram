@@ -1575,7 +1575,7 @@ function I0({
                                 B.stopPropagation(), Yl && Yl(m.id, m.reaction)
                             },
                             onTouchEnd: B => {
-                                B.stopPropagation(), Yl && Yl(m.id, m.reaction)
+                                B.cancelable && B.preventDefault(), B.stopPropagation(), Yl && Yl(m.id, m.reaction)
                             },
                             children: [f.jsx("span", {
                                 children: m.reaction
@@ -2588,87 +2588,14 @@ function av({
         x: 0,
         y: 0
     }), S = T.useRef(null), j = T.useRef(null), I = T.useRef(0), P = T.useRef(0), ml = T.useRef(0), nl = T.useRef(!1), $ = m ? m[o] : null, fl = $?.isVideo ?? !1, Sl = (m?.length ?? 0) > 1;
-    
-    // Scale reset upon image navigation
     T.useEffect(() => {
-        K(1);
-        M({ x: 0, y: 0 });
+        _(G)
+    }, [G, m]), T.useEffect(() => {
+        K(1), M({
+            x: 0,
+            y: 0
+        })
     }, [o]);
-
-    // Enforce non-passive listeners with container ref to prevent passive touch handler crash
-    const containerRef = T.useRef(null);
-    T.useEffect(() => {
-        const el = containerRef.current;
-        if (!el) return;
-        el.addEventListener('touchstart', X, { passive: false });
-        el.addEventListener('touchmove', _l, { passive: false });
-        el.addEventListener('touchend', vl, { passive: false });
-        return () => {
-            el.removeEventListener('touchstart', X);
-            el.removeEventListener('touchmove', _l);
-            el.removeEventListener('touchend', vl);
-        };
-    }, [X, _l, vl]);
-
-    return !m || !$ ? null : f.jsxs("div", {
-        ref: containerRef,
-        className: "lightbox",
-        style: {
-            display: "flex"
-        },
-        onTouchStart: X,
-        onTouchMove: _l,
-        onTouchEnd: vl,
---- NEW CODE START ---
-    // Enforce non-passive listeners with container ref to prevent passive touch handler crash
-    const containerRef = T.useRef(null);
-    T.useEffect(() => {
-        const el = containerRef.current;
-        if (!el) return;
-        el.addEventListener('touchstart', X, { passive: false });
-        el.addEventListener('touchmove', _l, { passive: false });
-        el.addEventListener('touchend', vl, { passive: false });
-        return () => {
-            el.removeEventListener('touchstart', X);
-            el.removeEventListener('touchmove', _l);
-            el.removeEventListener('touchend', vl);
-        };
-    }, [X, _l, vl]);
-
-    return !m || !$ ? null : f.jsxs("div", {
-        ref: containerRef,
-        className: "lightbox",
-        style: {
-            display: "flex"
-        },
---- OLD CODE START ---
-        Qu = T.useCallback(() => {
-            if(!x) return;
-            const D = [];
-            x.images && D.push(...x.images);
-            x.audio && D.push(x.audio);
-            x.video && D.push(x.video);
-            D.forEach((w, sl) => {
-                const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
-                const suggestedName = `media_${Date.now()}_${sl+1}.${ext}`;
-                if (window.Android && typeof window.Android.saveMediaToDownloads === "function") {
-                    window.Android.saveMediaToDownloads(w, suggestedName);
-                } else {
---- NEW CODE START ---
-        Qu = T.useCallback(() => {
-            if(!x) return;
-            const D = [];
-            x.images && D.push(...x.images);
-            x.audio && D.push(x.audio);
-            x.video && D.push(x.video);
-            const isAlbum = x.images && x.images.length > 1;
-            const prefix = isAlbum ? "album" : "media";
-            D.forEach((w, sl) => {
-                const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
-                const suggestedName = `${prefix}_\1782225365969_${sl+1}.${ext}`;
-                if (window.Android && typeof window.Android.saveMediaToDownloads === "function") {
-                    window.Android.saveMediaToDownloads(w, suggestedName);
-                } else {
     const Ml = T.useCallback(() => {
             m && _(Y => Math.min(Y + 1, m.length - 1))
         }, [m]),
