@@ -1338,6 +1338,10 @@ function I0({
     }, []),    vl = T.useCallback(rl => {
         if (rl.target.closest('.msg-reply')) return;
         const isVoiceMsg = rl.target.closest('.tg-voice-player');
+        if (window.nan0gram_clickCooldown) {
+            k();
+            return;
+        }
         if(k(), Sl.current) {
             I(0);
             return
@@ -1363,6 +1367,7 @@ function I0({
         }, 280))
     }, [k, m.id, U, K, el, _, O]),    Y = T.useCallback(rl => {
         if (rl.target.closest('.msg-reply') || rl.target.closest('.tg-voice-player')) return;
+        if (window.nan0gram_clickCooldown) return;
         rl.pointerType === "mouse" && (U ? el(m.id) : _(m.id, {
             clientX: rl.clientX,
             clientY: rl.clientY
@@ -2084,11 +2089,23 @@ function tv({
         Qu = T.useCallback(() => {
             if(!x) return;
             const D = [];
-            x.images && D.push(...x.images), x.audio && D.push(x.audio), x.video && D.push(x.video), D.forEach((w, sl) => {
-                const Hl = document.createElement("a");
-                Hl.href = w;
-                const ht = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
-                Hl.download = `media_${sl+1}.${ht}`, Hl.style.cssText = "position:fixed;opacity:0", document.body.appendChild(Hl), Hl.click(), document.body.removeChild(Hl)
+            x.images && D.push(...x.images);
+            x.audio && D.push(x.audio);
+            x.video && D.push(x.video);
+            D.forEach((w, sl) => {
+                const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
+                const suggestedName = `media_${Date.now()}_${sl+1}.${ext}`;
+                if (window.Android && typeof window.Android.saveMediaToDownloads === "function") {
+                    window.Android.saveMediaToDownloads(w, suggestedName);
+                } else {
+                    const Hl = document.createElement("a");
+                    Hl.href = w;
+                    Hl.download = suggestedName;
+                    Hl.style.cssText = "position:fixed;opacity:0";
+                    document.body.appendChild(Hl);
+                    Hl.click();
+                    document.body.removeChild(Hl);
+                }
             })
         }, [x]),
         Ba = Bl.trim().length > 0,
@@ -2692,11 +2709,26 @@ function av({
                     alt: ""
                 })
             }, al))
-        }), !fl && O === 1 && f.jsx("a", {
-            href: $.src,
+        }), !fl && O === 1 && f.jsx("button", {
             className: "lightbox-download",
-            download: "image.jpg",
-            onClick: Y => Y.stopPropagation(),
+            onPointerDown: Y => Y.stopPropagation(),
+            onClick: Y => {
+                Y.stopPropagation();
+                const w = $.src;
+                const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
+                const suggestedName = `media_${Date.now()}.${ext}`;
+                if (window.Android && typeof window.Android.saveMediaToDownloads === "function") {
+                    window.Android.saveMediaToDownloads(w, suggestedName);
+                } else {
+                    const Hl = document.createElement("a");
+                    Hl.href = w;
+                    Hl.download = suggestedName;
+                    Hl.style.cssText = "position:fixed;opacity:0";
+                    document.body.appendChild(Hl);
+                    Hl.click();
+                    document.body.removeChild(Hl);
+                }
+            },
             children: "⬇ Скачать"
         }), !fl && O > 1 && f.jsxs("div", {
             className: "lightbox-zoom-hint",
@@ -2996,7 +3028,11 @@ function cv() {
                 poster: K_POSTER
             }]), j(0))
         }, []),
-        Bl = T.useCallback(() => M(null), []),
+        Bl = T.useCallback(() => {
+            window.nan0gram_clickCooldown = true;
+            setTimeout(() => { window.nan0gram_clickCooldown = false; }, 400);
+            M(null);
+        }, []),
         rl = T.useCallback((R, F) => {
             if (o) {
                 const newId = generateUniqueId();
