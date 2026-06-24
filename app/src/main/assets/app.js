@@ -2092,52 +2092,22 @@ function tv({
             x.images && D.push(...x.images);
             x.audio && D.push(x.audio);
             x.video && D.push(x.video);
-
-            const albumPayload = JSON.stringify(D.map((w, sl) => ({
-                src: w,
-                index: sl + 1
-            })));
-
-            if (D.length > 1) {
-                if (window.Android && typeof window.Android.saveAlbumToDownloads === "function") {
-                    window.Android.saveAlbumToDownloads(albumPayload, `album_${Date.now()}`);
+            D.forEach((w, sl) => {
+                const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
+                const suggestedName = `media_${Date.now()}_${sl+1}.${ext}`;
+                if (window.Android && typeof window.Android.saveMediaToDownloads === "function") {
+                    window.Android.saveMediaToDownloads(w, suggestedName);
                 } else {
-                    D.forEach((w, sl) => {
-                        const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
-                        const suggestedName = `media_${Date.now()}_${sl+1}.${ext}`;
-                        if (window.Android && typeof window.Android.saveMediaToDownloads === "function") {
-                            window.Android.saveMediaToDownloads(w, suggestedName);
-                        } else {
-                            const Hl = document.createElement("a");
-                            Hl.href = w;
-                            Hl.download = suggestedName;
-                            Hl.style.cssText = "position:fixed;opacity:0";
-                            document.body.appendChild(Hl);
-                            Hl.click();
-                            document.body.removeChild(Hl);
-                        }
-                    })
+                    const Hl = document.createElement("a");
+                    Hl.href = w;
+                    Hl.download = suggestedName;
+                    Hl.style.cssText = "position:fixed;opacity:0";
+                    document.body.appendChild(Hl);
+                    Hl.click();
+                    document.body.removeChild(Hl);
                 }
-                return;
-            }
-
-            const w = D[0];
-            if (!w) return;
-            const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
-            const suggestedName = `media_${Date.now()}.${ext}`;
-            if (window.Android && typeof window.Android.saveMediaToDownloads === "function") {
-                window.Android.saveMediaToDownloads(w, suggestedName);
-            } else {
-                const Hl = document.createElement("a");
-                Hl.href = w;
-                Hl.download = suggestedName;
-                Hl.style.cssText = "position:fixed;opacity:0";
-                document.body.appendChild(Hl);
-                Hl.click();
-                document.body.removeChild(Hl);
-            }
+            })
         }, [x]),
---- END CODE START ---
         Ba = Bl.trim().length > 0,
         Ga = {
             "--msg-in": `rgba(${O.inRgb},${O.opacity})`,
@@ -2835,27 +2805,14 @@ function av({
                     onClick: e => {
                         e.stopPropagation();
                         setShowDownloadChoice(false);
-                        const items = m.map(item => item.src);
-                        if (window.Android && typeof window.Android.saveAlbumToDownloads === "function") {
-                            window.Android.saveAlbumToDownloads(JSON.stringify(items), `album_${Date.now()}`);
-                        } else {
-                            items.forEach((w, sl) => {
-                                const ext = w.startsWith("data:video") ? "mp4" : w.startsWith("data:audio") ? "webm" : "jpg";
-                                const name = `album_${Date.now()}_${sl+1}.${ext}`;
-                                if (window.Android && window.Android.saveMediaToDownloads) {
-                                    window.Android.saveMediaToDownloads(w, name);
-                                } else {
-                                    const a = document.createElement("a");
-                                    a.href = w;
-                                    a.download = name;
-                                    a.style.cssText = "position:fixed;opacity:0";
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    document.body.removeChild(a);
-                                }
-                            });
-                        }
---- END CODE START ---
+                        m.forEach((item, sl) => {
+                            const w = item.src;
+                            const ext = w.startsWith("data:video") ? "mp4" : "jpg";
+                            const name = `album_${Date.now()}_${sl+1}.${ext}`;
+                            if (window.Android && window.Android.saveMediaToDownloads) {
+                                window.Android.saveMediaToDownloads(w, name);
+                            }
+                        });
                     },
                     children: "📚 Весь альбом"
                 }),

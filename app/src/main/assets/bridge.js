@@ -1132,13 +1132,12 @@
             e.stopPropagation();
             isDraggingWave = true;
             updateWaveVisuals(e);
-        }, {passive: false});
+        }, {passive: true});
 
         waveContainer.addEventListener('touchmove', function(e) {
             e.stopPropagation();
             if (isDraggingWave) updateWaveVisuals(e);
-        }, {passive: false});
---- END CODE START ---
+        }, {passive: true});
 
         waveContainer.addEventListener('touchend', function(e) {
             e.stopPropagation();
