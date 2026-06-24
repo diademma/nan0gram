@@ -244,126 +244,7 @@ class MessengerJsInterface(
         }
     }
 
-    @android.webkit.JavascriptInterface
-    fun saveAlbumToDownloads(jsonItems: String, albumName: String) {
-        val context = getMessengerWebView?.invoke()?.context ?: getUkrnetWebView()?.context ?: return
-        val mm = mediaManager ?: return
-        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                fun resolveMedia(urlOrBase64: String): Triple<ByteArray, String, String>? {
-                    var bytes: ByteArray? = null
-                    var mimeType: String? = null
-                    var fileExt = ""
-
-                    if (urlOrBase64.startsWith("data:")) {
-                        val parts = urlOrBase64.split(",")
-                        if (parts.size > 1) {
-                            val header = parts[0]
-                            mimeType = header.substringAfter("data:").substringBefore(";base64")
-                            fileExt = when {
-                                mimeType.contains("video") -> "mp4"
-                                mimeType.contains("audio") || mimeType.contains("webm") -> "webm"
-                                mimeType.contains("image") -> "jpg"
-                                else -> "bin"
-                            }
-                            var cleanB64 = parts[1]
-                            if (cleanB64.contains("%")) {
-                                try {
-                                    cleanB64 = java.net.URLDecoder.decode(cleanB64, "UTF-8")
-                                } catch (e: Exception) {}
-                            }
-                            cleanB64 = cleanB64.replace(" ", "+")
-                            bytes = android.util.Base64.decode(cleanB64.trim(), android.util.Base64.DEFAULT)
-                        }
-                    } else if (urlOrBase64.contains("appassets.androidlocal/media/")) {
-                        var filename = urlOrBase64.substringAfter("appassets.androidlocal/media/")
-                        try {
-                            filename = java.net.URLDecoder.decode(filename, "UTF-8")
-                        } catch (e: Exception) {}
-                        val file = java.io.File(mm.getMediaDir(), filename)
-                        if (file.exists()) {
-                            bytes = file.readBytes()
-                            fileExt = file.extension
-                            mimeType = context.contentResolver.getType(android.net.Uri.fromFile(file))
-                        }
-                    } else {
-                        val cleanPath = urlOrBase64.replace("file://", "")
-                        val file = java.io.File(cleanPath)
-                        if (file.exists()) {
-                            bytes = file.readBytes()
-                            fileExt = file.extension
-                            mimeType = context.contentResolver.getType(android.net.Uri.fromFile(file))
-                        }
-                    }
-
-                    if (bytes == null) return null
-
-                    if (fileExt.isEmpty()) {
-                        fileExt = when {
-                            urlOrBase64.startsWith("data:video") -> "mp4"
-                            urlOrBase64.startsWith("data:audio") -> "webm"
-                            urlOrBase64.startsWith("data:image") -> "jpg"
-                            else -> "bin"
-                        }
-                    }
-
-                    mimeType = when (fileExt.lowercase()) {
-                        "jpg", "jpeg" -> "image/jpeg"
-                        "png" -> "image/png"
-                        "mp4" -> "video/mp4"
-                        "webm" -> "audio/webm"
-                        else -> "application/octet-stream"
-                    }
-
-                    val ext = when (mimeType) {
-                        "image/jpeg" -> "jpg"
-                        "image/png" -> "png"
-                        "video/mp4" -> "mp4"
-                        "audio/webm" -> "webm"
-                        else -> "bin"
-                    }
-
-                    return Triple(bytes, ext, mimeType)
-                }
-
-                val arr = JSONArray(jsonItems)
-                val safeAlbumName = albumName.ifBlank { "album" }.replace(Regex("[\\\\/:*?\"<>|\\s]+"), "_")
-                var savedCount = 0
-                var failedCount = 0
-
-                for (i in 0 until arr.length()) {
-                    val urlOrBase64 = arr.optString(i, "")
-                    if (urlOrBase64.isBlank()) continue
-
-                    val resolved = resolveMedia(urlOrBase64)
-                    if (resolved == null) {
-                        failedCount++
-                        continue
-                    }
-
-                    val (bytes, ext, mimeType) = resolved
-                    val fileName = "${safeAlbumName}_${i + 1}.$ext"
-                    if (saveBytesToDownloadsFolder(context, bytes, fileName, mimeType)) {
-                        savedCount++
-                    } else {
-                        failedCount++
-                    }
-                }
-
-                if (savedCount == 0) {
-                    showNativeSuccessPopup(getMessengerWebView?.invoke(), "Не удалось сохранить альбом ❌")
-                } else {
-                    showNativeSuccessPopup(getMessengerWebView?.invoke(), "Альбом скачан")
-                }
-            } catch (e: Exception) {
-                log("[Download Error] Failed to save album media: ${e.message}")
-                showNativeSuccessPopup(getMessengerWebView?.invoke(), "Ошибка сохранения альбома ❌")
-            }
-        }
-    }
-
     private fun showNativeSuccessPopup(webView: WebView?, msg: String) {
---- END CODE START ---
         val popupJs = """
             (function(){
                 var div = document.createElement('div');
@@ -839,9 +720,12 @@ class MessengerJsInterface(
                 })();
             """.trimIndent()
             getUkrnetWebView()?.evaluateJavascript(js, null)
+            scope.launch {
+                delay(1500)
+                ui.post { getUkrnetWebView()?.loadUrl("https://mail.ukr.net/touch/u0/sendmsg/") }
+            }
         }
     }
---- END CODE START ---
 
     @JavascriptInterface
     fun cancelCompose() {
