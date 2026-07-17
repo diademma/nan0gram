@@ -35,7 +35,7 @@ object UpdateChecker {
     suspend fun checkForUpdate(currentVersionCode: Int): UpdateInfo? =
         withContext(Dispatchers.IO) {
             try {
-                // Запрашиваем список всех релизов, чтобы корректно отфильтровать веб-обновления
+                // Запрашиваем полный список релизов, чтобы отфильтровать веб-обновления
                 val request = Request.Builder()
                     .url("https://api.github.com/repos/diademma/nan0gram/releases")
                     .header("Accept", "application/vnd.github.v3+json")
@@ -101,7 +101,7 @@ object UpdateChecker {
             val webAssetsDir = File(context.filesDir, "web_assets")
 
             if (lastApkVersion != currentApkVersion) {
-                log("[OTA] Сброс локального кэша веб-ресурсов (версия APK изменилась: $lastApkVersion -> $currentApkVersion).")
+                log("[OTA] Обнаружено изменение версии APK ($lastApkVersion -> $currentApkVersion). Сбрасываем кэш OTA.")
                 if (webAssetsDir.exists()) {
                     webAssetsDir.deleteRecursively()
                 }
@@ -179,15 +179,24 @@ object UpdateChecker {
                 webAssetsDir.mkdirs()
             }
             
-            unzip(tempZipFile, webAssetsDir)
-            tempZipFile.delete()
+                unzip(tempZipFile, webAssetsDir)
+                tempZipFile.delete()
 
-            // Запись обновленной версии веб-ресурсов
-            prefs.edit()
-                .putString("web_version", latestTagName)
-                .apply()
+                // Запись обновленной версии веб-ресурсов
+                prefs.edit()
+                    .putString("web_version", latestTagName)
+                    .apply()
 
-            log("[OTA] Локальные веб-ресурсы успешно обновлены до версии $latestTagName. Перезапустите приложение.")
+                log("[OTA] Локальные веб-ресурсы успешно обновлены до версии $latestTagName. Перезапустите приложение.")
+
+                // Показываем нативное всплывающее уведомление на экране (Toast)
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Установлено веб-обновление $latestTagName. Пожалуйста, перезапустите приложение! ⚙️",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
         } catch (e: Exception) {
             log("[OTA Error] Сбой веб-обновления: ${e.message}")
             Log.e(TAG, "OTA update failed", e)
@@ -200,7 +209,6 @@ object UpdateChecker {
             val destCanonicalPath = destDir.canonicalPath + File.separator
             while (entry != null) {
                 val file = File(destDir, entry.name)
-                // Защита от уязвимости внедрения путей (Zip Slip)
                 if (!file.canonicalPath.startsWith(destCanonicalPath)) {
                     throw SecurityException("Blocked Zip Slip exploit attempt for path: ${entry.name}")
                 }
