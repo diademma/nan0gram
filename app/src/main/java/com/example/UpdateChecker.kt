@@ -26,16 +26,13 @@ data class UpdateInfo(
 object UpdateChecker {
 
     private const val TAG = "UpdateChecker"
-    private const val API_URL =
-        "https://api.github.com/repos/diademma/nan0gram/releases/latest"
-
     private val client = OkHttpClient()
 
     // 1. Проверка нативных обновлений приложения (только теги build-*)
     suspend fun checkForUpdate(currentVersionCode: Int): UpdateInfo? =
         withContext(Dispatchers.IO) {
             try {
-                // Запрашиваем полный список релизов, чтобы отфильтровать веб-обновления
+                // Запрашиваем список всех релизов, чтобы корректно отфильтровать веб-обновления
                 val request = Request.Builder()
                     .url("https://api.github.com/repos/diademma/nan0gram/releases")
                     .header("Accept", "application/vnd.github.v3+json")
@@ -111,9 +108,9 @@ object UpdateChecker {
                     .apply()
             }
 
-            // Запрос метаданных последнего релиза
+            // Запрашиваем список всех релизов (он всегда отсортирован гитхабом строго по дате публикации от новых к старым)
             val request = Request.Builder()
-                .url(API_URL)
+                .url("https://api.github.com/repos/diademma/nan0gram/releases")
                 .header("Accept", "application/vnd.github.v3+json")
                 .build()
 
@@ -124,7 +121,14 @@ object UpdateChecker {
             }
 
             val body = response.body?.string() ?: return@withContext
-            val json = JSONObject(body)
+            val jsonArray = JSONArray(body)
+            if (jsonArray.length() == 0) {
+                log("[OTA] Релизы отсутствуют в репозитории.")
+                return@withContext
+            }
+
+            // Самый первый элемент в массиве гарантированно является самым свежим по дате публикации
+            val json = jsonArray.getJSONObject(0)
             val latestTagName = json.getString("tag_name")
             
             val currentWebVersion = prefs.getString("web_version", "default_apk") ?: "default_apk"
@@ -133,7 +137,7 @@ object UpdateChecker {
                 return@withContext
             }
 
-            // Оптимизация: если последний релиз — это текущий APK, скачивать ресурсы не нужно
+            // Оптимизация: если последний по времени релиз — это текущий APK, скачивать ресурсы не нужно
             val currentBuildTag = "build-$currentApkVersion"
             if (latestTagName == currentBuildTag) {
                 prefs.edit().putString("web_version", latestTagName).apply()
@@ -179,24 +183,24 @@ object UpdateChecker {
                 webAssetsDir.mkdirs()
             }
             
-                unzip(tempZipFile, webAssetsDir)
-                tempZipFile.delete()
+            unzip(tempZipFile, webAssetsDir)
+            tempZipFile.delete()
 
-                // Запись обновленной версии веб-ресурсов
-                prefs.edit()
-                    .putString("web_version", latestTagName)
-                    .apply()
+            // Запись обновленной версии веб-ресурсов
+            prefs.edit()
+                .putString("web_version", latestTagName)
+                .apply()
 
-                log("[OTA] Локальные веб-ресурсы успешно обновлены до версии $latestTagName. Перезапустите приложение.")
+            log("[OTA] Локальные веб-ресурсы успешно обновлены до версии $latestTagName. Перезапустите приложение.")
 
-                // Показываем нативное всплывающее уведомление на экране (Toast)
-                withContext(Dispatchers.Main) {
-                    android.widget.Toast.makeText(
-                        context,
-                        "Установлено веб-обновление $latestTagName. Пожалуйста, перезапустите приложение! ⚙️",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                }
+            // Системное нативное уведомление о готовности веб-обновления
+            withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Установлено веб-обновление $latestTagName. Пожалуйста, перезапустите приложение! ⚙️",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
         } catch (e: Exception) {
             log("[OTA Error] Сбой веб-обновления: ${e.message}")
             Log.e(TAG, "OTA update failed", e)
