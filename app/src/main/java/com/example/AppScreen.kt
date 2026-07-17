@@ -834,7 +834,20 @@ private fun WebViewLayer(
                         }
                     }
                     webChromeClient = object : WebChromeClient() {
-                        override fun onConsoleMessage(m: ConsoleMessage?): Boolean { log("[Local JS] [${m?.messageLevel()?.name ?: "LOG"}] ${m?.message()} (${m?.lineNumber()})"); return true }
+                        override fun onConsoleMessage(m: ConsoleMessage?): Boolean {
+                            val src = m?.sourceId()?.substringAfterLast('/') ?: "?"
+                            val line = m?.lineNumber() ?: 0
+                            val msg = m?.message() ?: ""
+                            when (m?.messageLevel()) {
+                                ConsoleMessage.MessageLevel.ERROR ->
+                                    log("[❌ JS] $msg ($src:$line)")
+                                ConsoleMessage.MessageLevel.WARNING ->
+                                    log("[⚠️ JS] $msg ($src:$line)")
+                                else ->
+                                    android.util.Log.d("n0g_js", "$msg ($src:$line)")
+                            }
+                            return true
+                        }
                         override fun onPermissionRequest(request: android.webkit.PermissionRequest?) { request?.grant(request.resources) }
                         override fun onShowFileChooser(webView: WebView?, filePathCallbackParams: android.webkit.ValueCallback<Array<Uri>>?, fileChooserParams: FileChooserParams?): Boolean {
                             if (messengerFilePathCallback != null) { filePathCallbackParams?.onReceiveValue(null); return true }
