@@ -34,13 +34,11 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
 
-        // ── StrictMode: ловим медленные операции на главном потоке ──────
-        // Все нарушения видны в логах (тег StrictMode) — не влияет на работу
         if (BuildConfig.DEBUG) {
             StrictMode.setThreadPolicy(
                 StrictMode.ThreadPolicy.Builder()
-                    .detectAll()       // диск, сеть, медленные вызовы
-                    .penaltyLog()      // пишем в лог, не крашим
+                    .detectAll()
+                    .penaltyLog()
                     .build()
             )
             StrictMode.setVmPolicy(
@@ -59,8 +57,9 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
+            // ПЕРЕНЕСЕНО НАВЕРХ: Инициализация контекста для OTA
+            val context = androidx.compose.ui.platform.LocalContext.current
 
-            // Запрашиваем доступ к микрофону при старте
             val micPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
                 contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
             ) { isGranted ->
@@ -75,6 +74,11 @@ class MainActivity : ComponentActivity() {
                 val info = UpdateChecker.checkForUpdate(BuildConfig.VERSION_CODE)
                 if (info != null && info.isUpdateAvailable) {
                     updateInfo = info
+                }
+                
+                // ВЫЗОВ OTA: Вот та самая функция, которая из-за ошибки патчера никогда не запускалась!
+                UpdateChecker.checkAndDownloadWebUpdate(context) { msg ->
+                    log(msg)
                 }
             }
             updateInfo?.let { info ->
@@ -120,8 +124,6 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            // Считываем системный ANDROID_ID (SSAID) для уникального отпечатка
-            val context = androidx.compose.ui.platform.LocalContext.current
             val androidId = remember {
                 android.provider.Settings.Secure.getString(
                     context.contentResolver,
@@ -139,7 +141,7 @@ class MainActivity : ComponentActivity() {
                     onBgServiceChange = { isBgServiceActive = it },
                     getUkrnetWebView  = { ukrnetWebView },
                     getCoords         = { coords },
-                    androidId         = androidId  // Передаем ID в мост
+                    androidId         = androidId
                 ).also {
                     it.scope = coroutineScope
                     messengerInterfaceRef = it
