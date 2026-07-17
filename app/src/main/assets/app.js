@@ -1003,7 +1003,7 @@ function k0({
                             fontWeight: 600,
                             fontSize: 16
                         },
-                        children: "Настройки"
+                        children: "Настройки ⚙️"
                     }),
                     f.jsx("div", {
                         style: {
