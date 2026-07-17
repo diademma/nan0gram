@@ -1,8 +1,8 @@
 import { saveMediaToDownloads } from './n0g_msg_bridge_102.js';
 import { ThemePanel, SettingsPanel } from './n0g_msg_settings_view_103.js';
 
-const T = window.React;
-const f = {
+const T = window.T || window.React;
+const f = window.f || {
     jsx: (type, props, key) => T.createElement(type, { ...props, key }),
     jsxs: (type, props, key) => T.createElement(type, { ...props, key })
 };

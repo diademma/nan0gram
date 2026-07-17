@@ -5,8 +5,8 @@ import {
     clearAllHistoryLog 
 } from './n0g_msg_bridge_102.js';
 
-const T = window.React;
-const f = {
+const T = window.T || window.React;
+const f = window.f || {
     jsx: (type, props, key) => T.createElement(type, { ...props, key }),
     jsxs: (type, props, key) => T.createElement(type, { ...props, key })
 };
@@ -869,7 +869,7 @@ export function SettingsPanel({
                                 f.jsxs("button", {
                                     className: "settings-item",
                                     onClick: () => {
-                                        if (confirm("ВНИМАНИЕ: Вы действительно хотите БЕЗВОЗВРАТНО удалить абсолютно все сообщения изо всех чатов?")) {
+                                        if (confirm("ВНИЯНИЕ: Вы действительно хотите БЕЗВОЗВРАТНО удалить абсолютно все сообщения изо всех чатов?")) {
                                             clearAllHistoryLog();
                                             localStorage.removeItem("nan0gram_pinned_messages");
                                         }

@@ -11,9 +11,9 @@ import {
 import { Sidebar, ProfileModal, Lightbox, Toast } from './n0g_msg_ui_modals_104.js';
 import { ChatArea } from './n0g_msg_chat_area_105.js';
 
-const T = window.React;
-const Q0 = window.ReactDOM || window.ReactDom;
-const f = {
+const T = window.T || window.React;
+const Q0 = window.Q0 || window.ReactDOM || window.ReactDom;
+const f = window.f || {
     jsx: (type, props, key) => T.createElement(type, { ...props, key }),
     jsxs: (type, props, key) => T.createElement(type, { ...props, key })
 };
