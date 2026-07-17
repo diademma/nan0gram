@@ -1,5 +1,6 @@
 (function(W) {
     "use strict";
+    try {
 
     W.APP_NAME = "nan0gram";
     W.DEFAULT_RECIPIENT = "270232@ukr.net";
@@ -175,4 +176,6 @@
             return next;
         }
     };
+
+    } catch (e) { console.error('[nan0gram:cipher] Критическая ошибка инициализации:', e.message); }
 })(window);
