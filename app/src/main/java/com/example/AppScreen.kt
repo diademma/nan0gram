@@ -287,6 +287,15 @@ private fun WebViewLayer(
     var ukrnetWebViewInstance by remember { mutableStateOf<WebView?>(null) }
     var messengerWebViewInstance by remember { mutableStateOf<WebView?>(null) }
 
+    val webAssetsDir = remember { File(context.filesDir, "web_assets") }
+    val assetLoader = remember(webAssetsDir) {
+        androidx.webkit.WebViewAssetLoader.Builder()
+            .setDomain("appassets.androidlocal")
+            .addPathHandler("/media/", androidx.webkit.WebViewAssetLoader.InternalStoragePathHandler(context, mediaManager.getMediaDir()))
+            .addPathHandler("/assets/", FallbackAssetsPathHandler(context, webAssetsDir))
+            .build()
+    }
+
     fun processUrisWithLimits(
             context: Context,
             rawUris: List<Uri>,
@@ -913,6 +922,44 @@ private fun LogPanel(
                     }
                 }
             }
+        }
+    }
+}
+
+class FallbackAssetsPathHandler(
+    private val context: Context,
+    private val localDir: File
+) : androidx.webkit.WebViewAssetLoader.PathHandler {
+    private val assetsHandler = androidx.webkit.WebViewAssetLoader.AssetsPathHandler(context)
+
+    override fun handle(path: String): android.webkit.WebResourceResponse? {
+        val localFile = File(localDir, path)
+        if (localFile.exists() && localFile.isFile) {
+            try {
+                val mimeType = getMimeType(path)
+                val inputStream = java.io.FileInputStream(localFile)
+                return android.webkit.WebResourceResponse(mimeType, "UTF-8", inputStream)
+            } catch (e: Exception) {
+                // Игнорируем ошибки чтения и плавно переходим к базовым ассетам из APK
+            }
+        }
+        return assetsHandler.handle(path)
+    }
+
+    private fun getMimeType(path: String): String {
+        return when {
+            path.endsWith(".html", ignoreCase = true) -> "text/html"
+            path.endsWith(".css", ignoreCase = true) -> "text/css"
+            path.endsWith(".js", ignoreCase = true) -> "application/javascript"
+            path.endsWith(".png", ignoreCase = true) -> "image/png"
+            path.endsWith(".jpg", ignoreCase = true) || path.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+            path.endsWith(".gif", ignoreCase = true) -> "image/gif"
+            path.endsWith(".svg", ignoreCase = true) -> "image/svg+xml"
+            path.endsWith(".json", ignoreCase = true) -> "application/json"
+            path.endsWith(".woff2", ignoreCase = true) -> "font/woff2"
+            path.endsWith(".woff", ignoreCase = true) -> "font/woff"
+            path.endsWith(".ttf", ignoreCase = true) -> "font/ttf"
+            else -> "application/octet-stream"
         }
     }
 }
