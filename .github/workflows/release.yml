@@ -50,8 +50,7 @@ jobs:
           draft: false
           prerelease: false
           files: web_update.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   build-apk-and-web:
     needs: detect-changes
@@ -92,5 +91,4 @@ jobs:
           files: |
             nan0gram-latest.apk
             web_update.zip
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
