@@ -1,4 +1,4 @@
-name: Build and Release APK
+name: Build and Release (OTA & APK)
 
 on:
   push:
@@ -8,12 +8,57 @@ on:
   workflow_dispatch: 
 
 jobs:
-  build-and-release:
+  detect-changes:
     runs-on: ubuntu-latest
-    
-    permissions:
-      contents: write 
+    outputs:
+      web_only: ${{ steps.filter.outputs.web == 'true' && steps.filter.outputs.android == 'false' && github.event_name != 'workflow_dispatch' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
+      - name: Check changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            web:
+              - 'app/src/main/assets/**'
+            android:
+              - '!app/src/main/assets/**'
+
+  build-web-ota:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.web_only == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Package Web Update ZIP
+        run: |
+          cd app/src/main/assets
+          zip -r ../../../../web_update.zip .
+
+      - name: Create Web OTA Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: web-ota-${{ github.run_number }}
+          name: "Web OTA Update #${{ github.run_number }}"
+          body: "Автоматическое обновление веб-интерфейса (OTA) без изменения APK. Изменения вступят в силу при следующем запуске приложения."
+          draft: false
+          prerelease: false
+          files: web_update.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-apk-and-web:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.web_only != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -31,14 +76,21 @@ jobs:
       - name: Rename APK
         run: mv app/build/outputs/apk/debug/app-debug.apk nan0gram-latest.apk
 
-      - name: Create Release and Upload APK
+      - name: Package Web Update ZIP
+        run: |
+          cd app/src/main/assets
+          zip -r ../../../../web_update.zip .
+
+      - name: Create Full Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: "Сборка nan0gram #${{ github.run_number }}"
-          body: "Автоматическая сборка APK из последнего коммита. Нажмите на `nan0gram-latest.apk` ниже, чтобы скачать напрямую."
+          body: "Автоматическая сборка APK и веб-ресурсов из последнего коммита. Нажмите на `nan0gram-latest.apk` ниже, чтобы скачать напрямую."
           draft: false
           prerelease: false
-          files: nan0gram-latest.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            nan0gram-latest.apk
+            web_update.zip
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
