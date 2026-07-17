@@ -193,7 +193,7 @@ object UpdateChecker {
 
             log("[OTA] Локальные веб-ресурсы успешно обновлены до версии $latestTagName. Перезапустите приложение.")
 
-            // Системное нативное уведомление о готовности веб-обновления
+            // Показываем нативное всплывающее уведомление на экране (Toast)
             withContext(Dispatchers.Main) {
                 android.widget.Toast.makeText(
                     context,
@@ -214,7 +214,7 @@ object UpdateChecker {
             while (entry != null) {
                 val file = File(destDir, entry.name)
                 if (!file.canonicalPath.startsWith(destCanonicalPath)) {
-                    throw SecurityException("Blocked Zip Slip exploit attempt for path: ${entry.name}")
+                    throw SecurityException("Blocked Zip Slip attempt for path: ${entry.name}")
                 }
                 if (entry.isDirectory) {
                     file.mkdirs()
