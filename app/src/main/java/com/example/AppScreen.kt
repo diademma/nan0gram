@@ -753,15 +753,11 @@ private fun WebViewLayer(
                 val mWebView = WebView(ctx).apply {
                     tag = "messenger"
                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                    // Очищаем кэш Chromium при старте, чтобы сбросить агрессивный кэш Chromium и загрузить новые файлы OTA
+                    clearCache(true)
                     settings.apply { javaScriptEnabled = true; domStorageEnabled = true; databaseEnabled = true; allowFileAccess = true; allowContentAccess = true; mediaPlaybackRequiresUserGesture = false }
                     addJavascriptInterface(messengerInterface, "Android")
                     
-                    val assetLoader = androidx.webkit.WebViewAssetLoader.Builder()
-                        .setDomain("appassets.androidlocal")
-                        .addPathHandler("/media/", androidx.webkit.WebViewAssetLoader.InternalStoragePathHandler(ctx, mediaManager.getMediaDir()))
-                        .addPathHandler("/assets/", androidx.webkit.WebViewAssetLoader.AssetsPathHandler(ctx))
-                        .build()
-
                     webViewClient = object : WebViewClient() {
                         override fun shouldInterceptRequest(view: WebView?, request: android.webkit.WebResourceRequest?): android.webkit.WebResourceResponse? {
                             request?.url?.let { url ->
