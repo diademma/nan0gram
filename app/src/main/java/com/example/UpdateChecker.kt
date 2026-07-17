@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
@@ -30,11 +31,13 @@ object UpdateChecker {
 
     private val client = OkHttpClient()
 
+    // 1. Проверка нативных обновлений приложения (только теги build-*)
     suspend fun checkForUpdate(currentVersionCode: Int): UpdateInfo? =
         withContext(Dispatchers.IO) {
             try {
+                // Запрашиваем список всех релизов, чтобы корректно отфильтровать веб-обновления
                 val request = Request.Builder()
-                    .url(API_URL)
+                    .url("https://api.github.com/repos/diademma/nan0gram/releases")
                     .header("Accept", "application/vnd.github.v3+json")
                     .build()
 
@@ -42,33 +45,38 @@ object UpdateChecker {
                 if (!response.isSuccessful) return@withContext null
 
                 val body = response.body?.string() ?: return@withContext null
-                val json = JSONObject(body)
+                val jsonArray = JSONArray(body)
 
-                val tag = json.getString("tag_name")
-                val releaseNotes = json.optString("body", "")
+                for (i in 0 until jsonArray.length()) {
+                    val json = jsonArray.getJSONObject(i)
+                    val tag = json.getString("tag_name")
 
-                // Из тега типа "build-42" или "v1.2" вытаскиваем число
-                val tagNumber = Regex("\\d+").findAll(tag).lastOrNull()
-                    ?.value?.toIntOrNull() ?: 0
+                    // Проверяем только настоящие сборки приложения с префиксом "build-"
+                    if (tag.startsWith("build-")) {
+                        val releaseNotes = json.optString("body", "")
+                        val tagNumber = Regex("\\d+").findAll(tag).lastOrNull()
+                            ?.value?.toIntOrNull() ?: 0
 
-                // Ищем APK в assets релиза
-                val assets = json.getJSONArray("assets")
-                var apkUrl = ""
-                for (i in 0 until assets.length()) {
-                    val asset = assets.getJSONObject(i)
-                    if (asset.getString("name").endsWith(".apk")) {
-                        apkUrl = asset.getString("browser_download_url")
-                        break
+                        val assets = json.getJSONArray("assets")
+                        var apkUrl = ""
+                        for (j in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(j)
+                            if (asset.getString("name").endsWith(".apk")) {
+                                apkUrl = asset.getString("browser_download_url")
+                                break
+                            }
+                        }
+                        if (apkUrl.isEmpty()) apkUrl = json.getString("html_url")
+
+                        return@withContext UpdateInfo(
+                            latestVersion = tag,
+                            downloadUrl = apkUrl,
+                            releaseNotes = releaseNotes,
+                            isUpdateAvailable = tagNumber > currentVersionCode
+                        )
                     }
                 }
-                if (apkUrl.isEmpty()) apkUrl = json.getString("html_url")
-
-                UpdateInfo(
-                    latestVersion = tag,
-                    downloadUrl = apkUrl,
-                    releaseNotes = releaseNotes,
-                    isUpdateAvailable = tagNumber > currentVersionCode
-                )
+                null
             } catch (e: Exception) {
                 null
             }
@@ -78,11 +86,12 @@ object UpdateChecker {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
 
+    // 2. Фоновое скачивание веб-обновлений OTA
     suspend fun checkAndDownloadWebUpdate(context: Context, log: (String) -> Unit) = withContext(Dispatchers.IO) {
         try {
             val prefs = context.getSharedPreferences("nan0gram_web_update_prefs", Context.MODE_PRIVATE)
             
-            // 1. Сброс кэша при обновлении версии самого приложения (APK) во избежание конфликтов
+            // Сброс кэша при обновлении версии самого приложения (APK)
             val currentApkVersion = try {
                 context.packageManager.getPackageInfo(context.packageName, 0).versionCode
             } catch (e: Exception) {
@@ -102,7 +111,7 @@ object UpdateChecker {
                     .apply()
             }
 
-            // 2. Запрос к GitHub API для получения метаданных последнего релиза
+            // Запрос метаданных последнего релиза
             val request = Request.Builder()
                 .url(API_URL)
                 .header("Accept", "application/vnd.github.v3+json")
@@ -110,7 +119,7 @@ object UpdateChecker {
 
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
-                log("[OTA] Проверка веб-обновлений завершилась с ошибкой: HTTP ${response.code}")
+                log("[OTA] Проверка обновлений завершилась с ошибкой: HTTP ${response.code}")
                 return@withContext
             }
 
@@ -124,7 +133,15 @@ object UpdateChecker {
                 return@withContext
             }
 
-            // 3. Поиск файла архива web_update.zip в ассетах релиза
+            // Оптимизация: если последний релиз — это текущий APK, скачивать ресурсы не нужно
+            val currentBuildTag = "build-$currentApkVersion"
+            if (latestTagName == currentBuildTag) {
+                prefs.edit().putString("web_version", latestTagName).apply()
+                log("[OTA] Локальная веб-версия соответствует текущему APK ($latestTagName). Скачивание пропущено.")
+                return@withContext
+            }
+
+            // Поиск файла архива web_update.zip в ассетах релиза
             val assets = json.optJSONArray("assets") ?: return@withContext
             var webUpdateUrl = ""
             for (i in 0 until assets.length()) {
@@ -136,13 +153,13 @@ object UpdateChecker {
             }
 
             if (webUpdateUrl.isEmpty()) {
-                log("[OTA] Релиз $latestTagName не содержит архива web_update.zip.")
+                log("[OTA] Релиз $latestTagName не содержит архив web_update.zip.")
                 return@withContext
             }
 
             log("[OTA] Обнаружено новое веб-обновление: $latestTagName. Начинаем скачивание...")
 
-            // 4. Скачивание ZIP-архива во временную папку кэша
+            // Скачивание ZIP-архива
             val downloadRequest = Request.Builder().url(webUpdateUrl).build()
             val downloadResponse = client.newCall(downloadRequest).execute()
             if (!downloadResponse.isSuccessful) {
@@ -157,7 +174,7 @@ object UpdateChecker {
                 }
             }
 
-            // 5. Распаковка архива во внутреннюю память
+            // Распаковка архива во внутреннюю память
             if (!webAssetsDir.exists()) {
                 webAssetsDir.mkdirs()
             }
@@ -165,7 +182,7 @@ object UpdateChecker {
             unzip(tempZipFile, webAssetsDir)
             tempZipFile.delete()
 
-            // 6. Запись обновленной версии веб-ресурсов
+            // Запись обновленной версии веб-ресурсов
             prefs.edit()
                 .putString("web_version", latestTagName)
                 .apply()
