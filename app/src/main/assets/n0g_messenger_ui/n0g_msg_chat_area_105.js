@@ -59,6 +59,8 @@ export function MessageRow({
     const longPressed = T.useRef(false);
     const lastTapTime = T.useRef(0);
     const tapTimer = T.useRef(null);
+    const replyStartX = T.useRef(0);
+    const replyStartY = T.useRef(0);
 
     const clearTimers = T.useCallback(() => {
         pressTimer.current && clearTimeout(pressTimer.current);
@@ -215,9 +217,25 @@ export function MessageRow({
                             }),
                             message.replyTo && f.jsx("div", {
                                 className: "msg-reply",
-                                onTouchStart: e => e.stopPropagation(),
+                                onTouchStart: e => {
+                                    e.stopPropagation();
+                                    const touch = e.touches[0];
+                                    if (touch) {
+                                        replyStartX.current = touch.clientX;
+                                        replyStartY.current = touch.clientY;
+                                    }
+                                },
                                 onTouchEnd: e => {
                                     e.stopPropagation();
+                                    const touch = e.changedTouches[0];
+                                    if (touch) {
+                                        const diffX = Math.abs(replyStartX.current - touch.clientX);
+                                        const diffY = Math.abs(replyStartY.current - touch.clientY);
+                                        if (diffX > 8 || diffY > 8) {
+                                            // Была прокрутка, блокируем действие
+                                            return;
+                                        }
+                                    }
                                     e.preventDefault();
                                     if (message.replyTo && message.replyTo.id) {
                                         const targetEl = document.querySelector("[data-id='" + message.replyTo.id + "']");
