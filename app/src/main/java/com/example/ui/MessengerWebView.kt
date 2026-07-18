@@ -26,7 +26,7 @@ internal fun buildMessengerWebView(
         WebView(ctx).apply {
             tag = "messenger"
             
-            // Использование argb(1, 0, 0, 0) вместо TRANSPARENT решает аппаратный баг WebView,
+            // argb(1, 0, 0, 0) вместо TRANSPARENT решает аппаратный баг WebView,
             // при котором видео или его контейнер не отрисовываются на полностью прозрачном фоне
             setBackgroundColor(android.graphics.Color.argb(1, 0, 0, 0))
             
@@ -121,11 +121,9 @@ internal fun buildMessengerWebView(
                                             put("Access-Control-Allow-Origin", "*")
                                         }
 
-                                        // Chromium WebView требует чистый FileInputStream для доступа к дескрипторам
-                                        // файлов (Zero-Copy DMA). Любые кастомные обертки InputStream ломают аппаратное ускорение видео.
                                         val fis = java.io.FileInputStream(file)
                                         
-                                        // Гарантированный skip-цикл для перемещения указателя потока.
+                                        // Смещаем указатель системного стрима
                                         if (start > 0) {
                                             var remaining = start
                                             while (remaining > 0) {
@@ -135,8 +133,38 @@ internal fun buildMessengerWebView(
                                             }
                                         }
 
+                                        // Кастомный анонимный InputStream прячет FileDescriptor от C++ кода WebView,
+                                        // заставляя Chromium читать данные строго через наши Java-методы, помнящие skip()!
+                                        val safeInputStream = object : java.io.InputStream() {
+                                            private var bytesRead = 0L
+
+                                            override fun read(): Int {
+                                                if (bytesRead >= chunkLength) return -1
+                                                val byte = fis.read()
+                                                if (byte != -1) bytesRead++
+                                                return byte
+                                            }
+
+                                            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                                                if (bytesRead >= chunkLength) return -1
+                                                val maxToRead = minOf(len.toLong(), chunkLength - bytesRead).toInt()
+                                                val readBytes = fis.read(b, off, maxToRead)
+                                                if (readBytes != -1) bytesRead += readBytes
+                                                return readBytes
+                                            }
+
+                                            override fun available(): Int {
+                                                // Возвращаем 0, чтобы Chromium читал строго поблочно и не падал по таймауту буфера
+                                                return 0
+                                            }
+
+                                            override fun close() {
+                                                fis.close()
+                                            }
+                                        }
+
                                         log("[MediaManager] Стриминг: $start-$end/$totalLength ($fileName)")
-                                        return WebResourceResponse(mimeType, null, 206, "Partial Content", responseHeaders, fis)
+                                        return WebResourceResponse(mimeType, null, 206, "Partial Content", responseHeaders, safeInputStream)
                                     } else {
                                         val responseHeaders = mutableMapOf<String, String>().apply {
                                             put("Content-Type", mimeType)
