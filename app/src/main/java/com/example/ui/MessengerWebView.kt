@@ -161,7 +161,9 @@ internal fun buildMessengerWebView(
                                             put("Content-Type", mimeType)
                                             put("Accept-Ranges", "bytes")
                                             put("Content-Range", "bytes $start-$end/$totalLength")
-                                            put("Content-Length", chunkLength.toString())
+                                            // Удаление ручной вставки Content-Length предотвращает баг дублирования заголовка
+                                            // Content-Length системным классом AwWebResourceResponse в WebView, из-за которого
+                                            // Chromium отбраковывал пакеты и уходил в бесконечный цикл.
                                             put("Access-Control-Allow-Origin", "*")
                                         }
 
@@ -175,7 +177,7 @@ internal fun buildMessengerWebView(
                                         val responseHeaders = mutableMapOf<String, String>().apply {
                                             put("Content-Type", mimeType)
                                             put("Accept-Ranges", "bytes")
-                                            put("Content-Length", bytes.size.toString())
+                                            // Удален Content-Length во избежание дублирования нативным загрузчиком WebView
                                             put("Access-Control-Allow-Origin", "*")
                                         }
                                         log("[MediaManager] Полный файл: $fileName (${bytes.size} байт) [Mime: $mimeType]")
@@ -198,6 +200,20 @@ internal fun buildMessengerWebView(
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
+                    
+                    // Принудительно заставляем все <video> элементы рендериться в отдельном 3D-слое.
+                    // Это лечит нативный баг Chromium, при котором видео становится прозрачным/невидимым (пустота)
+                    // на фоне glassmorphic-окон мессенджера.
+                    view?.evaluateJavascript("""
+                        (function(){
+                            var style = document.createElement('style');
+                            style.type = 'text/css';
+                            style.innerHTML = 'video { transform: translateZ(0) !important; will-change: transform !important; }';
+                            document.getElementsByTagName('head')[0].appendChild(style);
+                            console.log('[CSS Patch] Video hardware layer patch injected');
+                        })();
+                    """.trimIndent(), null)
+                    
                     view?.evaluateJavascript("""
                         (function(){
                             if(window._n0gDirectPickerPatch)return;
