@@ -1,0 +1,430 @@
+/* ================================================================
+ * nan0gram — Аудиоплеер, запись голоса, файловые сообщения
+ * Часть 6 из 6. Зависит от: style-base.css, style-messages.css
+ * ================================================================ */
+
+/* --- Custom Telegram-like Voice Player Styles --- */
+.message:has(.tg-voice-player) {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+.tg-voice-player {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 12px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 8px 14px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+  user-select: none;
+  -webkit-user-select: none;
+  min-width: 240px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Автоматически наследуем цвета баблов из настроек (Замечание 2) */
+.msg-row.out .tg-voice-player {
+  background: var(--msg-out) !important;
+}
+
+.msg-row.in .tg-voice-player {
+  background: var(--msg-in) !important;
+}
+
+.tg-play-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #fff;
+  border: none;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s, background-color 0.15s;
+}
+
+.tg-play-btn:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.38) !important;
+}
+
+.tg-play-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tg-waveform-container {
+  position: relative;
+  width: 130px;
+  height: 28px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tg-waveform-bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 2.2px;
+  opacity: 0.35;
+}
+
+.tg-waveform-active-container {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+  width: 0%;
+  display: flex;
+  align-items: center;
+}
+
+.tg-waveform-active {
+  display: flex;
+  align-items: center;
+  gap: 2.2px;
+  width: 130px;
+}
+
+.tg-wave-bar {
+  width: 2.5px;
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 2px;
+  display: inline-block;
+}
+
+.tg-wave-bar.active {
+  background: #ffffff !important;
+}
+
+.tg-voice-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.88) !important;
+  font-weight: bold;
+  min-width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* --- Scarlet Stop Button (Сброс записи) --- */
+.tg-record-cancel-btn {
+  position: fixed;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #ef5350 !important; /* Алый роскошный цвет */
+  color: #fff;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(239, 83, 80, 0.35);
+  z-index: 9999;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.tg-record-cancel-btn:active {
+  transform: scale(0.9);
+  background: #d32f2f !important;
+}
+
+.tg-record-cancel-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* --- Slide to Lock Indicator (Замочек) --- */
+.tg-record-lock-indicator {
+  position: fixed;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: 9999;
+  pointer-events: none;
+  transform: translateY(0);
+  transition: transform 0.1s ease-out, opacity 0.3s;
+}
+
+.tg-record-lock-indicator .lock-arrow {
+  font-size: 13px;
+  color: #a773d1;
+  animation: bounceArrow 1.2s infinite;
+}
+
+.tg-record-lock-indicator .lock-icon {
+  font-size: 18px;
+}
+
+.tg-record-lock-indicator.locked .lock-icon {
+  animation: lockPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes bounceArrow {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(-6px); opacity: 1; }
+}
+
+@keyframes lockPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+
+/* --- Изменение цвета кнопки микрофона на синий Самолётик в режиме фиксации --- */
+.send-mic-btn.tg-send-mode {
+  background: #2563eb !important;
+}
+
+body.tg-locked-active .send-mic-btn svg {
+  display: none !important;
+}
+
+body.tg-locked-active .send-mic-btn::after {
+  content: "" !important;
+  width: 18px;
+  height: 18px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='22' y1='2' x2='11' y2='13'%3E%3C/line%3E%3Cpolygon points='22 2 15 22 11 13 2 9 22 2'%3E%3C/polygon%3E%3C/svg%3E") !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  display: block !important;
+}
+
+.tg-recording-overlay-bar {
+  display: flex;
+  align-items: center;
+  background: #15101b !important;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  height: 44px;
+  padding: 0 16px;
+  flex-grow: 1;
+  gap: 10px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.tg-rec-dot {
+  width: 8px;
+  height: 8px;
+  background: #ef5350;
+  border-radius: 50%;
+  animation: tg-blink 1s infinite alternate;
+}
+
+.tg-rec-label {
+  font-size: 13px;
+  font-weight: bold;
+  color: #ef5350;
+  letter-spacing: 0.5px;
+}
+
+.tg-rec-timer {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  color: #fff;
+  font-weight: bold;
+  margin-left: 5px;
+}
+
+.tg-rec-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 24px;
+  flex-grow: 1;
+  margin-left: 12px;
+  margin-right: 64px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .tg-recording-overlay-bar {
+    padding: 0 8px !important;
+    gap: 6px !important;
+  }
+  .tg-rec-wave {
+    max-width: 60px !important;
+    margin-left: 6px !important;
+    margin-right: 6px !important;
+  }
+  .input-area {
+    padding: 8px 8px !important;
+    gap: 6px !important;
+  }
+}
+
+.tg-rec-bar {
+  width: 3px;
+  background: #a773d1;
+  border-radius: 2px;
+  animation: tg-rec-jump 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes tg-blink {
+  0% { opacity: 0.2; }
+  100% { opacity: 1; }
+}
+
+@keyframes tg-rec-jump {
+  0% { height: 4px; }
+  100% { height: 18px; }
+}
+
+/* 🎯 FLASH HIGHLIGHT & SCROLL DOWN BUTTON */
+@keyframes flash {
+  0% { background-color: rgba(167, 115, 209, 0.4); }
+  100% { background-color: transparent; }
+}
+.msg-row.flash-highlight {
+  animation: flash 1s ease-out !important;
+}
+.scroll-down-btn {
+  position: absolute;
+  bottom: 80px;
+  right: 20px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--bg-input-area);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 100 !important;
+  pointer-events: auto !important;
+  transition: opacity 0.2s, transform 0.2s;
+  animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes popIn {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.scroll-down-btn:active {
+  transform: scale(0.9);
+}
+
+/* --- Стили для сообщений-файлов --- */
+.file-msg {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.2) !important;
+  border-radius: 10px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 220px;
+  max-width: 320px;
+  user-select: none;
+}
+
+.file-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+}
+
+.file-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex-grow: 1;
+}
+
+.file-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-size {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* 🎯 FLASH HIGHLIGHT & SCROLL DOWN BUTTON */
+@keyframes flash {
+  0% { background-color: rgba(167, 115, 209, 0.4); }
+  100% { background-color: transparent; }
+}
+.msg-row.flash-highlight {
+  animation: flash 1s ease-out !important;
+}
+.scroll-down-btn {
+  position: absolute;
+  bottom: 80px;
+  right: 20px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--bg-input-area);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 10;
+  transition: opacity 0.2s, transform 0.2s;
+  animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes popIn {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.scroll-down-btn:active {
+  transform: scale(0.9);
+}
+
+/* 🎯 FLASH HIGHLIGHT & SCROLL DOWN BUTTON */
+@keyframes flash {
+  0% { background-color: rgba(167, 115, 209, 0.4); }
+  100% { background-color: transparent; }
+}
+.msg-row.flash-highlight {
+  animation: flash 1s ease-out !important;
+}
+.scroll-down-btn {
+  position: absolute;
+  bottom: 80px;
+  right: 20px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--bg-input-area);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 10;
+  transition: opacity 0.2s, transform 0.2s;
+  animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes popIn {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.scroll-down-btn:active {
+  transform: scale(0.9);
+}

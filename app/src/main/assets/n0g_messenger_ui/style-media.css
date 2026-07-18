@@ -1,0 +1,470 @@
+/* ================================================================
+ * nan0gram — Медиа: альбомы, видео, адаптив, глитч, гласс
+ * Часть 5 из 6. Зависит от: style-base.css, style-sidebar.css, style-messages.css
+ * ================================================================ */
+
+/* Адаптив тач */
+@media(min-width: 768px) {
+  .messenger-app.side-by-side .sidebar {
+    transform: translate(0)!important;
+    width: min(340px, 38%);
+  }
+  .messenger-app.side-by-side .chat-area {
+    transform: translate(0)!important;
+    position: relative;
+  }
+  .back-btn {
+    display: none!important;
+  }
+}
+
+@media(max-width: 767px) {
+  .sidebar {
+    width: 100%;
+    position: absolute;
+    height: 100%;
+    z-index: 10;
+    transition: transform .3s cubic-bezier(.2,.8,.2,1);
+  }
+  .chat-area {
+    width: 100%;
+    position: absolute;
+    height: 100%;
+    transform: translate(100%);
+    z-index: 20;
+    transition: transform .3s cubic-bezier(.2,.8,.2,1);
+  }
+  .messenger-app.chat-open .sidebar {
+    transform: translate(-30%);
+  }
+  .messenger-app.chat-open .chat-area {
+    transform: translate(0);
+  }
+  .empty-state {
+    display: none!important;
+  }
+  .back-btn {
+    display: block!important;
+  }
+  .message {
+    max-width: 72%;
+  }
+  .profile-buttons {
+    flex-wrap: wrap;
+  }
+  .tg-context-menu {
+    width: 250px;
+  }
+}
+
+@media(min-width: 768px) and (max-width: 1023px) and (orientation: portrait) {
+  .messenger-app.side-by-side .sidebar {
+    width: min(300px, 42%);
+  }
+}
+
+@media(min-width: 1024px) {
+  .messenger-app.side-by-side .sidebar {
+    width: 340px;
+  }
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .input-wrapper {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+/* --- Telegram-like Media Cap & Overlays --- */
+.msg-album-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-radius: 10px;
+  overflow: hidden;
+  width: 100%;
+  margin-bottom: 4px;
+  min-width: 240px; /* Минимальная ширина альбома (Белая линия) */
+  max-width: 350px; /* Максимальная ширина альбома (Красная линия) */
+}
+
+.album-row {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  width: 100%;
+}
+
+.album-img {
+  flex: 1 1 0%;
+  min-width: 0;
+  height: 140px;
+  object-fit: cover;
+  cursor: pointer;
+  display: block;
+  transition: opacity 0.15s ease;
+  background-color: rgba(255, 255, 255, 0.03); /* Элегантный плейсхолдер при отсутствии файла в кэше */
+}
+
+.album-img:hover {
+  opacity: 0.95;
+}
+
+.album-row:only-child:not(:has(.album-img:only-child)) .album-img {
+  height: 180px;
+}
+
+/* Одиночное фото (без подписи) */
+.album-row:only-child .album-img:only-child {
+  flex: none !important;
+  max-width: 350px; /* Максимальная ширина (Красная линия) */
+  max-height: 320px;
+  width: 100% !important;
+  height: auto;
+  min-width: 200px; /* Слегка уменьшенный порог для одиночных узких фото, чтобы избежать сильного кропа */
+  min-height: 120px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+.message:has(.msg-album-container):not(:has([style*="pre-wrap"])) {
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.message:has(.video-thumb-wrapper):not(:has([style*="pre-wrap"])) {
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.video-thumb-wrapper {
+  min-width: 240px; /* Минимальная ширина видео (Белая линия) */
+  max-width: 350px; /* Максимальная ширина видео (Красная линия) */
+  width: auto;
+  height: auto;
+  min-height: 120px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+/* Наложение даты и статуса отправки прямо поверх правого нижнего угла картинки/видео (когда нет подписи) */
+.message:has(.msg-album-container):not(:has([style*="pre-wrap"])) .msg-bottom-flow,
+.message:has(.video-thumb-wrapper):not(:has([style*="pre-wrap"])) .msg-bottom-flow {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 3px 8px;
+  border-radius: 10px;
+  z-index: 5;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.message:has(.msg-album-container):not(:has([style*="pre-wrap"])) .msg-meta,
+.message:has(.video-thumb-wrapper):not(:has([style*="pre-wrap"])) .msg-meta {
+  color: rgba(255, 255, 255, 0.9) !important;
+  margin-top: 0 !important;
+}
+.message:has(.msg-album-container):not(:has([style*="pre-wrap"])) .msg-meta span,
+.message:has(.video-thumb-wrapper):not(:has([style*="pre-wrap"])) .msg-meta span {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* 🎯 РЕАКЦИИ: Если есть реакция, отменяем наложение даты поверх фото */
+.message:has(.reactions-container) {
+  padding: 4px 4px 6px 4px !important;
+}
+.message:has(.reactions-container) .msg-bottom-flow {
+  position: static !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
+  margin-top: 4px !important;
+  background: transparent !important;
+  padding: 0 4px !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.message:has(.reactions-container) .msg-meta,
+.message:has(.reactions-container) .msg-meta span {
+  color: var(--text-time) !important;
+}
+.message:has(.reactions-container) .reactions-container {
+  margin-top: 0 !important;
+}
+
+/* 🎯 ПОДПИСЬ К ФОТО: Если в бабле с фото есть текст подписи (style*="pre-wrap") */
+.message:has([style*="pre-wrap"]) .msg-album-container {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+.message:has([style*="pre-wrap"]) .album-row:only-child .album-img:only-child {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 200px !important;
+  object-fit: cover !important;
+  min-width: 100% !important;
+}
+.message:has([style*="pre-wrap"]) .video-thumb-wrapper {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 200px !important;
+  min-width: 100% !important;
+}
+.message:has([style*="pre-wrap"]) .video-thumb {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+/* 🎯 ШИРОКИЙ ЭКРАН (ПЛАНШЕТ/ПК): Ограничиваем максимальную ширину бабла с фото/видео */
+@media(min-width: 768px) {
+  .message:has(.msg-album-container) {
+    max-width: 350px !important; /* Соответствует красной линии */
+  }
+  .message:has(.video-thumb-wrapper) {
+    max-width: 350px !important; /* Соответствует красной линии */
+  }
+}
+/* --- Expanded Hit Area for Reaction Pill --- */
+.reaction-pill {
+  position: relative !important;
+}
+.reaction-pill::after {
+  content: "" !important;
+  position: absolute !important;
+  top: -8px !important;
+  bottom: -8px !important;
+  left: -12px !important;
+  right: -12px !important;
+  cursor: pointer !important;
+  z-index: 10 !important;
+}
+/* --- Cyber Glitch Title for nan0gram --- */
+.app-title {
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 23px !important;
+  font-weight: 200 !important; /* Ультратонкий изящный шрифт */
+  color: rgba(255, 255, 255, 0.8) !important;
+  text-transform: lowercase !important;
+  position: relative !important;
+  letter-spacing: 0.5px !important;
+  user-select: none !important;
+  font-variant-numeric: slashed-zero !important; /* Аппаратный зачеркнутый ноль */
+  font-feature-settings: "zero" 1 !important;
+  /* Аура (мягкая проекция глитча на стену) */
+  filter: drop-shadow(0 0 10px rgba(168, 85, 247, 0.35)) !important;
+  /* Аппаратное ускорение на GPU (0% нагрузки на CPU) */
+  will-change: clip-path, filter !important;
+  transform: translate3d(0, 0, 0) !important;
+}
+
+.app-title::before,
+.app-title::after {
+  content: "nan0gram" !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: var(--bg-sidebar-header) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  font-variant-numeric: slashed-zero !important;
+  font-feature-settings: "zero" 1 !important;
+  will-change: clip-path !important;
+}
+
+.app-title::before {
+  left: 2px !important;
+  text-shadow: -1px 0 rgba(219, 39, 119, 0.85) !important; /* Нежный фиолетово-малиновый */
+  animation: nan0-glitch-1 3.7s infinite linear alternate-reverse !important; /* Несинхронный цикл 1 */
+}
+
+.app-title::after {
+  left: -2px !important;
+  text-shadow: -1px 0 rgba(168, 85, 247, 0.85), 0 1px rgba(168, 85, 247, 0.85) !important; /* Нежный аметистовый */
+  animation: nan0-glitch-2 4.9s infinite linear alternate-reverse !important; /* Несинхронный цикл 2 */
+}
+
+@keyframes nan0-glitch-1 {
+  0%, 14%, 36%, 100% {
+    clip-path: inset(100% 0 0 0);
+  }
+  15% {
+    clip-path: inset(15% 0 70% 0);
+  }
+  22% {
+    clip-path: inset(15% 0 70% 0); /* Заморозка кадра (~260мс) */
+  }
+  24% {
+    clip-path: inset(45% 0 40% 0);
+  }
+  31% {
+    clip-path: inset(45% 0 40% 0); /* Заморозка кадра (~260мс) */
+  }
+  35% {
+    clip-path: inset(100% 0 0 0);
+  }
+}
+
+@keyframes nan0-glitch-2 {
+  0%, 19%, 41%, 100% {
+    clip-path: inset(100% 0 0 0);
+  }
+  20% {
+    clip-path: inset(65% 0 20% 0);
+  }
+  28% {
+    clip-path: inset(65% 0 20% 0); /* Заморозка кадра (~390мс) */
+  }
+  30% {
+    clip-path: inset(10% 0 78% 0);
+  }
+  38% {
+    clip-path: inset(10% 0 78% 0); /* Заморозка кадра (~390мс) */
+  }
+  40% {
+    clip-path: inset(100% 0 0 0);
+  }
+}
+/* --- Widescreen Sidebar Glassmorphism & Background --- */
+.sidebar {
+  position: relative !important;
+  background: transparent !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.04) !important;
+}
+
+.sidebar::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  background-image: var(--wallpaper-url, url('https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=1000&auto=format&fit=crop')) !important;
+  background-size: cover !important;
+  background-position: left center !important;
+  filter: blur(var(--sidebar-blur, 20px)) brightness(var(--sidebar-brightness, 0.5)) !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+  transition: filter 0.2s ease !important;
+}
+
+.chat-list {
+  padding: 12px 0 !important;
+}
+
+/* Glassmorphism Chat Cards (Стеклянные плашки по макету Джемини) */
+.chat-item {
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: blur(5px) !important;
+  -webkit-backdrop-filter: blur(5px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.04) !important;
+  border-radius: 16px !important;
+  margin: 10px 14px !important; /* Красивое расстояние между карточками */
+  padding: 12px 14px !important;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease !important;
+}
+
+.chat-item:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  transform: scale(1.01) !important;
+}
+
+.chat-item.active {
+  background: rgba(167, 115, 209, 0.12) !important; /* Мягкое фиолетовое свечение активной карточки */
+  border-color: rgba(167, 115, 209, 0.25) !important;
+  box-shadow: 0 4px 20px rgba(167, 115, 209, 0.08) !important;
+}
+/* --- Gear Icon Color & Pointer Events --- */
+.sidebar-gear-btn {
+  color: rgba(255, 255, 255, 0.75) !important;
+  opacity: 1 !important;
+}
+
+/* Заставляем клики пролетать сквозь SVG-векторы на интерактивные кнопки */
+.input-icon svg, .sidebar-gear-btn svg, .header-actions svg {
+  pointer-events: none !important;
+}
+/* --- Video Thumbnail & Play Overlay styling --- */
+.video-thumb-wrapper {
+  position: relative !important;
+  display: block !important;
+  width: 260px !important; /* Идеальная пропорциональная ширина */
+  height: 180px !important; /* Высота под уровень альбомов */
+  border-radius: 10px !important;
+  overflow: hidden !important;
+  background: #000 !important;
+  cursor: pointer !important;
+}
+
+.video-thumb {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important; /* Убирает растягивание, аккуратно кропает по рамке */
+  display: block !important;
+  border-radius: 10px !important;
+}
+
+.video-play-overlay {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(0, 0, 0, 0.45) !important; /* Полупрозрачное затемнение кадра */
+  color: #fff !important;
+  transition: background 0.2s ease, transform 0.2s ease !important;
+  z-index: 2 !important;
+}
+
+.video-play-overlay i {
+  font-size: 28px !important; /* Размер кнопки запуска */
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3)) !important;
+  transition: transform 0.15s ease !important;
+}
+
+.video-thumb-wrapper:hover .video-play-overlay {
+  background: rgba(0, 0, 0, 0.3) !important; /* Осветляем затемнение при наведении */
+}
+
+.video-thumb-wrapper:hover .video-play-overlay i {
+  transform: scale(1.15) !important; /* Кнопка слегка увеличивается */
+}
+
+/* 🎯 Ограничение ширины пузырей сообщений для телефонов и планшетов (до оранжевой/черной линии) */
+@media (orientation: portrait) {
+  .message {
+    max-width: 85% !important;
+  }
+}
+
+@media (orientation: landscape) {
+  .message {
+    max-width: 48% !important;
+  }
+}
+
+/* Фикс флексбокс-бага усечения текста (ellipsis) в блоке ответа (reply) */
+/* Жесткое ограничение ширины в 280px предотвращает раздувание всего пузыря сообщения */
+.msg-reply {
+  min-width: 0 !important;
+  max-width: 280px !important;
+  width: auto !important;
+}
+.msg-reply > div {
+  min-width: 0 !important;
+  max-width: 100% !important;
+  width: auto !important;
+}
+
+/* --- Visual Album Grouping for Consecutive Video Bubbles --- */
+.msg-row:has(.video-thumb-wrapper) + .msg-row:has(.video-thumb-wrapper) {
+  margin-top: -12px !important;
+}
+.msg-row.out:has(.video-thumb-wrapper) + .msg-row.out:has(.video-thumb-wrapper) .message {
+  border-top-right-radius: 4px !important;
+  border-bottom-right-radius: 4px !important;
+}
+.msg-row.in:has(.video-thumb-wrapper) + .msg-row.in:has(.video-thumb-wrapper) .message {
+  border-top-left-radius: 4px !important;
+  border-bottom-left-radius: 4px !important;
+}

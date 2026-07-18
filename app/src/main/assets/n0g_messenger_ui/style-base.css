@@ -1,0 +1,64 @@
+/* ================================================================
+ * nan0gram — Базовые переменные и сброс
+ * Часть 1 из 6. Зависит от: нет
+ * ================================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;200;300&display=swap');
+:root {
+  --bg-sidebar: #1e1525;
+  --bg-sidebar-header: #1b1422;
+  --bg-chat-header: #1c1524;
+  --bg-input-area: rgba(28, 21, 36, .97);
+  --bg-hover: #2d2238;
+  --bg-active: #382b46;
+  --msg-in: rgba(46, 29, 60, .88);
+  --msg-out: rgba(65, 35, 80, .88);
+  --text-main: #ffffff;
+  --text-muted: #8b7d98;
+  --text-time: #746481;
+  --accent-blue: #2f65e0;
+  --reply-line: #a773d1;
+  --menu-bg: #222222;
+  --menu-hover: #2a2a2a;
+  --name-cyan: #a773d1;
+}
+
+*, *:before, *:after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Скроллбары */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #8b7d9866;
+  border-radius: 10px;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: #000;
+  color: var(--text-main);
+}
+
+.messenger-app {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: row;
+  overflow: hidden;
+  position: relative;
+}
