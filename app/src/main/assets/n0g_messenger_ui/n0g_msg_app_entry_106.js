@@ -276,7 +276,7 @@ function AppController() {
     }, []);
 
     const handleOpenLightbox = T.useCallback((src, srcList, index, poster) => {
-        const isVideo = src.startsWith("data:video") || src.includes("video/");
+        const isVideo = src.startsWith("data:video") || src.includes("video/") || /\.(mp4|webm|mov|avi|mkv)(\?|#|$)/i.test(src);
         if (srcList && srcList.length > 1) {
             setLightboxItems(srcList.map(item => ({ src: item, isVideo: false })));
             setLightboxInitialIndex(index ?? 0);
