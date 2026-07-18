@@ -69,6 +69,9 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Restore debug keystore
+        run: echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > debug.keystore
+
       - name: Build Debug APK
         run: gradle assembleDebug --no-daemon
 
