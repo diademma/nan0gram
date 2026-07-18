@@ -58,7 +58,8 @@ internal fun buildMessengerWebView(
                                 val file = java.io.File(mediaDir, fileName)
                                 
                                 if (file.exists() && file.isFile) {
-                                    val mimeType = when {
+                                    // 1. Базовое определение по расширению
+                                    var mimeType = when {
                                         fileName.endsWith(".mp4", ignoreCase = true) -> "video/mp4"
                                         fileName.endsWith(".webm", ignoreCase = true) -> "video/webm"
                                         fileName.endsWith(".ogg", ignoreCase = true) -> "video/ogg"
@@ -67,6 +68,39 @@ internal fun buildMessengerWebView(
                                         fileName.endsWith(".jpg", ignoreCase = true) || fileName.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
                                         fileName.endsWith(".png", ignoreCase = true) -> "image/png"
                                         else -> "application/octet-stream"
+                                    }
+
+                                    // 2. Нативный детектор Magic Bytes (сигнатур). Решает критический баг проекта,
+                                    // при котором база данных сохраняет WebM-видео под расширением .mp4.
+                                    try {
+                                        java.io.FileInputStream(file).use { fis ->
+                                            val header = ByteArray(12)
+                                            val read = fis.read(header)
+                                            if (read >= 4) {
+                                                val h0 = header[0].toInt() and 0xFF
+                                                val h1 = header[1].toInt() and 0xFF
+                                                val h2 = header[2].toInt() and 0xFF
+                                                val h3 = header[3].toInt() and 0xFF
+                                                
+                                                mimeType = when {
+                                                    // PNG: 89 50 4E 47
+                                                    h0 == 0x89 && h1 == 0x50 && h2 == 0x4E && h3 == 0x47 -> "image/png"
+                                                    // JPEG: FF D8 FF
+                                                    h0 == 0xFF && h1 == 0xD8 && h2 == 0xFF -> "image/jpeg"
+                                                    // GIF: 47 49 46 38 ("GIF8")
+                                                    h0 == 0x47 && h1 == 0x49 && h2 == 0x46 && h3 == 0x38 -> "image/gif"
+                                                    // WebM / EBML: 1A 45 DF A3
+                                                    h0 == 0x1A && h1 == 0x45 && h2 == 0xDF && h3 == 0xA3 -> "video/webm"
+                                                    // Ogg: 4F 67 67 53 ("OggS")
+                                                    h0 == 0x4F && h1 == 0x67 && h2 == 0x67 && h3 == 0x53 -> "video/ogg"
+                                                    // MP4: "ftyp" на смещении 4
+                                                    read >= 8 && header[4].toChar() == 'f' && header[5].toChar() == 't' && header[6].toChar() == 'y' && header[7].toChar() == 'p' -> "video/mp4"
+                                                    else -> mimeType
+                                                }
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        // Игнорируем ошибки чтения сигнатуры, откатываемся к базовому Mime-Type
                                     }
 
                                     val headers = request.requestHeaders
@@ -131,13 +165,12 @@ internal fun buildMessengerWebView(
                                             put("Access-Control-Allow-Origin", "*")
                                         }
 
-                                        log("[MediaManager] Стриминг чанка: $start-$end/$totalLength ($fileName)")
+                                        log("[MediaManager] Стриминг чанка: $start-$end/$totalLength ($fileName) [Mime: $mimeType]")
                                         return WebResourceResponse(
                                             mimeType, null, 206, "Partial Content", 
                                             responseHeaders, java.io.ByteArrayInputStream(bytes)
                                         )
                                     } else {
-                                        // Если Range нет — читаем весь файл в ByteArray. Для 2-15 МБ файлов это безопасно и мгновенно.
                                         val bytes = file.readBytes()
                                         val responseHeaders = mutableMapOf<String, String>().apply {
                                             put("Content-Type", mimeType)
@@ -145,7 +178,7 @@ internal fun buildMessengerWebView(
                                             put("Content-Length", bytes.size.toString())
                                             put("Access-Control-Allow-Origin", "*")
                                         }
-                                        log("[MediaManager] Полный файл: $fileName (${bytes.size} байт)")
+                                        log("[MediaManager] Полный файл: $fileName (${bytes.size} байт) [Mime: $mimeType]")
                                         return WebResourceResponse(
                                             mimeType, null, 200, "OK", 
                                             responseHeaders, java.io.ByteArrayInputStream(bytes)
