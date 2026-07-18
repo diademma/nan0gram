@@ -146,41 +146,46 @@ internal fun buildMessengerWebView(
                                             end = totalLength - 1
                                         }
 
-                                        // Ограничиваем размер чанка до 2MB.
-                                        // Без этого на bytes=0- отдаётся весь файл целиком (например, 12MB),
-                                        // а Chromium одновременно шлёт отдельный запрос за moov-атомом.
-                                        // Два ответа на перекрывающиеся диапазоны приходят параллельно —
-                                        // медиа-движок путается и уходит в бесконечный retry с backoff.
-                                        val MAX_CHUNK = 2L * 1024 * 1024  // 2MB
-                                        if (end - start + 1 > MAX_CHUNK) {
-                                            end = start + MAX_CHUNK - 1
-                                        }
+                                        val chunkLength = end - start + 1
 
-                                        val chunkLength = (end - start + 1).toInt()
-                                        val bytes = ByteArray(chunkLength)
-                                        
-                                        // Читаем строго запрошенный чанк напрямую в оперативную память.
-                                        // Это полностью устраняет любые проблемы с блокировками дескрипторов файлов
-                                        // и багами skip()/available() в WebView.
-                                        java.io.RandomAccessFile(file, "r").use { raf ->
-                                            raf.seek(start)
-                                            raf.readFully(bytes)
+                                        // Ленивый InputStream: читает байты с диска по мере потребления
+                                        // WebView, без загрузки всего чанка в ОЗУ.
+                                        // Каждый запрос получает свой независимый RAF — нет конфликтов
+                                        // между параллельными Range-запросами (например, mdat + moov).
+                                        val rangeStream = object : java.io.InputStream() {
+                                            val raf = java.io.RandomAccessFile(file, "r").apply { seek(start) }
+                                            var pos = start
+                                            override fun read(): Int {
+                                                if (pos > end) return -1
+                                                val b = raf.read()
+                                                if (b >= 0) pos++
+                                                return b
+                                            }
+                                            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                                                if (pos > end) return -1
+                                                val toRead = minOf(len.toLong(), end - pos + 1).toInt()
+                                                val n = raf.read(b, off, toRead)
+                                                if (n > 0) pos += n
+                                                return n
+                                            }
+                                            override fun close() { raf.close() }
                                         }
 
                                         val responseHeaders = mutableMapOf<String, String>().apply {
                                             put("Content-Type", mimeType)
                                             put("Accept-Ranges", "bytes")
                                             put("Content-Range", "bytes $start-$end/$totalLength")
-                                            // Content-Length ОБЯЗАТЕЛЕН для 206: без него Chromium-плеер
-                                            // не знает границу чанка и зацикливается на одном диапазоне.
                                             put("Content-Length", chunkLength.toString())
+                                            // no-store: запрещаем WebView кэшировать 206-ответы по URL без
+                                            // учёта Range-заголовка — иначе chunk 0 отдаётся вместо chunk 1.
+                                            put("Cache-Control", "no-cache, no-store")
                                             put("Access-Control-Allow-Origin", "*")
                                         }
 
                                         log("[MediaManager] Стриминг чанка: $start-$end/$totalLength ($fileName) [Mime: $mimeType]")
                                         return WebResourceResponse(
                                             mimeType, null, 206, "Partial Content", 
-                                            responseHeaders, java.io.ByteArrayInputStream(bytes)
+                                            responseHeaders, rangeStream
                                         )
                                     } else {
                                         val bytes = file.readBytes()
