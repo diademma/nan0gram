@@ -146,6 +146,16 @@ internal fun buildMessengerWebView(
                                             end = totalLength - 1
                                         }
 
+                                        // Ограничиваем размер чанка до 2MB.
+                                        // Без этого на bytes=0- отдаётся весь файл целиком (например, 12MB),
+                                        // а Chromium одновременно шлёт отдельный запрос за moov-атомом.
+                                        // Два ответа на перекрывающиеся диапазоны приходят параллельно —
+                                        // медиа-движок путается и уходит в бесконечный retry с backoff.
+                                        val MAX_CHUNK = 2L * 1024 * 1024  // 2MB
+                                        if (end - start + 1 > MAX_CHUNK) {
+                                            end = start + MAX_CHUNK - 1
+                                        }
+
                                         val chunkLength = (end - start + 1).toInt()
                                         val bytes = ByteArray(chunkLength)
                                         
