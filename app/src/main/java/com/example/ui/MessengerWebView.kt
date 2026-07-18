@@ -148,14 +148,16 @@ internal fun buildMessengerWebView(
                                             override fun read(b: ByteArray, off: Int, len: Int): Int {
                                                 if (bytesRead >= chunkLength) return -1
                                                 val maxToRead = minOf(len.toLong(), chunkLength - bytesRead).toInt()
+                                                if (maxToRead <= 0) return -1
                                                 val readBytes = fis.read(b, off, maxToRead)
                                                 if (readBytes != -1) bytesRead += readBytes
                                                 return readBytes
                                             }
 
                                             override fun available(): Int {
-                                                // Возвращаем 0, чтобы Chromium читал строго поблочно и не падал по таймауту буфера
-                                                return 0
+                                                val avail = fis.available()
+                                                val remaining = chunkLength - bytesRead
+                                                return if (avail > remaining) remaining.toInt() else avail
                                             }
 
                                             override fun close() {
