@@ -25,7 +25,10 @@ internal fun buildMessengerWebView(
     return try {
         WebView(ctx).apply {
             tag = "messenger"
-            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            
+            // Использование argb(1, 0, 0, 0) вместо TRANSPARENT решает аппаратный баг WebView,
+            // при котором видео или его контейнер не отрисовываются на полностью прозрачном фоне
+            setBackgroundColor(android.graphics.Color.argb(1, 0, 0, 0))
             
             // Очищаем кэш Chromium при старте, чтобы сбросить агрессивный кэш Chromium и загрузить новые файлы OTA
             clearCache(true)
@@ -137,11 +140,6 @@ internal fun buildMessengerWebView(
                                                 val read = raf.read(b, off, maxToRead)
                                                 if (read != -1) bytesRead += read
                                                 return read
-                                            }
-
-                                            override fun available(): Int {
-                                                val avail = chunkLength - bytesRead
-                                                return if (avail > Int.MAX_VALUE) Int.MAX_VALUE else avail.toInt()
                                             }
 
                                             override fun close() {
