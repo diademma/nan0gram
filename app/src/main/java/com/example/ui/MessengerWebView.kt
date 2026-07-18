@@ -112,7 +112,17 @@ internal fun buildMessengerWebView(
                                             end = totalLength - 1
                                         }
 
-                                        val chunkLength = end - start + 1
+                                        val chunkLength = (end - start + 1).toInt()
+                                        val bytes = ByteArray(chunkLength)
+                                        
+                                        // Читаем строго запрошенный чанк напрямую в оперативную память.
+                                        // Это полностью устраняет любые проблемы с блокировками дескрипторов файлов
+                                        // и багами skip()/available() в WebView.
+                                        java.io.RandomAccessFile(file, "r").use { raf ->
+                                            raf.seek(start)
+                                            raf.readFully(bytes)
+                                        }
+
                                         val responseHeaders = mutableMapOf<String, String>().apply {
                                             put("Content-Type", mimeType)
                                             put("Accept-Ranges", "bytes")
@@ -121,61 +131,25 @@ internal fun buildMessengerWebView(
                                             put("Access-Control-Allow-Origin", "*")
                                         }
 
-                                        val fis = java.io.FileInputStream(file)
-                                        
-                                        // Смещаем указатель системного стрима
-                                        if (start > 0) {
-                                            var remaining = start
-                                            while (remaining > 0) {
-                                                val skipped = fis.skip(remaining)
-                                                if (skipped <= 0) break
-                                                remaining -= skipped
-                                            }
-                                        }
-
-                                        // Кастомный анонимный InputStream прячет FileDescriptor от C++ кода WebView,
-                                        // заставляя Chromium читать данные строго через наши Java-методы, помнящие skip()!
-                                        val safeInputStream = object : java.io.InputStream() {
-                                            private var bytesRead = 0L
-
-                                            override fun read(): Int {
-                                                if (bytesRead >= chunkLength) return -1
-                                                val byte = fis.read()
-                                                if (byte != -1) bytesRead++
-                                                return byte
-                                            }
-
-                                            override fun read(b: ByteArray, off: Int, len: Int): Int {
-                                                if (bytesRead >= chunkLength) return -1
-                                                val maxToRead = minOf(len.toLong(), chunkLength - bytesRead).toInt()
-                                                if (maxToRead <= 0) return -1
-                                                val readBytes = fis.read(b, off, maxToRead)
-                                                if (readBytes != -1) bytesRead += readBytes
-                                                return readBytes
-                                            }
-
-                                            override fun available(): Int {
-                                                val avail = fis.available()
-                                                val remaining = chunkLength - bytesRead
-                                                return if (avail > remaining) remaining.toInt() else avail
-                                            }
-
-                                            override fun close() {
-                                                fis.close()
-                                            }
-                                        }
-
-                                        log("[MediaManager] Стриминг: $start-$end/$totalLength ($fileName)")
-                                        return WebResourceResponse(mimeType, null, 206, "Partial Content", responseHeaders, safeInputStream)
+                                        log("[MediaManager] Стриминг чанка: $start-$end/$totalLength ($fileName)")
+                                        return WebResourceResponse(
+                                            mimeType, null, 206, "Partial Content", 
+                                            responseHeaders, java.io.ByteArrayInputStream(bytes)
+                                        )
                                     } else {
+                                        // Если Range нет — читаем весь файл в ByteArray. Для 2-15 МБ файлов это безопасно и мгновенно.
+                                        val bytes = file.readBytes()
                                         val responseHeaders = mutableMapOf<String, String>().apply {
                                             put("Content-Type", mimeType)
                                             put("Accept-Ranges", "bytes")
-                                            put("Content-Length", totalLength.toString())
+                                            put("Content-Length", bytes.size.toString())
                                             put("Access-Control-Allow-Origin", "*")
                                         }
-                                        log("[MediaManager] Полный файл: $fileName")
-                                        return WebResourceResponse(mimeType, null, 200, "OK", responseHeaders, java.io.FileInputStream(file))
+                                        log("[MediaManager] Полный файл: $fileName (${bytes.size} байт)")
+                                        return WebResourceResponse(
+                                            mimeType, null, 200, "OK", 
+                                            responseHeaders, java.io.ByteArrayInputStream(bytes)
+                                        )
                                     }
                                 } else {
                                     log("[MediaManager Error] Локальный файл медиа не найден: $fileName")
