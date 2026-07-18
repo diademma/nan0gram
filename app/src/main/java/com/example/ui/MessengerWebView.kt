@@ -121,35 +121,15 @@ internal fun buildMessengerWebView(
                                             put("Access-Control-Allow-Origin", "*")
                                         }
 
-                                        val raf = java.io.RandomAccessFile(file, "r")
-                                        raf.seek(start)
-
-                                        val rangeInputStream = object : java.io.InputStream() {
-                                            private var bytesRead = 0L
-
-                                            override fun read(): Int {
-                                                if (bytesRead >= chunkLength) return -1
-                                                val byte = raf.read()
-                                                if (byte != -1) bytesRead++
-                                                return byte
-                                            }
-
-                                            override fun read(b: ByteArray, off: Int, len: Int): Int {
-                                                if (bytesRead >= chunkLength) return -1
-                                                val maxToRead = minOf(len.toLong(), chunkLength - bytesRead).toInt()
-                                                val read = raf.read(b, off, maxToRead)
-                                                if (read != -1) bytesRead += read
-                                                return read
-                                            }
-
-                                            override fun close() {
-                                                raf.close()
-                                                super.close()
-                                            }
+                                        // Chromium WebView требует чистый FileInputStream для доступа к дескрипторам
+                                        // файлов (Zero-Copy DMA). Любые кастомные обертки InputStream ломают аппаратное ускорение видео.
+                                        val fis = java.io.FileInputStream(file)
+                                        if (start > 0) {
+                                            fis.skip(start)
                                         }
 
                                         log("[MediaManager] Стриминг: $start-$end/$totalLength ($fileName)")
-                                        return WebResourceResponse(mimeType, null, 206, "Partial Content", responseHeaders, rangeInputStream)
+                                        return WebResourceResponse(mimeType, null, 206, "Partial Content", responseHeaders, fis)
                                     } else {
                                         val responseHeaders = mutableMapOf<String, String>().apply {
                                             put("Content-Type", mimeType)
