@@ -67,7 +67,7 @@ internal fun buildMessengerWebView(
                                     }
 
                                     val headers = request.requestHeaders
-                                    val rangeHeader = headers?.get("Range") ?: headers?.get("range")
+                                    val rangeHeader = headers?.entries?.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
                                     val totalLength = file.length()
 
                                     if (rangeHeader != null) {
@@ -94,7 +94,9 @@ internal fun buildMessengerWebView(
 
                                         if (start > end || start >= totalLength) {
                                             val responseHeaders = mutableMapOf<String, String>().apply {
+                                                put("Content-Type", mimeType)
                                                 put("Content-Range", "bytes */$totalLength")
+                                                put("Access-Control-Allow-Origin", "*")
                                             }
                                             return WebResourceResponse(
                                                 mimeType, null, 416, 
@@ -109,9 +111,11 @@ internal fun buildMessengerWebView(
 
                                         val chunkLength = end - start + 1
                                         val responseHeaders = mutableMapOf<String, String>().apply {
+                                            put("Content-Type", mimeType)
                                             put("Accept-Ranges", "bytes")
                                             put("Content-Range", "bytes $start-$end/$totalLength")
                                             put("Content-Length", chunkLength.toString())
+                                            put("Access-Control-Allow-Origin", "*")
                                         }
 
                                         val raf = java.io.RandomAccessFile(file, "r")
@@ -150,8 +154,10 @@ internal fun buildMessengerWebView(
                                         return WebResourceResponse(mimeType, null, 206, "Partial Content", responseHeaders, rangeInputStream)
                                     } else {
                                         val responseHeaders = mutableMapOf<String, String>().apply {
+                                            put("Content-Type", mimeType)
                                             put("Accept-Ranges", "bytes")
                                             put("Content-Length", totalLength.toString())
+                                            put("Access-Control-Allow-Origin", "*")
                                         }
                                         log("[MediaManager] Полный файл: $fileName")
                                         return WebResourceResponse(mimeType, null, 200, "OK", responseHeaders, java.io.FileInputStream(file))
