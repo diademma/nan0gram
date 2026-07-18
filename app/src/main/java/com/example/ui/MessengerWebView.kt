@@ -1,0 +1,170 @@
+package com.example
+
+import android.content.Context
+import android.net.Uri
+import android.util.Log
+import android.webkit.ConsoleMessage
+import android.webkit.PermissionRequest
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.webkit.WebViewAssetLoader
+
+internal fun buildMessengerWebView(
+    ctx: Context,
+    messengerInterface: MessengerJsInterface,
+    assetLoader: WebViewAssetLoader,
+    getMessengerFilePathCallback: () -> ValueCallback<Array<Uri>>?,
+    setMessengerFilePathCallback: (ValueCallback<Array<Uri>>?) -> Unit,
+    onShowChooser: (ValueCallback<Array<Uri>>?) -> Unit,
+    log: (String) -> Unit
+): WebView {
+    return try {
+        WebView(ctx).apply {
+            tag = "messenger"
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            
+            // Очищаем кэш Chromium при старте, чтобы сбросить агрессивный кэш Chromium и загрузить новые файлы OTA
+            clearCache(true)
+            
+            settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                databaseEnabled = true
+                allowFileAccess = true
+                allowContentAccess = true
+                mediaPlaybackRequiresUserGesture = false
+            }
+            
+            addJavascriptInterface(messengerInterface, "Android")
+            
+            webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView?,
+                    request: WebResourceRequest?
+                ): WebResourceResponse? {
+                    request?.url?.let { url ->
+                        assetLoader.shouldInterceptRequest(url)?.let { return it }
+                    }
+                    return super.shouldInterceptRequest(view, request)
+                }
+
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    view?.evaluateJavascript("""
+                        (function(){
+                            if(window._n0gDirectPickerPatch)return;
+                            window._n0gDirectPickerPatch=true;
+                            var _attachDebounce = false;
+                            function triggerStealthAttach(mode) {
+                                if (_attachDebounce) return;
+                                _attachDebounce = true;
+                                setTimeout(function(){ _attachDebounce = false; }, 2000);
+                                if (window.Android) {
+                                    var mk = "";
+                                    if (window.nanoUtils && window.nanoUtils.randomKey) {
+                                        mk = window.nanoUtils.randomKey();
+                                    } else {
+                                        var arr = new Uint8Array(16);
+                                        window.crypto.getRandomValues(arr);
+                                        for(var i=0; i<16; i++) { mk += arr[i].toString(16).padStart(2,'0'); }
+                                    }
+                                    window.nan0gram_pendingMediaKey = mk;
+                                    if (typeof window.Android.prepareForDirectAttachWithMode === 'function') {
+                                        window.Android.prepareForDirectAttachWithMode(mk, mode || "media");
+                                    } else if (typeof window.Android.prepareForDirectAttach === 'function') {
+                                        window.Android.prepareForDirectAttach(mk);
+                                    }
+                                }
+                            }
+                            document.addEventListener('touchstart', function(e) {
+                                var t = e.target.closest('.input-icon');
+                                if (t) {
+                                    window._n0gStealthPending = true;
+                                    var mode = t.getAttribute('data-mode') || 'media';
+                                    triggerStealthAttach(mode);
+                                }
+                            }, true);
+                            document.addEventListener('mousedown', function(e) {
+                                var t = e.target.closest('.input-icon');
+                                if (t) {
+                                    window._n0gStealthPending = true;
+                                    var mode = t.getAttribute('data-mode') || 'media';
+                                    triggerStealthAttach(mode);
+                                }
+                            }, true);
+                            document.addEventListener('click', function(e) {
+                                var t = e.target.closest('.input-icon');
+                                if (t) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                }
+                            }, true);
+                        })();
+                    """.trimIndent(), null)
+                    
+                    view?.evaluateJavascript("""
+                        (function polyfillNan0gramFn(){
+                            if(window.nan0gram){
+                                if(!window.nan0gram._openComposeIfNeeded){
+                                    window.nan0gram._openComposeIfNeeded=function(){};
+                                    console.log('[Polyfill] _openComposeIfNeeded injected');
+                                }
+                            } else {
+                                setTimeout(polyfillNan0gramFn, 300);
+                            }
+                        })();
+                    """.trimIndent(), null)
+                }
+            }
+            
+            webChromeClient = object : WebChromeClient() {
+                override fun onConsoleMessage(m: ConsoleMessage?): Boolean {
+                    val src = m?.sourceId()?.substringAfterLast('/') ?: "?"
+                    val line = m?.lineNumber() ?: 0
+                    val msg = m?.message() ?: ""
+                    when (m?.messageLevel()) {
+                        ConsoleMessage.MessageLevel.ERROR ->
+                            log("[❌ JS] $msg ($src:$line)")
+                        ConsoleMessage.MessageLevel.WARNING ->
+                            log("[⚠️ JS] $msg ($src:$line)")
+                        else ->
+                            Log.d("n0g_js", "$msg ($src:$line)")
+                    }
+                    return true
+                }
+                
+                override fun onPermissionRequest(request: PermissionRequest?) {
+                    request?.grant(request.resources)
+                }
+                
+                override fun onShowFileChooser(
+                    webView: WebView?,
+                    filePathCallbackParams: ValueCallback<Array<Uri>>?,
+                    fileChooserParams: FileChooserParams?
+                ): Boolean {
+                    if (getMessengerFilePathCallback() != null) {
+                        filePathCallbackParams?.onReceiveValue(null)
+                        return true
+                    }
+                    setMessengerFilePathCallback(filePathCallbackParams)
+                    try {
+                        onShowChooser(filePathCallbackParams)
+                    } catch (e: Exception) {
+                        setMessengerFilePathCallback(null)
+                        filePathCallbackParams?.onReceiveValue(null)
+                        return false
+                    }
+                    return true
+                }
+            }
+            loadUrl("https://appassets.androidlocal/assets/index.html")
+        }
+    } catch (e: Exception) {
+        log("[❌ MessengerWebView] Error building Messenger WebView: ${e.message}")
+        WebView(ctx)
+    }
+}
