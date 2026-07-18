@@ -97,7 +97,7 @@ internal fun buildMessengerWebView(
                                                 put("Content-Range", "bytes */$totalLength")
                                             }
                                             return WebResourceResponse(
-                                                mimeType, "UTF-8", 416, 
+                                                mimeType, null, 416, 
                                                 "Requested Range Not Satisfiable", responseHeaders, 
                                                 java.io.ByteArrayInputStream(ByteArray(0))
                                             )
@@ -114,15 +114,15 @@ internal fun buildMessengerWebView(
                                             put("Content-Length", chunkLength.toString())
                                         }
 
-                                        val fis = java.io.FileInputStream(file)
-                                        fis.skip(start)
+                                        val raf = java.io.RandomAccessFile(file, "r")
+                                        raf.seek(start)
 
                                         val rangeInputStream = object : java.io.InputStream() {
                                             private var bytesRead = 0L
 
                                             override fun read(): Int {
                                                 if (bytesRead >= chunkLength) return -1
-                                                val byte = fis.read()
+                                                val byte = raf.read()
                                                 if (byte != -1) bytesRead++
                                                 return byte
                                             }
@@ -130,26 +130,31 @@ internal fun buildMessengerWebView(
                                             override fun read(b: ByteArray, off: Int, len: Int): Int {
                                                 if (bytesRead >= chunkLength) return -1
                                                 val maxToRead = minOf(len.toLong(), chunkLength - bytesRead).toInt()
-                                                val read = fis.read(b, off, maxToRead)
+                                                val read = raf.read(b, off, maxToRead)
                                                 if (read != -1) bytesRead += read
                                                 return read
                                             }
 
+                                            override fun available(): Int {
+                                                val avail = chunkLength - bytesRead
+                                                return if (avail > Int.MAX_VALUE) Int.MAX_VALUE else avail.toInt()
+                                            }
+
                                             override fun close() {
-                                                fis.close()
+                                                raf.close()
                                                 super.close()
                                             }
                                         }
 
-                                        log("[MediaManager] Отдан чанк видео: $start-$end/$totalLength ($fileName)")
-                                        return WebResourceResponse(mimeType, "UTF-8", 206, "Partial Content", responseHeaders, rangeInputStream)
+                                        log("[MediaManager] Стриминг: $start-$end/$totalLength ($fileName)")
+                                        return WebResourceResponse(mimeType, null, 206, "Partial Content", responseHeaders, rangeInputStream)
                                     } else {
                                         val responseHeaders = mutableMapOf<String, String>().apply {
                                             put("Accept-Ranges", "bytes")
                                             put("Content-Length", totalLength.toString())
                                         }
-                                        log("[MediaManager] Отдан полный медиа файл: $fileName")
-                                        return WebResourceResponse(mimeType, "UTF-8", 200, "OK", responseHeaders, java.io.FileInputStream(file))
+                                        log("[MediaManager] Полный файл: $fileName")
+                                        return WebResourceResponse(mimeType, null, 200, "OK", responseHeaders, java.io.FileInputStream(file))
                                     }
                                 } else {
                                     log("[MediaManager Error] Локальный файл медиа не найден: $fileName")
