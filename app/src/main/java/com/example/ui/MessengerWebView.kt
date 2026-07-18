@@ -161,7 +161,9 @@ internal fun buildMessengerWebView(
                                             put("Content-Type", mimeType)
                                             put("Accept-Ranges", "bytes")
                                             put("Content-Range", "bytes $start-$end/$totalLength")
-                                            // Content-Length НЕ пишется во избежание дублирования системным загрузчиком
+                                            // Content-Length ОБЯЗАТЕЛЕН для 206: без него Chromium-плеер
+                                            // не знает границу чанка и зацикливается на одном диапазоне.
+                                            put("Content-Length", chunkLength.toString())
                                             put("Access-Control-Allow-Origin", "*")
                                         }
 
@@ -175,7 +177,7 @@ internal fun buildMessengerWebView(
                                         val responseHeaders = mutableMapOf<String, String>().apply {
                                             put("Content-Type", mimeType)
                                             put("Accept-Ranges", "bytes")
-                                            // Content-Length НЕ пишется во избежание дублирования системным загрузчиком
+                                            put("Content-Length", bytes.size.toString())
                                             put("Access-Control-Allow-Origin", "*")
                                         }
                                         log("[MediaManager] Полный файл: $fileName (${bytes.size} байт) [Mime: $mimeType]")
