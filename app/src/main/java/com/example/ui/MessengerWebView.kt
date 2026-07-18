@@ -161,9 +161,7 @@ internal fun buildMessengerWebView(
                                             put("Content-Type", mimeType)
                                             put("Accept-Ranges", "bytes")
                                             put("Content-Range", "bytes $start-$end/$totalLength")
-                                            // Удаление ручной вставки Content-Length предотвращает баг дублирования заголовка
-                                            // Content-Length системным классом AwWebResourceResponse в WebView, из-за которого
-                                            // Chromium отбраковывал пакеты и уходил в бесконечный цикл.
+                                            // Content-Length НЕ пишется во избежание дублирования системным загрузчиком
                                             put("Access-Control-Allow-Origin", "*")
                                         }
 
@@ -177,7 +175,7 @@ internal fun buildMessengerWebView(
                                         val responseHeaders = mutableMapOf<String, String>().apply {
                                             put("Content-Type", mimeType)
                                             put("Accept-Ranges", "bytes")
-                                            // Удален Content-Length во избежание дублирования нативным загрузчиком WebView
+                                            // Content-Length НЕ пишется во избежание дублирования системным загрузчиком
                                             put("Access-Control-Allow-Origin", "*")
                                         }
                                         log("[MediaManager] Полный файл: $fileName (${bytes.size} байт) [Mime: $mimeType]")
