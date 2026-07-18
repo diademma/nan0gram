@@ -333,7 +333,7 @@ export function MessageRow({
                                         src: message.video,
                                         poster: message.videoThumbnail,
                                         className: "video-thumb",
-                                        preload: "metadata",
+                                        preload: "none",
                                         playsInline: true,
                                         muted: true
                                     }),
