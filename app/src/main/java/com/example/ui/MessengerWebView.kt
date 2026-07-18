@@ -124,8 +124,15 @@ internal fun buildMessengerWebView(
                                         // Chromium WebView требует чистый FileInputStream для доступа к дескрипторам
                                         // файлов (Zero-Copy DMA). Любые кастомные обертки InputStream ломают аппаратное ускорение видео.
                                         val fis = java.io.FileInputStream(file)
+                                        
+                                        // Гарантированный skip-цикл для перемещения указателя потока.
                                         if (start > 0) {
-                                            fis.skip(start)
+                                            var remaining = start
+                                            while (remaining > 0) {
+                                                val skipped = fis.skip(remaining)
+                                                if (skipped <= 0) break
+                                                remaining -= skipped
+                                            }
                                         }
 
                                         log("[MediaManager] Стриминг: $start-$end/$totalLength ($fileName)")
