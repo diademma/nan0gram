@@ -12,6 +12,10 @@ import android.webkit.WebChromeClient.FileChooserParams
 import android.webkit.WebView
 import android.webkit.WebViewClient
 
+@Volatile internal var ukrnetRetryCounter = 0
+@Volatile internal var isUkrnetRetrying = false
+@Volatile internal var lastUkrnetErrorDescription = "Неизвестная ошибка сети"
+
 internal fun buildUkrnetWebView(
     ctx: Context,
     ukrnetInterface: UkrnetJsInterface,
