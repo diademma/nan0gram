@@ -103,131 +103,22 @@ internal fun buildMessengerWebView(
                                         // Игнорируем ошибки чтения сигнатуры, откатываемся к базовому Mime-Type
                                     }
 
-                                    val headers = request.requestHeaders
-                                    val rangeHeader = headers?.entries?.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
-                                    val totalLength = file.length()
-
-                                    if (rangeHeader != null) {
-                                        var start = 0L
-                                        var end = totalLength - 1
-                                        try {
-                                            if (rangeHeader.startsWith("bytes=")) {
-                                                val rangeStr = rangeHeader.substring(6)
-                                                val minusIndex = rangeStr.indexOf('-')
-                                                if (minusIndex >= 0) {
-                                                    val startStr = rangeStr.substring(0, minusIndex).trim()
-                                                    val endStr = rangeStr.substring(minusIndex + 1).trim()
-                                                    if (startStr.isNotEmpty()) {
-                                                        start = startStr.toLong()
-                                                    }
-                                                    if (endStr.isNotEmpty()) {
-                                                        end = endStr.toLong()
-                                                    }
-                                                }
-                                            }
-                                        } catch (e: Exception) {
-                                            log("[MediaManager Error] Сбой парсинга Range: ${e.message}")
-                                        }
-
-                                        if (start > end || start >= totalLength) {
-                                            val responseHeaders = mutableMapOf<String, String>().apply {
-                                                put("Content-Type", mimeType)
-                                                put("Content-Range", "bytes */$totalLength")
-                                                put("Access-Control-Allow-Origin", "*")
-                                            }
-                                            return WebResourceResponse(
-                                                mimeType, null, 416, 
-                                                "Requested Range Not Satisfiable", responseHeaders, 
-                                                java.io.ByteArrayInputStream(ByteArray(0))
-                                            )
-                                        }
-
-                                        if (end >= totalLength) {
-                                            end = totalLength - 1
-                                        }
-
-                                        // ─── СТРАТЕГИЯ ДВУХ ПУТЕЙ ────────────────────────────────
-                                        //
-                                        // ПУТЬ 1 — start == 0 (начальная загрузка видео):
-                                        //   Возвращаем 200 OK с полным файлом через ленивый поток.
-                                        //   Почему: при 206-ответе на bytes=0- Chromium одновременно
-                                        //   шлёт отдельный запрос за moov-атомом. Оба потока содержат
-                                        //   одни и те же байты moov → медиа-движок в ошибке → петля.
-                                        //   При 200 OK Chromium читает файл целиком без параллельных
-                                        //   запросов — никаких конфликтов, никаких chunk-границ.
-                                        //
-                                        // ПУТЬ 2 — start > 0 (seek / прокрутка):
-                                        //   Возвращаем 206 с точным запрошенным диапазоном.
-                                        //   Chromium знает смещение, не будет дублировать запросы.
-                                        //
-                                        // Оба пути используют lazy FileInputStream — файл не грузится
-                                        // в RAM целиком, дескриптор закрывается в close().
-                                        // ─────────────────────────────────────────────────────────
-
-                                        if (start == 0L) {
-                                            // ПУТЬ 1: 200 OK — весь файл, ленивый поток
-                                            val responseHeaders = mutableMapOf<String, String>().apply {
-                                                put("Content-Type", mimeType)
-                                                put("Accept-Ranges", "bytes")
-                                                put("Content-Length", totalLength.toString())
-                                                put("Cache-Control", "no-cache, no-store")
-                                                put("Access-Control-Allow-Origin", "*")
-                                            }
-                                            log("[MediaManager] Полный файл (Range→200): $fileName ($totalLength байт) [Mime: $mimeType]")
-                                            return WebResourceResponse(
-                                                mimeType, null, 200, "OK",
-                                                responseHeaders, java.io.FileInputStream(file)
-                                            )
-                                        }
-
-                                        // ПУТЬ 2: 206 Partial Content — точный диапазон для seek
-                                        val chunkLength = end - start + 1
-                                        val seekStream = object : java.io.InputStream() {
-                                            val raf = java.io.RandomAccessFile(file, "r").apply { seek(start) }
-                                            var pos = start
-                                            override fun read(): Int {
-                                                if (pos > end) return -1
-                                                val b = raf.read()
-                                                if (b >= 0) pos++
-                                                return b
-                                            }
-                                            override fun read(b: ByteArray, off: Int, len: Int): Int {
-                                                if (pos > end) return -1
-                                                val toRead = minOf(len.toLong(), end - pos + 1).toInt()
-                                                val n = raf.read(b, off, toRead)
-                                                if (n > 0) pos += n
-                                                return n
-                                            }
-                                            override fun close() { raf.close() }
-                                        }
-                                        val responseHeaders = mutableMapOf<String, String>().apply {
-                                            put("Content-Type", mimeType)
-                                            put("Accept-Ranges", "bytes")
-                                            put("Content-Range", "bytes $start-$end/$totalLength")
-                                            put("Content-Length", chunkLength.toString())
-                                            put("Cache-Control", "no-cache, no-store")
-                                            put("Access-Control-Allow-Origin", "*")
-                                        }
-                                        log("[MediaManager] Seek-чанк: $start-$end/$totalLength ($fileName) [Mime: $mimeType]")
-                                        return WebResourceResponse(
-                                            mimeType, null, 206, "Partial Content",
-                                            responseHeaders, seekStream
-                                        )
-                                    } else {
-                                        // Запрос без Range-заголовка: ленивый поток, без загрузки в RAM
-                                        val responseHeaders = mutableMapOf<String, String>().apply {
-                                            put("Content-Type", mimeType)
-                                            put("Accept-Ranges", "bytes")
-                                            put("Content-Length", totalLength.toString())
-                                            put("Cache-Control", "no-cache, no-store")
-                                            put("Access-Control-Allow-Origin", "*")
-                                        }
-                                        log("[MediaManager] Полный файл: $fileName ($totalLength байт) [Mime: $mimeType]")
-                                        return WebResourceResponse(
-                                            mimeType, null, 200, "OK",
-                                            responseHeaders, java.io.FileInputStream(file)
-                                        )
+                                    // Отдаём файл целиком как 200 OK через ленивый FileInputStream.
+                                    // Range-заголовок игнорируем. Без Accept-Ranges в ответе
+                                    // Chromium не будет пробовать Range-запросы повторно —
+                                    // никакого параллельного moov, никаких chunk-границ, никаких retry.
+                                    val fileLength = file.length()
+                                    val responseHeaders = mutableMapOf<String, String>().apply {
+                                        put("Content-Type", mimeType)
+                                        put("Content-Length", fileLength.toString())
+                                        put("Cache-Control", "no-cache, no-store")
+                                        put("Access-Control-Allow-Origin", "*")
                                     }
+                                    log("[MediaManager] Файл: $fileName ($fileLength байт) [Mime: $mimeType]")
+                                    return WebResourceResponse(
+                                        mimeType, null, 200, "OK",
+                                        responseHeaders, java.io.FileInputStream(file)
+                                    )
                                 } else {
                                     log("[MediaManager Error] Локальный файл медиа не найден: $fileName")
                                 }
