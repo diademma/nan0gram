@@ -742,12 +742,24 @@ export function ChatArea({
     }, [isMobile, onSwipeClose]);
 
     T.useEffect(() => {
+        const smoothScrollToBottom = () => {
+            if (!scrollContainerRef.current) return;
+            scrollContainerRef.current.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" });
+        };
         const handleLoad = e => {
-            (e.target.tagName === "IMG" || e.target.tagName === "VIDEO") && scrollContainerRef.current && (scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight);
+            // Когда видео/картинка догружается — ещё раз плавно скролим вниз,
+            // потому что после рендера thumbnail высота контейнера увеличивается.
+            if (e.target.tagName === "IMG" || e.target.tagName === "VIDEO") {
+                smoothScrollToBottom();
+            }
         };
         const container = scrollContainerRef.current;
         container && (container.addEventListener("load", handleLoad, true), container.addEventListener("loadeddata", handleLoad, true));
-        scrollContainerRef.current && messages.length > messagesCountRef.current && (scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight);
+        if (scrollContainerRef.current && messages.length > messagesCountRef.current) {
+            // Задержка 80мс: даём React отрисовать новое сообщение (с video-thumbnail)
+            // прежде чем измерять scrollHeight — иначе скролим до старой высоты.
+            setTimeout(smoothScrollToBottom, 80);
+        }
         messagesCountRef.current = messages.length;
         return () => {
             container && (container.removeEventListener("load", handleLoad, true), container.removeEventListener("loadeddata", handleLoad, true));
