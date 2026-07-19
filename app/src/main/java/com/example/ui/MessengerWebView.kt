@@ -13,6 +13,8 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.WebViewAssetLoader
 
+private const val MEDIA_LOGGING = false // true — включить логи медиа-менеджера
+
 internal fun buildMessengerWebView(
     ctx: Context,
     messengerInterface: MessengerJsInterface,
@@ -175,7 +177,7 @@ internal fun buildMessengerWebView(
                                             put("Cache-Control", "no-cache, no-store")
                                             put("Access-Control-Allow-Origin", "*")
                                         }
-                                        log("[MediaManager] Seek: $start-$end/$fileLength ($fileName)")
+                                        if (MEDIA_LOGGING) log("[MediaManager] Seek: $start-$end/$fileLength ($fileName)")
                                         return WebResourceResponse(
                                             mimeType, null, 206, "Partial Content",
                                             seekHeaders, seekStream
@@ -202,16 +204,16 @@ internal fun buildMessengerWebView(
                                         put("Cache-Control", "private, max-age=3600")
                                         put("Access-Control-Allow-Origin", "*")
                                     }
-                                    log("[MediaManager] Файл: $fileName ($fileLength байт) [Mime: $mimeType]")
+                                    if (MEDIA_LOGGING) log("[MediaManager] Файл: $fileName ($fileLength байт) [Mime: $mimeType]")
                                     return WebResourceResponse(
                                         mimeType, null, 200, "OK",
                                         initHeaders, java.io.FileInputStream(file)
                                     )
                                 } else {
-                                    log("[MediaManager Error] Локальный файл медиа не найден: $fileName")
+                                    if (MEDIA_LOGGING) log("[MediaManager Error] Локальный файл медиа не найден: $fileName")
                                 }
                             } catch (e: Exception) {
-                                log("[MediaManager Error] Исключение при стриминге медиа: ${e.message}")
+                                if (MEDIA_LOGGING) log("[MediaManager Error] Исключение при стриминге медиа: ${e.message}")
                             }
                         }
                         assetLoader.shouldInterceptRequest(url)?.let { return it }
