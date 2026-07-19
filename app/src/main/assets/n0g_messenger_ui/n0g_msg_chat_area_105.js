@@ -721,10 +721,15 @@ export function ChatArea({
 }) {
     const scrollContainerRef = T.useRef(null);
     const messagesCountRef = T.useRef(messages.length);
+    const shouldScrollRef = T.useRef(false);
 
     const scrollToBottom = T.useCallback(() => {
-        const c = scrollContainerRef.current;
-        if (c) c.scrollTop = c.scrollHeight;
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const c = scrollContainerRef.current;
+                if (c) c.scrollTop = c.scrollHeight;
+            });
+        });
     }, []);
     const inputRef = T.useRef(null);
     const mediaInputRef = T.useRef(null);
