@@ -87,6 +87,33 @@ internal class MessengerComposeHelper(
     }
 
     fun openCompose(configJson: String) {
+        if (configJson == "RETRY_UKRNET") {
+            ukrnetRetryCounter = 0
+            isUkrnetRetrying = false
+            log("[Compose] Получена команда перезапуска сети. Сбрасываем счетчики и перезагружаем Ukrnet.")
+            ui.post {
+                val ukr = getUkrnetWebView()
+                ukr?.loadUrl("https://mail.ukr.net/touch/u0/sendmsg/")
+            }
+            return
+        }
+        if (configJson.startsWith("COPY_ERROR:")) {
+            val err = configJson.substring(11)
+            ui.post {
+                val ukr = getUkrnetWebView()
+                val ctx = ukr?.context
+                if (ctx != null) {
+                    val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("Ukrnet Error", err)
+                    clipboard?.setPrimaryClip(clip)
+                    log("[Stealth] Текст ошибки скопирован в буфер обмена natively.")
+                } else {
+                    log("[Stealth] Ошибка копирования: Context недоступен.")
+                }
+            }
+            return
+        }
+
         val now = System.currentTimeMillis()
         val msSinceSubmit = now - lastSubmitMs
         if (msSinceSubmit < RECOIL_MS) {
