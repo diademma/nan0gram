@@ -54,6 +54,7 @@ function AppController() {
     const [defaultTheme, setDefaultTheme] = T.useState(DEFAULT_THEME);
     const [windowWidth, setWindowWidth] = T.useState(() => window.innerWidth);
     const [offset, setOffset] = T.useState(0);
+    const [ukrnetError, setUkrnetError] = T.useState(null);
 
     T.useEffect(() => {
         window.nan0gram_activeChatId = activeChatId;
