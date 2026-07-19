@@ -807,17 +807,8 @@ export function ChatArea({
         reader.onload = event => {
             onSendVideo(event.target.result, replyMessage ?? void 0);
             resetInputState();
-            // Плавный скролл к отправленному видео. 300мс: даём React отрисовать
-            // сообщение с thumbnail — только тогда scrollHeight включает высоту видео.
-            // Первый таймер — если thumbnail уже отрендерился за 300мс.
-            // Второй таймер — страховка для медленных/больших видео: к 1000мс
-            // thumbnail гарантированно увеличил scrollHeight до финального значения.
-            setTimeout(() => {
-                scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" });
-            }, 300);
-            setTimeout(() => {
-                scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" });
-            }, 1000);
+            // Скролл не нужен здесь — useEffect слушает loadeddata на video-элементе
+            // и делает мгновенный scrollTop = scrollHeight когда thumbnail загрузился.
         };
         reader.readAsDataURL(file);
         e.target.value = "";
