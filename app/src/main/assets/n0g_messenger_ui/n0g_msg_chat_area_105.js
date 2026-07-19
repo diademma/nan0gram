@@ -742,15 +742,22 @@ export function ChatArea({
     }, [isMobile, onSwipeClose]);
 
     T.useEffect(() => {
-        const handleLoad = e => {
-            (e.target.tagName === "IMG" || e.target.tagName === "VIDEO") && scrollContainerRef.current && (scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight);
-        };
-        const container = scrollContainerRef.current;
-        container && (container.addEventListener("load", handleLoad, true), container.addEventListener("loadeddata", handleLoad, true));
-        scrollContainerRef.current && messages.length > messagesCountRef.current && (scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight);
+        let obs = null, obsTimer = null;
+        if (scrollContainerRef.current && messages.length > messagesCountRef.current) {
+            const c = scrollContainerRef.current;
+            // Мгновенный scroll сразу — для текстовых сообщений этого достаточно.
+            c.scrollTop = c.scrollHeight;
+            // ResizeObserver: срабатывает точно в момент когда thumbnail загрузился
+            // и увеличил высоту контейнера — делаем ещё один мгновенный scroll.
+            // Отключаем через 3 секунды чтобы не тратить ресурсы.
+            obs = new ResizeObserver(() => { c.scrollTop = c.scrollHeight; });
+            obs.observe(c);
+            obsTimer = setTimeout(() => { obs && (obs.disconnect(), obs = null); }, 3000);
+        }
         messagesCountRef.current = messages.length;
         return () => {
-            container && (container.removeEventListener("load", handleLoad, true), container.removeEventListener("loadeddata", handleLoad, true));
+            obs && obs.disconnect();
+            obsTimer && clearTimeout(obsTimer);
         };
     }, [messages]);
 
