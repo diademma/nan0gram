@@ -107,18 +107,13 @@ internal fun buildMessengerWebView(
                                     val rangeHeader = request.requestHeaders
                                         ?.entries?.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
 
-                                    // Seek-запрос: Range с start > 0 (пользователь перемотал видео).
-                                    // Отдаём 206 с точным диапазоном. Accept-Ranges объявляем только
-                                    // здесь — браузер видит его уже после начальной загрузки и не
-                                    // шлёт параллельный moov-запрос при первом открытии видео.
-                                    val seekStart = rangeHeader
-                                        ?.takeIf { it.startsWith("bytes=") }
-                                        ?.substringAfter("bytes=")
-                                        ?.substringBefore('-')
-                                        ?.trim()?.toLongOrNull()
-                                        ?.takeIf { it > 0L }
+                                    // Range-запрос (любой bytes=X-Y, включая bytes=0-X):
+                                    // Отдаём 206 с точным диапазоном. Обрабатываем ВСЕ Range-запросы —
+                                    // раньше bytes=0-X проваливался в 200-ветку, что ломало чанковое
+                                    // чтение moov и вызывало бесконечный retry.
+                                    val hasRange = rangeHeader?.startsWith("bytes=") == true
 
-                                    if (seekStart != null) {
+                                    if (hasRange) {
                                         val rangeStr = rangeHeader!!.substringAfter("bytes=")
                                         val minus = rangeStr.indexOf('-')
                                         val start = rangeStr.substring(0, minus).trim().toLongOrNull() ?: 0L
@@ -170,11 +165,11 @@ internal fun buildMessengerWebView(
                                     // он шлёт 206-запросы в seek-ветку выше и перематывает без проблем.
                                     val initHeaders = mutableMapOf<String, String>().apply {
                                         put("Content-Type", mimeType)
+                                        // Accept-Ranges нужен: без него Chromium при перемотке скачивает
+                                        // файл заново вместо Range-запроса. Теперь ВСЕ Range-запросы
+                                        // (включая bytes=0-X) идут в 206-ветку выше — moov-петли нет.
+                                        put("Accept-Ranges", "bytes")
                                         put("Content-Length", fileLength.toString())
-                                        // private: кешируется только в браузере, не в прокси.
-                                        // max-age=3600: Chromium держит файл в кеше 1 час — за это время
-                                        // seek работает без повторной загрузки. Имена файлов уникальные
-                                        // (UUID), поэтому устаревший кеш невозможен.
                                         put("Cache-Control", "private, max-age=3600")
                                         put("Access-Control-Allow-Origin", "*")
                                     }
