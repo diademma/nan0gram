@@ -807,6 +807,11 @@ export function ChatArea({
         reader.onload = event => {
             onSendVideo(event.target.result, replyMessage ?? void 0);
             resetInputState();
+            // Плавный скролл к отправленному видео. 300мс: даём React отрисовать
+            // сообщение с thumbnail — только тогда scrollHeight включает высоту видео.
+            setTimeout(() => {
+                scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "smooth" });
+            }, 300);
         };
         reader.readAsDataURL(file);
         e.target.value = "";
