@@ -79,6 +79,16 @@ function AppController() {
     }, []);
 
     T.useEffect(() => {
+        const handleUkrnetError = (e) => {
+            setUkrnetError(e.detail || "Неизвестная ошибка подключения");
+        };
+        window.addEventListener('nan0gram:ukrnet-error', handleUkrnetError);
+        return () => {
+            window.removeEventListener('nan0gram:ukrnet-error', handleUkrnetError);
+        };
+    }, []);
+
+    T.useEffect(() => {
         window.nan0gram_setMessages = setMessages;
     }, [setMessages]);
 
