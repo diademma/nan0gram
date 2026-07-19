@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import android.content.Context
 
 internal class MessengerComposeHelper(
     private val log: (String) -> Unit,
