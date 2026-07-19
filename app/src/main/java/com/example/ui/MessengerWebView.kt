@@ -107,13 +107,40 @@ internal fun buildMessengerWebView(
                                     val rangeHeader = request.requestHeaders
                                         ?.entries?.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
 
-                                    // Range-запрос (любой bytes=X-Y, включая bytes=0-X):
-                                    // Отдаём 206 с точным диапазоном. Обрабатываем ВСЕ Range-запросы —
-                                    // раньше bytes=0-X проваливался в 200-ветку, что ломало чанковое
-                                    // чтение moov и вызывало бесконечный retry.
-                                    val hasRange = rangeHeader?.startsWith("bytes=") == true
+                                    // Определяем faststart: обходим атомы с начала файла.
+                                    // Если moov встретился раньше mdat — faststart (moov в начале).
+                                    // Non-faststart (moov в конце) нельзя обслуживать через 206-чанки:
+                                    // Chromium зацикливается ища moov. Им отдаём 200 без Accept-Ranges.
+                                    val fastStart = try {
+                                        java.io.RandomAccessFile(file, "r").use { raf ->
+                                            var offset = 0L; var found = false
+                                            for (i in 0 until 8) {
+                                                val h = ByteArray(8); raf.seek(offset)
+                                                if (raf.read(h) < 8) break
+                                                val sz = ((h[0].toInt() and 0xFF) shl 24) or
+                                                         ((h[1].toInt() and 0xFF) shl 16) or
+                                                         ((h[2].toInt() and 0xFF) shl 8) or
+                                                         (h[3].toInt() and 0xFF)
+                                                val nm = String(h, 4, 4, Charsets.ISO_8859_1)
+                                                if (nm == "moov") { found = true; break }
+                                                if (nm == "mdat" || sz < 8 || sz > 50_000_000) break
+                                                offset += sz
+                                            }
+                                            found
+                                        }
+                                    } catch (e: Exception) { false }
 
-                                    if (hasRange) {
+                                    // Seek-запрос: Range с start > 0.
+                                    // Только для faststart: Chromium уже имеет moov и seekит в mdat.
+                                    // Non-faststart сюда не попадает (нет Accept-Ranges в их 200 OK).
+                                    val seekStart = rangeHeader
+                                        ?.takeIf { it.startsWith("bytes=") }
+                                        ?.substringAfter("bytes=")
+                                        ?.substringBefore('-')
+                                        ?.trim()?.toLongOrNull()
+                                        ?.takeIf { it > 0L }
+
+                                    if (seekStart != null) {
                                         val rangeStr = rangeHeader!!.substringAfter("bytes=")
                                         val minus = rangeStr.indexOf('-')
                                         val start = rangeStr.substring(0, minus).trim().toLongOrNull() ?: 0L
@@ -165,10 +192,12 @@ internal fun buildMessengerWebView(
                                     // он шлёт 206-запросы в seek-ветку выше и перематывает без проблем.
                                     val initHeaders = mutableMapOf<String, String>().apply {
                                         put("Content-Type", mimeType)
-                                        // Accept-Ranges нужен: без него Chromium при перемотке скачивает
-                                        // файл заново вместо Range-запроса. Теперь ВСЕ Range-запросы
-                                        // (включая bytes=0-X) идут в 206-ветку выше — moov-петли нет.
-                                        put("Accept-Ranges", "bytes")
+                                        // Accept-Ranges только для faststart: у них moov в начале,
+                                        // Chromium может seekить через Range-запросы (start>0 → 206).
+                                        // Non-faststart: без Accept-Ranges Chromium читает файл целиком
+                                        // последовательно, находит moov в конце, видео запускается.
+                                        // Seek для non-faststart работает через кеш (Cache-Control ниже).
+                                        if (fastStart) put("Accept-Ranges", "bytes")
                                         put("Content-Length", fileLength.toString())
                                         put("Cache-Control", "private, max-age=3600")
                                         put("Access-Control-Allow-Origin", "*")
