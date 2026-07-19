@@ -772,7 +772,10 @@ export function ChatArea({
 
     T.useEffect(() => {
         if (messages.length > messagesCountRef.current) {
-            scrollToBottom();
+            requestAnimationFrame(() => {
+                const c = scrollContainerRef.current;
+                if (c) c.scrollTop = c.scrollHeight;
+            });
         }
         messagesCountRef.current = messages.length;
     }, [messages]);
