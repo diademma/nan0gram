@@ -631,6 +631,120 @@ function AppController() {
             toastMessage && f.jsx(Toast, {
                 message: toastMessage,
                 onDone: () => setToastMessage(null)
+            }),
+            ukrnetError && f.jsx("div", {
+                className: "modal-overlay",
+                style: {
+                    position: "fixed",
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: "rgba(10, 5, 20, 0.85)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    zIndex: 999999,
+                    backdropFilter: "blur(12px)",
+                    transition: "all 0.3s ease"
+                },
+                children: f.jsxs("div", {
+                    className: "modal-card",
+                    style: {
+                        background: "linear-gradient(135deg, #1b0c36, #090011)",
+                        border: "2px solid #9c27b0",
+                        borderRadius: "20px",
+                        padding: "28px",
+                        maxWidth: "400px",
+                        width: "90%",
+                        textAlign: "center",
+                        boxShadow: "0 10px 40px rgba(156, 39, 176, 0.45)",
+                        color: "#fff",
+                        animation: "fadeIn 0.3s ease-out"
+                    },
+                    children: [
+                        f.jsx("div", {
+                            style: {
+                                fontSize: "44px",
+                                marginBottom: "16px",
+                                filter: "drop-shadow(0 0 10px #ab47bc)"
+                            },
+                            children: "⚠️"
+                        }),
+                        f.jsx("h3", {
+                            style: {
+                                margin: "0 0 12px 0",
+                                fontSize: "20px",
+                                fontWeight: "700",
+                                background: "linear-gradient(to right, #e040fb, #ab47bc)",
+                                WebkitBackgroundClip: "text",
+                                WebkitTextFillColor: "transparent"
+                            },
+                            children: "Проблемы с подключением"
+                        }),
+                        f.jsx("p", {
+                            style: {
+                                fontSize: "14px",
+                                color: "#dfc1f5",
+                                marginBottom: "24px",
+                                lineHeight: "1.5"
+                            },
+                            children: "Не удалось установить соединение с сервером почты. Пожалуйста, проверьте состояние сети."
+                        }),
+                        f.jsxs("div", {
+                            style: {
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "12px"
+                            },
+                            children: [
+                                f.jsx("button", {
+                                    className: "action-btn",
+                                    style: {
+                                        background: "transparent",
+                                        border: "1px solid #ab47bc",
+                                        color: "#f3e5f5",
+                                        padding: "11px",
+                                        borderRadius: "10px",
+                                        cursor: "pointer",
+                                        fontSize: "13px",
+                                        transition: "all 0.2s ease"
+                                    },
+                                    onClick: () => {
+                                        if (window.nan0gram && window.nan0gram.copyUkrnetError) {
+                                            window.nan0gram.copyUkrnetError(ukrnetError);
+                                            setToastMessage("Код ошибки скопирован в буфер");
+                                        } else {
+                                            navigator.clipboard.writeText(ukrnetError);
+                                            setToastMessage("Код ошибки скопирован");
+                                        }
+                                    },
+                                    children: "Скопировать ошибку"
+                                }),
+                                f.jsx("button", {
+                                    className: "action-btn",
+                                    style: {
+                                        background: "linear-gradient(90deg, #ab47bc, #8e24aa)",
+                                        border: "none",
+                                        color: "#fff",
+                                        padding: "13px",
+                                        borderRadius: "10px",
+                                        cursor: "pointer",
+                                        fontSize: "14px",
+                                        fontWeight: "600",
+                                        transition: "all 0.2s ease"
+                                    },
+                                    onClick: () => {
+                                        setUkrnetError(null);
+                                        if (window.nan0gram && window.nan0gram.retryUkrnet) {
+                                            window.nan0gram.retryUkrnet();
+                                        } else {
+                                            window.location.reload();
+                                        }
+                                    },
+                                    children: "Перезагрузить"
+                                })
+                            ]
+                        })
+                    ]
+                })
             })
         ]
     });
