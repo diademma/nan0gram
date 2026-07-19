@@ -343,7 +343,7 @@ export function Lightbox({ items, initialIndex = 0, onClose }) {
             
             lastTapTime.current = Bl;
             
-            if (scale <= 1 && Math.abs(xl) > 50 && Tl < 80 && hasMultiple) {
+            if (!isVideo && scale <= 1 && Math.abs(xl) > 50 && Tl < 80 && hasMultiple) {
                 xl < 0 ? goNext() : goPrev();
                 return;
             }
@@ -389,7 +389,10 @@ export function Lightbox({ items, initialIndex = 0, onClose }) {
                     autoPlay: !0,
                     playsInline: !0,
                     className: "lightbox-video",
-                    onClick: Y => Y.stopPropagation()
+                    onClick: Y => Y.stopPropagation(),
+                    onTouchStart: Y => Y.stopPropagation(),
+                    onTouchMove: Y => Y.stopPropagation(),
+                    onTouchEnd: Y => Y.stopPropagation()
                 }, activeItem.src) : f.jsx("img", {
                     src: activeItem.src,
                     alt: "",
