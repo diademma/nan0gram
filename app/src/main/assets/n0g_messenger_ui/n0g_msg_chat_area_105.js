@@ -356,10 +356,9 @@ export function MessageRow({
                                         src: message.video,
                                         poster: message.videoThumbnail,
                                         className: "video-thumb",
-                                        preload: "metadata",
+                                        preload: "none",
                                         playsInline: true,
-                                        muted: true,
-                                        onLoadedMetadata: () => onMediaLoad?.()
+                                        muted: true
                                     }),
                                     f.jsx("div", {
                                         className: "video-play-overlay",
