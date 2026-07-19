@@ -274,12 +274,24 @@ export function Lightbox({ items, initialIndex = 0, onClose }) {
     const touchStartX = T.useRef(0);
     const touchStartY = T.useRef(0);
     const isDragging = T.useRef(!1);
+    const videoRef = T.useRef(null);
 
     const activeItem = items ? items[activeIndex] : null;
     const isVideo = activeItem?.isVideo ?? !1;
     const hasMultiple = (items?.length ?? 0) > 1;
 
     T.useEffect(() => { setActiveIndex(initialIndex); }, [initialIndex, items]);
+
+    // Явный load()+play() при каждом открытии/смене видео.
+    // autoPlay на элементе не трогаем — он работает только при первом mount'е.
+    // После навигации по чатам WebView может держать старый MediaPlayer в памяти;
+    // принудительный load() гарантирует чистую инициализацию декодера.
+    T.useEffect(() => {
+        if (!isVideo || !videoRef.current) return;
+        const v = videoRef.current;
+        v.load();
+        v.play().catch(() => {});
+    }, [activeItem?.src, isVideo]);
     T.useEffect(() => {
         setScale(1);
         setTranslate({ x: 0, y: 0 });
@@ -383,10 +395,10 @@ export function Lightbox({ items, initialIndex = 0, onClose }) {
                 className: "lightbox-main",
                 onClick: onClose,
                 children: isVideo ? f.jsx("video", {
+                    ref: videoRef,
                     src: activeItem.src,
                     poster: activeItem.poster,
                     controls: !0,
-                    autoPlay: !0,
                     playsInline: !0,
                     className: "lightbox-video",
                     onClick: Y => Y.stopPropagation(),
