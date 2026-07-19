@@ -15,9 +15,16 @@ class UkrnetJsInterface(
     private val getMessengerWebView: () -> WebView?,
     private val isLoginHandled: () -> Boolean,
     private val getCurrentCoords: () -> DomCoords,
-    private val clearComposeBody: () -> Unit = {}
+    private val clearComposeBody: () -> Unit = {},
+    private val onLoginRequired: () -> Unit = {} // Новый коллбек требования авторизации
 ) {
     private val ui = Handler(Looper.getMainLooper())
+
+    fun onLoginPageLoaded() {
+        ui.post {
+            onLoginRequired()
+        }
+    }
 
     @JavascriptInterface
     fun jsLog(msg: String) {
