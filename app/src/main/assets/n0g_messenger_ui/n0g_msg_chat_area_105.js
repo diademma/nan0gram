@@ -360,7 +360,8 @@ export function MessageRow({
                                         playsInline: true,
                                         muted: true,
                                         ref: (el) => {
-                                            if (!el) return;
+                                            if (!el || el.dataset.scrollFired) return;
+                                            el.dataset.scrollFired = '1';
                                             if (message.videoThumbnail) {
                                                 const img = new Image();
                                                 img.onload = () => onMediaLoad?.();
