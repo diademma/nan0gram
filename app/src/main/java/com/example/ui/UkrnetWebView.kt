@@ -41,6 +41,10 @@ internal fun buildUkrnetWebView(
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
+                    if (url != null && (url.contains("login") || url.contains("accounts"))) {
+                        ukrnetInterface.onLoginPageLoaded()
+                        return
+                    }
                     if (url.isSendMsgUrl()) {
                         view?.evaluateJavascript(SENDMSG_FILL_JS, null)
                         val bufferedBody = messengerInterface.lastComposeBody
