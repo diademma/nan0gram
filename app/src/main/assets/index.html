@@ -16,6 +16,12 @@ scriptriptDOCTYPE html>
     <link rel="stylesheet" href="n0g_messenger_ui/style-player.css">
 </head>
 <body>
+    <!-- Стартовый фиолетовый Splash-экран (мгновенная локальная отрисовка) -->
+    <div id="splash-screen">
+        <div class="splash-welcome">добро пожаловать в</div>
+        <div class="splash-logo">nan0gram</div>
+    </div>
+
     <div id="root"></div>
 
     <!-- Подключаем криптографию -->
@@ -28,5 +34,24 @@ scriptriptDOCTYPE html>
     <script src="react-lib.js"></script>
     <!-- Подключаем сам мессенджер (React) -->
     <script type="module" src="n0g_messenger_ui/n0g_msg_app_entry_106.js"></script>
+
+    <script>
+        // Скрипт мгновенного скрытия сплэш-экрана по событию успешной авторизации или загрузки чатов
+        function dismissSplash() {
+            var splash = document.getElementById('splash-screen');
+            if (splash && !splash.classList.contains('fade-out')) {
+                splash.classList.add('fade-out');
+                setTimeout(function() {
+                    if (splash.parentNode) {
+                        splash.parentNode.removeChild(splash);
+                    }
+                }, 600); // Полное удаление из DOM после завершения анимации затухания
+            }
+        }
+        window.addEventListener('nan0gram:login-success', dismissSplash);
+        window.addEventListener('nan0gram:chats-list', dismissSplash);
+        // Защитный таймер (4 секунды) на случай непредвиденных сбоев загрузки
+        setTimeout(dismissSplash, 4000);
+    </script>
 </body>
 </html>
