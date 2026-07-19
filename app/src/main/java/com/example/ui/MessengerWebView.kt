@@ -160,11 +160,14 @@ internal fun buildMessengerWebView(
                                         )
                                     }
 
-                                    // Начальная загрузка (нет Range или start=0): 200 OK без Accept-Ranges.
-                                    // Без Accept-Ranges Chromium не шлёт параллельный moov-запрос,
-                                    // который вызывал бесконечный retry на файлах с moov в конце.
+                                    // Начальная загрузка (нет Range или start=0): 200 OK + Accept-Ranges.
+                                    // Accept-Ranges нужен чтобы Chromium знал — можно перематывать
+                                    // через Range-запросы (seek-ветка выше вернёт 206 с нужным чанком).
+                                    // moov-петля возникала из-за кода ответа 206, а не из-за заголовка
+                                    // Accept-Ranges — поэтому 200 OK здесь безопасен даже с ним.
                                     val initHeaders = mutableMapOf<String, String>().apply {
                                         put("Content-Type", mimeType)
+                                        put("Accept-Ranges", "bytes")
                                         put("Content-Length", fileLength.toString())
                                         put("Cache-Control", "no-cache, no-store")
                                         put("Access-Control-Allow-Origin", "*")
