@@ -48,7 +48,8 @@ export function MessageRow({
     onToggleSelect,
     onOpenProfile,
     onOpenLightbox,
-    onToggleReaction
+    onToggleReaction,
+    onMediaLoad
 }) {
     const [swipeOffset, setSwipeOffset] = T.useState(0);
     const startX = T.useRef(0);
@@ -61,6 +62,27 @@ export function MessageRow({
     const tapTimer = T.useRef(null);
     const replyStartX = T.useRef(0);
     const replyStartY = T.useRef(0);
+    const msgContentRef = T.useRef(null);
+
+    T.useEffect(() => {
+        const el = msgContentRef.current;
+        if (!el) return;
+        const handler = (e) => {
+            if (e.target.closest('.msg-reply')) return;
+            if (longPressed.current) return;
+            const touch = e.touches[0];
+            const diffX = startX.current - touch.clientX;
+            const diffY = Math.abs(startY.current - touch.clientY);
+            const absX = Math.abs(diffX);
+            if (!isSwiping.current && !isScrolling.current) {
+                if (diffY > 10) { isScrolling.current = true; pressTimer.current && clearTimeout(pressTimer.current); return; }
+                absX > 8 && (isSwiping.current = true, pressTimer.current && clearTimeout(pressTimer.current));
+            }
+            if (isSwiping.current && diffX > 0 && diffY < 50) { e.preventDefault(); setSwipeOffset(Math.min(diffX, 75)); }
+        };
+        el.addEventListener('touchmove', handler, { passive: false });
+        return () => el.removeEventListener('touchmove', handler);
+    }, []);
 
     const clearTimers = T.useCallback(() => {
         pressTimer.current && clearTimeout(pressTimer.current);
@@ -198,13 +220,13 @@ export function MessageRow({
                 }
             }),
             f.jsxs("div", {
+                ref: msgContentRef,
                 className: "msg-content",
                 style: {
                     transform: swipeOffset > 0 ? `translateX(-${swipeOffset}px)` : void 0,
                     transition: swipeOffset === 0 ? "transform 0.2s cubic-bezier(0.1,0.7,0.1,1)" : "none"
                 },
                 onTouchStart: handleTouchStart,
-                onTouchMove: handleTouchMove,
                 onTouchEnd: handleTouchEnd,
                 onClick: handlePointerDown,
                 children: [
@@ -292,6 +314,7 @@ export function MessageRow({
                                         src: src,
                                         alt: "",
                                         className: "album-img",
+                                        onLoad: () => onMediaLoad?.(),
                                         onPointerDown: e => e.stopPropagation(),
                                         onClick: e => {
                                             e.stopPropagation();
@@ -333,9 +356,10 @@ export function MessageRow({
                                         src: message.video,
                                         poster: message.videoThumbnail,
                                         className: "video-thumb",
-                                        preload: "none",
+                                        preload: "metadata",
                                         playsInline: true,
-                                        muted: true
+                                        muted: true,
+                                        onLoadedMetadata: () => onMediaLoad?.()
                                     }),
                                     f.jsx("div", {
                                         className: "video-play-overlay",
@@ -697,6 +721,11 @@ export function ChatArea({
 }) {
     const scrollContainerRef = T.useRef(null);
     const messagesCountRef = T.useRef(messages.length);
+    const bottomRef = T.useRef(null);
+
+    const scrollToAnchor = T.useCallback(() => {
+        bottomRef.current?.scrollIntoView();
+    }, []);
     const inputRef = T.useRef(null);
     const mediaInputRef = T.useRef(null);
     const fileInputRef = T.useRef(null);
@@ -742,39 +771,10 @@ export function ChatArea({
     }, [isMobile, onSwipeClose]);
 
     T.useEffect(() => {
-        let obs = null, obsTimer = null, rafId = null;
-        if (scrollContainerRef.current && messages.length > messagesCountRef.current) {
-            const c = scrollContainerRef.current;
-            const scrollToBottom = () => { c.scrollTop = c.scrollHeight; };
-            // Мгновенный scroll сразу — для текстовых сообщений достаточно.
-            scrollToBottom();
-            // Двойной rAF: первый кадр — React завершил paint,
-            // второй кадр — браузер (WebView) завершил layout и
-            // scrollHeight уже включает высоту нового медиа-блока (видео 260x180).
-            rafId = requestAnimationFrame(() => { requestAnimationFrame(scrollToBottom); });
-            // ResizeObserver на ДОЧЕРНИХ элементах: контейнер имеет фиксированную высоту
-            // (overflow scroll), поэтому его размер не меняется. Зато дочерние элементы
-            // растут когда thumbnail загружается — тогда делаем ещё один мгновенный scroll.
-            obs = new ResizeObserver(scrollToBottom);
-            Array.from(c.children).forEach(child => obs.observe(child));
-            // MutationObserver добавляет наблюдение за новыми дочерними (новое сообщение)
-            const mut = new MutationObserver(() => {
-                Array.from(c.children).forEach(child => obs.observe(child));
-                scrollToBottom();
-            });
-            mut.observe(c, { childList: true });
-            obsTimer = setTimeout(() => {
-                obs && (obs.disconnect(), obs = null);
-                mut.disconnect();
-                scrollToBottom(); // финальная страховка через 3с
-            }, 3000);
+        if (messages.length > messagesCountRef.current) {
+            bottomRef.current?.scrollIntoView();
         }
         messagesCountRef.current = messages.length;
-        return () => {
-            obs && obs.disconnect();
-            obsTimer && clearTimeout(obsTimer);
-            rafId && cancelAnimationFrame(rafId);
-        };
     }, [messages]);
 
     T.useEffect(() => {
@@ -1257,19 +1257,23 @@ export function ChatArea({
                         onLoadMore();
                     }
                 },
-                children: messages.map(msg => f.jsx(MessageRow, {
-                    message: msg,
-                    selected: selectedMessageIds.has(msg.id),
-                    selectionMode: isSelectionMode,
-                    onLongPress: startSelectionMode,
-                    onTap: handleMessageTap,
-                    onDoubleTap: handleMessageDoubleTap,
-                    onSwipeLeft: handleSwipeToReply,
-                    onToggleSelect: toggleMessageSelect,
-                    onOpenProfile: onOpenProfile,
-                    onOpenLightbox: onOpenLightbox,
-                    onToggleReaction: onToggleReaction
-                }, msg.id))
+                children: [
+                    ...messages.map(msg => f.jsx(MessageRow, {
+                        message: msg,
+                        selected: selectedMessageIds.has(msg.id),
+                        selectionMode: isSelectionMode,
+                        onLongPress: startSelectionMode,
+                        onTap: handleMessageTap,
+                        onDoubleTap: handleMessageDoubleTap,
+                        onSwipeLeft: handleSwipeToReply,
+                        onToggleSelect: toggleMessageSelect,
+                        onOpenProfile: onOpenProfile,
+                        onOpenLightbox: onOpenLightbox,
+                        onToggleReaction: onToggleReaction,
+                        onMediaLoad: scrollToAnchor
+                    }, msg.id)),
+                    f.jsx("div", { ref: bottomRef, style: { height: 0, flexShrink: 0 } })
+                ]
             }),
             showScrollDown && f.jsx("button", {
                 className: "scroll-down-btn",
