@@ -12,7 +12,7 @@ import java.util.UUID
 class MediaManager(private val context: Context, private val log: (String) -> Unit) {
 
     // Переключатель логов медиа-менеджера. false = тихий режим. Поменяй на true чтобы включить.
-    private val LOGGING_ENABLED = false
+    private val LOGGING_ENABLED = true
 
     // Директория для хранения всех картинок, видео и прикрепленных файлов
     private val mediaDir = File(context.cacheDir, "nan0gram_media").apply {
