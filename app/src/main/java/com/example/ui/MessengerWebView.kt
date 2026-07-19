@@ -171,7 +171,11 @@ internal fun buildMessengerWebView(
                                     val initHeaders = mutableMapOf<String, String>().apply {
                                         put("Content-Type", mimeType)
                                         put("Content-Length", fileLength.toString())
-                                        put("Cache-Control", "no-cache, no-store")
+                                        // private: кешируется только в браузере, не в прокси.
+                                        // max-age=3600: Chromium держит файл в кеше 1 час — за это время
+                                        // seek работает без повторной загрузки. Имена файлов уникальные
+                                        // (UUID), поэтому устаревший кеш невозможен.
+                                        put("Cache-Control", "private, max-age=3600")
                                         put("Access-Control-Allow-Origin", "*")
                                     }
                                     log("[MediaManager] Файл: $fileName ($fileLength байт) [Mime: $mimeType]")
