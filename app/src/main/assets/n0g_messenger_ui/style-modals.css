@@ -660,6 +660,9 @@
   max-height: 75vh;
   border-radius: 8px;
   outline: none;
+  touch-action: auto;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .lightbox-counter {
