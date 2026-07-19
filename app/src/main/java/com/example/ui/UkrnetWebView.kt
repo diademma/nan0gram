@@ -105,9 +105,8 @@ internal fun buildUkrnetWebView(
                     super.onPageFinished(view, url)
                     view?.evaluateJavascript(MONITORING_JS, null)
                     
-                    if (url != null && !url.startsWith("chrome-error") && !url.startsWith("data:") && !url.contains("error")) {
+                    if (url != null && !url.startsWith("chrome-error") && !url.startsWith("data:") && !url.contains("error") && !isUkrnetRetrying) {
                         ukrnetRetryCounter = 0
-                        isUkrnetRetrying = false
                     }
 
                     if (url != null && (url.contains("login") || url.contains("accounts"))) {
