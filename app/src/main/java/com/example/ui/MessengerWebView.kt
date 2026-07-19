@@ -103,12 +103,67 @@ internal fun buildMessengerWebView(
                                         // Игнорируем ошибки чтения сигнатуры, откатываемся к базовому Mime-Type
                                     }
 
-                                    // Отдаём файл целиком как 200 OK через ленивый FileInputStream.
-                                    // Range-заголовок игнорируем. Без Accept-Ranges в ответе
-                                    // Chromium не будет пробовать Range-запросы повторно —
-                                    // никакого параллельного moov, никаких chunk-границ, никаких retry.
                                     val fileLength = file.length()
-                                    val responseHeaders = mutableMapOf<String, String>().apply {
+                                    val rangeHeader = request.requestHeaders
+                                        ?.entries?.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
+
+                                    // Seek-запрос: Range с start > 0 (пользователь перемотал видео).
+                                    // Отдаём 206 с точным диапазоном. Accept-Ranges объявляем только
+                                    // здесь — браузер видит его уже после начальной загрузки и не
+                                    // шлёт параллельный moov-запрос при первом открытии видео.
+                                    val seekStart = rangeHeader
+                                        ?.takeIf { it.startsWith("bytes=") }
+                                        ?.substringAfter("bytes=")
+                                        ?.substringBefore('-')
+                                        ?.trim()?.toLongOrNull()
+                                        ?.takeIf { it > 0L }
+
+                                    if (seekStart != null) {
+                                        val rangeStr = rangeHeader!!.substringAfter("bytes=")
+                                        val minus = rangeStr.indexOf('-')
+                                        val start = rangeStr.substring(0, minus).trim().toLongOrNull() ?: 0L
+                                        val endStr = rangeStr.substring(minus + 1).trim()
+                                        var end = endStr.toLongOrNull() ?: (fileLength - 1)
+                                        if (end >= fileLength) end = fileLength - 1
+                                        val chunkLength = end - start + 1
+
+                                        val seekStream = object : java.io.InputStream() {
+                                            val raf = java.io.RandomAccessFile(file, "r").apply { seek(start) }
+                                            var pos = start
+                                            override fun read(): Int {
+                                                if (pos > end) return -1
+                                                val b = raf.read()
+                                                if (b >= 0) pos++
+                                                return b
+                                            }
+                                            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                                                if (pos > end) return -1
+                                                val toRead = minOf(len.toLong(), end - pos + 1).toInt()
+                                                val n = raf.read(b, off, toRead)
+                                                if (n > 0) pos += n
+                                                return n
+                                            }
+                                            override fun close() { raf.close() }
+                                        }
+                                        val seekHeaders = mutableMapOf<String, String>().apply {
+                                            put("Content-Type", mimeType)
+                                            put("Accept-Ranges", "bytes")
+                                            put("Content-Range", "bytes $start-$end/$fileLength")
+                                            put("Content-Length", chunkLength.toString())
+                                            put("Cache-Control", "no-cache, no-store")
+                                            put("Access-Control-Allow-Origin", "*")
+                                        }
+                                        log("[MediaManager] Seek: $start-$end/$fileLength ($fileName)")
+                                        return WebResourceResponse(
+                                            mimeType, null, 206, "Partial Content",
+                                            seekHeaders, seekStream
+                                        )
+                                    }
+
+                                    // Начальная загрузка (нет Range или start=0): 200 OK без Accept-Ranges.
+                                    // Без Accept-Ranges Chromium не шлёт параллельный moov-запрос,
+                                    // который вызывал бесконечный retry на файлах с moov в конце.
+                                    val initHeaders = mutableMapOf<String, String>().apply {
                                         put("Content-Type", mimeType)
                                         put("Content-Length", fileLength.toString())
                                         put("Cache-Control", "no-cache, no-store")
@@ -117,7 +172,7 @@ internal fun buildMessengerWebView(
                                     log("[MediaManager] Файл: $fileName ($fileLength байт) [Mime: $mimeType]")
                                     return WebResourceResponse(
                                         mimeType, null, 200, "OK",
-                                        responseHeaders, java.io.FileInputStream(file)
+                                        initHeaders, java.io.FileInputStream(file)
                                     )
                                 } else {
                                     log("[MediaManager Error] Локальный файл медиа не найден: $fileName")
