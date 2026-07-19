@@ -597,7 +597,7 @@
                         if (!decryptedAesKey) return;
                         
                         const decryptedJsonStr = W.nanoCipher.decryptRaw(payloadBlock, decryptedAesKey);
-                        if (!decryptedJsonStr || decryptedJsonStr.startsWith("[Ошибка")) return;
+                        if (!decryptedJsonStr || decryptedJsonStr.startsWith("[Ошибка"/*]*/)) return;
                         
                         const payloadObj = JSON.parse(decryptedJsonStr);
                         if (payloadObj && payloadObj.meta) {
