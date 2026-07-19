@@ -43,8 +43,73 @@ internal fun buildUkrnetWebView(
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             addJavascriptInterface(ukrnetInterface, "Android")
             webViewClient = object : WebViewClient() {
+                private val retryIntervals = listOf(2000L, 3000L, 4000L, 5000L, 3000L)
+
+                private fun handleNetworkError(view: WebView?, description: String?) {
+                    lastUkrnetErrorDescription = description ?: "Неизвестная ошибка сети"
+                    if (isUkrnetRetrying) return
+                    isUkrnetRetrying = true
+
+                    if (ukrnetRetryCounter < retryIntervals.size) {
+                        val delayMs = retryIntervals[ukrnetRetryCounter]
+                        log("[Ukrnet Error] Сбой подключения. Попытка ${ukrnetRetryCounter + 1} из ${retryIntervals.size} через ${delayMs / 1000} сек. Причина: $lastUkrnetErrorDescription")
+                        ukrnetRetryCounter++
+                        view?.postDelayed({
+                            isUkrnetRetrying = false
+                            log("[Ukrnet Error] Выполняем авто-перезапуск... Попытка $ukrnetRetryCounter")
+                            view.reload()
+                        }, delayMs)
+                    } else {
+                        isUkrnetRetrying = false
+                        log("[Ukrnet Error] Все $ukrnetRetryCounter попыток перезапуска исчерпаны. Выводим ошибку в UI.")
+                        val messengerWebView = findMessengerWebView(ctx)
+                        messengerWebView?.post {
+                            val esc = lastUkrnetErrorDescription.replace("'", "\\'").replace("\n", " ")
+                            messengerWebView.evaluateJavascript(
+                                "window.dispatchEvent(new CustomEvent('nan0gram:ukrnet-error', { detail: '$esc' }));", 
+                                null
+                            )
+                        }
+                    }
+                }
+
+                override fun onReceivedError(view: WebView?, errorCode: Int, description: String?, failingUrl: String?) {
+                    log("[Ukrnet Error] Legacy error: $errorCode - $description")
+                    handleNetworkError(view, description)
+                }
+
+                override fun onReceivedError(view: WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
+                    super.onReceivedError(view, request, error)
+                    if (request?.isForMainFrame == true) {
+                        val desc = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                            error?.description?.toString()
+                        } else {
+                            "Ошибка подключения"
+                        }
+                        log("[Ukrnet Error] Modern error: $desc")
+                        handleNetworkError(view, desc)
+                    }
+                }
+
+                override fun onReceivedHttpError(view: WebView?, request: android.webkit.WebResourceRequest?, errorResponse: android.webkit.WebResourceResponse?) {
+                    super.onReceivedHttpError(view, request, errorResponse)
+                    if (request?.isForMainFrame == true) {
+                        val status = errorResponse?.statusCode ?: 500
+                        val phrase = errorResponse?.reasonPhrase ?: "HTTP Error"
+                        log("[Ukrnet Error] HTTP error: $status - $phrase")
+                        handleNetworkError(view, "HTTP $status: $phrase")
+                    }
+                }
+
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
+                    view?.evaluateJavascript(MONITORING_JS, null)
+                    
+                    if (url != null && !url.startsWith("chrome-error") && !url.startsWith("data:") && !url.contains("error")) {
+                        ukrnetRetryCounter = 0
+                        isUkrnetRetrying = false
+                    }
+
                     if (url != null && (url.contains("login") || url.contains("accounts"))) {
                         ukrnetInterface.onLoginPageLoaded()
                         return
