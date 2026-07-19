@@ -742,31 +742,38 @@ export function ChatArea({
     }, [isMobile, onSwipeClose]);
 
     T.useEffect(() => {
-        let obs = null, obsTimer = null;
+        let obs = null, obsTimer = null, rafId = null;
         if (scrollContainerRef.current && messages.length > messagesCountRef.current) {
             const c = scrollContainerRef.current;
+            const scrollToBottom = () => { c.scrollTop = c.scrollHeight; };
             // Мгновенный scroll сразу — для текстовых сообщений достаточно.
-            c.scrollTop = c.scrollHeight;
+            scrollToBottom();
+            // Двойной rAF: первый кадр — React завершил paint,
+            // второй кадр — браузер (WebView) завершил layout и
+            // scrollHeight уже включает высоту нового медиа-блока (видео 260x180).
+            rafId = requestAnimationFrame(() => { requestAnimationFrame(scrollToBottom); });
             // ResizeObserver на ДОЧЕРНИХ элементах: контейнер имеет фиксированную высоту
             // (overflow scroll), поэтому его размер не меняется. Зато дочерние элементы
             // растут когда thumbnail загружается — тогда делаем ещё один мгновенный scroll.
-            obs = new ResizeObserver(() => { c.scrollTop = c.scrollHeight; });
+            obs = new ResizeObserver(scrollToBottom);
             Array.from(c.children).forEach(child => obs.observe(child));
             // MutationObserver добавляет наблюдение за новыми дочерними (новое сообщение)
             const mut = new MutationObserver(() => {
                 Array.from(c.children).forEach(child => obs.observe(child));
-                c.scrollTop = c.scrollHeight;
+                scrollToBottom();
             });
             mut.observe(c, { childList: true });
             obsTimer = setTimeout(() => {
                 obs && (obs.disconnect(), obs = null);
                 mut.disconnect();
+                scrollToBottom(); // финальная страховка через 3с
             }, 3000);
         }
         messagesCountRef.current = messages.length;
         return () => {
             obs && obs.disconnect();
             obsTimer && clearTimeout(obsTimer);
+            rafId && cancelAnimationFrame(rafId);
         };
     }, [messages]);
 
