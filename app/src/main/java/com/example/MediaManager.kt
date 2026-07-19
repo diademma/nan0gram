@@ -10,7 +10,10 @@ import java.io.FileOutputStream
 import java.util.UUID
 
 class MediaManager(private val context: Context, private val log: (String) -> Unit) {
-    
+
+    // Переключатель логов медиа-менеджера. false = тихий режим. Поменяй на true чтобы включить.
+    private val LOGGING_ENABLED = false
+
     // Директория для хранения всех картинок, видео и прикрепленных файлов
     private val mediaDir = File(context.cacheDir, "nan0gram_media").apply {
         if (!exists()) mkdirs()
@@ -37,10 +40,10 @@ class MediaManager(private val context: Context, private val log: (String) -> Un
             FileOutputStream(file).use { it.write(bytes) }
             
             val virtualUrl = "$VIRTUAL_DOMAIN$fileName"
-            log("[MediaManager] Сохранен файл $fileName (${bytes.size / 1024} KB)")
+            if (LOGGING_ENABLED) log("[MediaManager] Сохранен файл $fileName (${bytes.size / 1024} KB)")
             virtualUrl
         } catch (e: Exception) {
-            log("[MediaManager Error] Ошибка сохранения Base64: ${e.message}")
+            if (LOGGING_ENABLED) log("[MediaManager Error] Ошибка сохранения Base64: ${e.message}")
             ""
         }
     }
@@ -61,10 +64,10 @@ class MediaManager(private val context: Context, private val log: (String) -> Un
             }
 
             val virtualUrl = "$VIRTUAL_DOMAIN$fileName"
-            log("[MediaManager] Скопирован файл $originalName -> $fileName (${file.length() / 1024} KB)")
+            if (LOGGING_ENABLED) log("[MediaManager] Скопирован файл $originalName -> $fileName (${file.length() / 1024} KB)")
             virtualUrl
         } catch (e: Exception) {
-            log("[MediaManager Error] Ошибка копирования файла: ${e.message}")
+            if (LOGGING_ENABLED) log("[MediaManager Error] Ошибка копирования файла: ${e.message}")
             ""
         }
     }
@@ -82,10 +85,10 @@ class MediaManager(private val context: Context, private val log: (String) -> Un
                 }
             }
             val mb = deletedSize / (1024 * 1024)
-            log("[MediaManager] Кэш медиа очищен! Освобождено: $mb MB")
+            if (LOGGING_ENABLED) log("[MediaManager] Кэш медиа очищен! Освобождено: $mb MB")
             deletedSize
         } catch (e: Exception) {
-            log("[MediaManager Error] Ошибка очистки кэша: ${e.message}")
+            if (LOGGING_ENABLED) log("[MediaManager Error] Ошибка очистки кэша: ${e.message}")
             0L
         }
     }
