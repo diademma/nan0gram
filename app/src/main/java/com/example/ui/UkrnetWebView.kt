@@ -195,3 +195,29 @@ internal fun buildUkrnetWebView(
         WebView(ctx)
     }
 }
+
+private fun findMessengerWebView(context: Context): WebView? {
+    var currentContext = context
+    while (currentContext is android.content.ContextWrapper) {
+        if (currentContext is android.app.Activity) {
+            val rootView = currentContext.window.decorView
+            return findWebViewByTag(rootView, "messenger")
+        }
+        currentContext = currentContext.baseContext
+    }
+    return null
+}
+
+private fun findWebViewByTag(view: android.view.View, tag: String): WebView? {
+    if (view is WebView && view.tag == tag) {
+        return view
+    }
+    if (view is android.view.ViewGroup) {
+        for (i in 0 until view.childCount) {
+            val child = view.getChildAt(i)
+            val result = findWebViewByTag(child, tag)
+            if (result != null) return result
+        }
+    }
+    return null
+}
