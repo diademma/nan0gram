@@ -359,7 +359,18 @@ export function MessageRow({
                                         preload: "none",
                                         playsInline: true,
                                         muted: true,
-                                        onLoadedMetadata: () => onMediaLoad?.()
+                                        ref: (el) => {
+                                            if (!el) return;
+                                            if (message.videoThumbnail) {
+                                                const img = new Image();
+                                                img.onload = () => onMediaLoad?.();
+                                                img.onerror = () => onMediaLoad?.();
+                                                img.src = message.videoThumbnail;
+                                                if (img.complete) onMediaLoad?.();
+                                            } else {
+                                                onMediaLoad?.();
+                                            }
+                                        }
                                     }),
                                     f.jsx("div", {
                                         className: "video-play-overlay",
