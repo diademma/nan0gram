@@ -745,14 +745,23 @@ export function ChatArea({
         let obs = null, obsTimer = null;
         if (scrollContainerRef.current && messages.length > messagesCountRef.current) {
             const c = scrollContainerRef.current;
-            // Мгновенный scroll сразу — для текстовых сообщений этого достаточно.
+            // Мгновенный scroll сразу — для текстовых сообщений достаточно.
             c.scrollTop = c.scrollHeight;
-            // ResizeObserver: срабатывает точно в момент когда thumbnail загрузился
-            // и увеличил высоту контейнера — делаем ещё один мгновенный scroll.
-            // Отключаем через 3 секунды чтобы не тратить ресурсы.
+            // ResizeObserver на ДОЧЕРНИХ элементах: контейнер имеет фиксированную высоту
+            // (overflow scroll), поэтому его размер не меняется. Зато дочерние элементы
+            // растут когда thumbnail загружается — тогда делаем ещё один мгновенный scroll.
             obs = new ResizeObserver(() => { c.scrollTop = c.scrollHeight; });
-            obs.observe(c);
-            obsTimer = setTimeout(() => { obs && (obs.disconnect(), obs = null); }, 3000);
+            Array.from(c.children).forEach(child => obs.observe(child));
+            // MutationObserver добавляет наблюдение за новыми дочерними (новое сообщение)
+            const mut = new MutationObserver(() => {
+                Array.from(c.children).forEach(child => obs.observe(child));
+                c.scrollTop = c.scrollHeight;
+            });
+            mut.observe(c, { childList: true });
+            obsTimer = setTimeout(() => {
+                obs && (obs.disconnect(), obs = null);
+                mut.disconnect();
+            }, 3000);
         }
         messagesCountRef.current = messages.length;
         return () => {
