@@ -721,10 +721,10 @@ export function ChatArea({
 }) {
     const scrollContainerRef = T.useRef(null);
     const messagesCountRef = T.useRef(messages.length);
-    const bottomRef = T.useRef(null);
 
-    const scrollToAnchor = T.useCallback(() => {
-        bottomRef.current?.scrollIntoView();
+    const scrollToBottom = T.useCallback(() => {
+        const c = scrollContainerRef.current;
+        if (c) c.scrollTop = c.scrollHeight;
     }, []);
     const inputRef = T.useRef(null);
     const mediaInputRef = T.useRef(null);
@@ -772,7 +772,7 @@ export function ChatArea({
 
     T.useEffect(() => {
         if (messages.length > messagesCountRef.current) {
-            bottomRef.current?.scrollIntoView();
+            scrollToBottom();
         }
         messagesCountRef.current = messages.length;
     }, [messages]);
@@ -1257,23 +1257,20 @@ export function ChatArea({
                         onLoadMore();
                     }
                 },
-                children: [
-                    ...messages.map(msg => f.jsx(MessageRow, {
-                        message: msg,
-                        selected: selectedMessageIds.has(msg.id),
-                        selectionMode: isSelectionMode,
-                        onLongPress: startSelectionMode,
-                        onTap: handleMessageTap,
-                        onDoubleTap: handleMessageDoubleTap,
-                        onSwipeLeft: handleSwipeToReply,
-                        onToggleSelect: toggleMessageSelect,
-                        onOpenProfile: onOpenProfile,
-                        onOpenLightbox: onOpenLightbox,
-                        onToggleReaction: onToggleReaction,
-                        onMediaLoad: scrollToAnchor
-                    }, msg.id)),
-                    f.jsx("div", { ref: bottomRef, style: { height: 0, flexShrink: 0 } })
-                ]
+                children: messages.map(msg => f.jsx(MessageRow, {
+                    message: msg,
+                    selected: selectedMessageIds.has(msg.id),
+                    selectionMode: isSelectionMode,
+                    onLongPress: startSelectionMode,
+                    onTap: handleMessageTap,
+                    onDoubleTap: handleMessageDoubleTap,
+                    onSwipeLeft: handleSwipeToReply,
+                    onToggleSelect: toggleMessageSelect,
+                    onOpenProfile: onOpenProfile,
+                    onOpenLightbox: onOpenLightbox,
+                    onToggleReaction: onToggleReaction,
+                    onMediaLoad: scrollToBottom
+                }, msg.id))
             }),
             showScrollDown && f.jsx("button", {
                 className: "scroll-down-btn",
