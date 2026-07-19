@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
                 UpdateDialog(updateInfo = info, onDismiss = { updateInfo = null })
             }
 
-            var isBgServiceActive  by remember { mutableStateOf(true) }
+            var isBgServiceActive  by remember { mutableStateOf(false) } // Инициализируем как false для мгновенного старта Splash-экрана
             var messengerInterfaceRef by remember { mutableStateOf<MessengerJsInterface?>(null) }
             var hasHandledLogin    by remember { mutableStateOf(false) }
             var isLogPanelExpanded by remember { mutableStateOf(false) }
@@ -120,7 +120,16 @@ class MainActivity : ComponentActivity() {
                     getMessengerWebView = { messengerWebView },
                     isLoginHandled      = { hasHandledLogin },
                     getCurrentCoords    = { coords },
-                    clearComposeBody    = { messengerInterfaceRef?.lastComposeBody = "" }
+                    clearComposeBody    = { messengerInterfaceRef?.lastComposeBody = "" },
+                    onLoginRequired     = {
+                        // Резервная задержка 800мс, предотвращающая ложное срабатывание при быстром автоматическом редиректе по кукам
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            if (!hasHandledLogin) {
+                                isBgServiceActive = true
+                                log("[System] Сессия не обнаружена. Переключение на страницу авторизации Ukr.net.")
+                            }
+                        }, 800)
+                    }
                 )
             }
 
