@@ -160,14 +160,16 @@ internal fun buildMessengerWebView(
                                         )
                                     }
 
-                                    // Начальная загрузка (нет Range или start=0): 200 OK + Accept-Ranges.
-                                    // Accept-Ranges нужен чтобы Chromium знал — можно перематывать
-                                    // через Range-запросы (seek-ветка выше вернёт 206 с нужным чанком).
-                                    // moov-петля возникала из-за кода ответа 206, а не из-за заголовка
-                                    // Accept-Ranges — поэтому 200 OK здесь безопасен даже с ним.
+                                    // Начальная загрузка (нет Range или start=0): 200 OK без Accept-Ranges.
+                                    // Accept-Ranges НЕ объявляем здесь намеренно: если он есть, Chromium
+                                    // сразу шлёт Range-запрос к концу файла для moov-атома. Для non-faststart
+                                    // MP4 (moov в конце) это создаёт петлю — он получает 206, но не может
+                                    // вернуться к mdat через shouldInterceptRequest и повторяет запрос снова.
+                                    // Без Accept-Ranges Chromium читает файл целиком — moov находится при
+                                    // полном чтении. Seek после этого работает: файл уже в кеше Chromium,
+                                    // он шлёт 206-запросы в seek-ветку выше и перематывает без проблем.
                                     val initHeaders = mutableMapOf<String, String>().apply {
                                         put("Content-Type", mimeType)
-                                        put("Accept-Ranges", "bytes")
                                         put("Content-Length", fileLength.toString())
                                         put("Cache-Control", "no-cache, no-store")
                                         put("Access-Control-Allow-Origin", "*")
