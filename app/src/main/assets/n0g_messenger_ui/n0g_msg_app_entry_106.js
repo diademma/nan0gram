@@ -708,7 +708,10 @@ function AppController() {
                                         transition: "all 0.2s ease"
                                     },
                                     onClick: () => {
-                                        if (window.nan0gram && window.nan0gram.copyUkrnetError) {
+                                        if (window.Android && typeof window.Android.copyUkrnetError === "function") {
+                                            window.Android.copyUkrnetError(ukrnetError);
+                                            setToastMessage("Код ошибки скопирован в буфер");
+                                        } else if (window.nan0gram && window.nan0gram.copyUkrnetError) {
                                             window.nan0gram.copyUkrnetError(ukrnetError);
                                             setToastMessage("Код ошибки скопирован в буфер");
                                         } else {
@@ -733,10 +736,12 @@ function AppController() {
                                     },
                                     onClick: () => {
                                         setUkrnetError(null);
-                                        if (window.nan0gram && window.nan0gram.retryUkrnet) {
+                                        if (window.Android && typeof window.Android.retryUkrnet === "function") {
+                                            window.Android.retryUkrnet();
+                                        } else if (window.nan0gram && window.nan0gram.retryUkrnet) {
                                             window.nan0gram.retryUkrnet();
                                         } else {
-                                            window.location.reload();
+                                            console.log("[React] Нативная перезагрузка недоступна.");
                                         }
                                     },
                                     children: "Перезагрузить"
