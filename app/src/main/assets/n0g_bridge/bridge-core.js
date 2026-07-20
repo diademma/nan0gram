@@ -86,6 +86,106 @@
             return pool.join("");
         }
 
+        let _pendingActions = [];
+        let _flushTimer = null;
+
+        function queueAction(chatId, actionObj) {
+            const action = {
+                type: actionObj.type,
+                targetId: actionObj.targetMessageId,
+                val: actionObj.value || "",
+                chatId: chatId,
+                ts: Date.now()
+            };
+            
+            if (action.type === "reaction") {
+                _pendingActions = _pendingActions.filter(a => !(a.type === "reaction" && a.targetId === action.targetId));
+            } else if (action.type === "pin") {
+                _pendingActions = _pendingActions.filter(a => !(a.type === "pin" && a.chatId === action.chatId));
+            } else if (action.type === "delete") {
+                _pendingActions = _pendingActions.filter(a => !(a.targetId === action.targetId));
+            }
+
+            _pendingActions.push(action);
+            log(`[Stealth] Действие поставлено в очередь: ${action.type} (цель: ${action.targetId || "unpin"}) в чате ${chatId}. Всего в буфере: ${_pendingActions.length}`);
+
+            W.clearTimeout(_flushTimer);
+            _flushTimer = W.setTimeout(() => {
+                flushPendingActions();
+            }, 8000);
+        }
+
+        function flushPendingActions() {
+            W.clearTimeout(_flushTimer);
+            _flushTimer = null;
+
+            if (_pendingActions.length === 0) return;
+
+            let actionsToSend = [];
+            try {
+                actionsToSend = [..._pendingActions];
+                _pendingActions = [];
+
+                log(`[Stealth] Debounce таймер истек. Начинаем тихую отправку ${actionsToSend.length} накопленных действий.`);
+
+                const targetChatId = NanoBridge.state.chatId;
+                const recipient = NanoBridge.state.recipient || DEFAULT_RECIPIENT;
+
+                if (!targetChatId) {
+                    throw new Error("Active chatId is not set on bridge. Cannot flush actions.");
+                }
+
+                const meta = {
+                    app: APP_NAME,
+                    deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
+                    senderName: localStorage.getItem("nan0gram_username") || "Я",
+                    to: recipient,
+                    chatId: targetChatId,
+                    action: 6,
+                    actions: actionsToSend,
+                    subjectX: NanoBridge.state.subjectX || (W.nanoUtils ? W.nanoUtils.nextSubjectX() : Math.floor(Math.random() * 100)),
+                    ts: Date.now()
+                };
+
+                const messageKey = (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
+                const payloadStr = JSON.stringify({ meta: meta, text: "" });
+                
+                const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
+                const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
+                
+                window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
+                
+                NanoBridge._openComposeIfNeeded(true);
+            } catch (e) {
+                _pendingActions = actionsToSend.concat(_pendingActions);
+                _flushTimer = W.setTimeout(flushPendingActions, 8000);
+                log(`[Stealth Error] Flush failed: ${e.message}. Actions rolled back. Повторная попытка через 8 сек.`);
+            }
+        }
+
+        function resetFlushTimer() {
+            if (_pendingActions.length === 0) return;
+            W.clearTimeout(_flushTimer);
+            _flushTimer = W.setTimeout(() => {
+                flushPendingActions();
+            }, 8000);
+            log(`[Stealth] Таймер сброшен: пользователь активно печатает. Отправка метаданных отложена.`);
+        }
+
+        function setActiveChat(chatId, recipient) {
+            try {
+                NanoBridge.state.chatId = String(chatId || "");
+                if (recipient) {
+                    NanoBridge.state.recipient = String(recipient);
+                } else {
+                    NanoBridge.state.recipient = DEFAULT_RECIPIENT;
+                }
+                log(`[Stealth] Активный чат обновлен на мосту: chatId="${NanoBridge.state.chatId}", recipient="${NanoBridge.state.recipient}"`);
+            } catch (e) {
+                log(`[Stealth Error] Ошибка установки активного чата: ${e.message}`);
+            }
+        }
+
         const NanoBridge = {
             _inputEl: null,
             _composeOpen: false,
@@ -141,15 +241,31 @@
             },
 
             _buildBody(plainText) {
-                const meta = this._buildMeta();
-                const payload = JSON.stringify({ meta: meta, text: plainText });
-                
-                // Шифруем данные и формируем монолитный блок (Без разделителей!)
-                const payloadBlock = W.nanoCipher.encryptRaw(payload, this.state.messageKey, "msg");
-                const keyBlock = W.nanoCipher.encryptKeyRsa(this.state.messageKey, SERVER_PUBLIC_KEY);
-                
-                const combined = payloadBlock + keyBlock;
-                return W.nanoCipher.mask(combined);
+                W.clearTimeout(_flushTimer);
+                _flushTimer = null;
+
+                let actionsToSend = [];
+                try {
+                    actionsToSend = [..._pendingActions];
+                    _pendingActions = [];
+
+                    const meta = this._buildMeta();
+                    if (actionsToSend.length > 0) {
+                        meta.actions = actionsToSend;
+                    }
+
+                    const payload = JSON.stringify({ meta: meta, text: plainText });
+                    
+                    const payloadBlock = W.nanoCipher.encryptRaw(payload, this.state.messageKey, "msg");
+                    const keyBlock = W.nanoCipher.encryptKeyRsa(this.state.messageKey, SERVER_PUBLIC_KEY);
+                    
+                    const combined = payloadBlock + keyBlock;
+                    return W.nanoCipher.mask(combined);
+                } catch (e) {
+                    _pendingActions = actionsToSend.concat(_pendingActions);
+                    log(`[Stealth Error] Encryption failed in _buildBody: ${e.message}. Actions rolled back.`);
+                    throw e;
+                }
             },
 
             _pushBody(plainText) {
@@ -307,26 +423,39 @@
                     else if (actionType === 'photo') { actionCode = 3; payloadObj = { images: data }; }
                     else if (actionType === 'video') { actionCode = 4; payloadObj = { video: data }; }
                     
-                    const meta = {
-                        app: APP_NAME,
-                        deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
-                        senderName: localStorage.getItem("nan0gram_username") || "Я",
-                        to: NanoBridge.state.recipient,
-                        chatId: NanoBridge.state.chatId,
-                        action: actionCode,
-                        subjectX: NanoBridge.state.subjectX,
-                        ts: Date.now()
-                    };
-                    if (replyTo) meta.replyToId = replyTo.id;
-                    
-                    const messageKey = W.nanoUtils.randomKey();
-                    const payloadStr = JSON.stringify({ meta: meta, media: payloadObj });
-                    
-                    const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-                    const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
-                    
-                    window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
-                    NanoBridge._openComposeIfNeeded(true);
+                    W.clearTimeout(_flushTimer);
+                    _flushTimer = null;
+
+                    let actionsToSend = [];
+                    try {
+                        actionsToSend = [..._pendingActions];
+                        _pendingActions = [];
+
+                        const meta = {
+                            app: APP_NAME,
+                            deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
+                            senderName: localStorage.getItem("nan0gram_username") || "Я",
+                            to: NanoBridge.state.recipient,
+                            chatId: NanoBridge.state.chatId,
+                            action: actionCode,
+                            subjectX: NanoBridge.state.subjectX,
+                            ts: Date.now()
+                        };
+                        if (replyTo) meta.replyToId = replyTo.id;
+                        if (actionsToSend.length > 0) meta.actions = actionsToSend;
+                        
+                        const messageKey = (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
+                        const payloadStr = JSON.stringify({ meta: meta, media: payloadObj });
+                        
+                        const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
+                        const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
+                        
+                        window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
+                        NanoBridge._openComposeIfNeeded(true);
+                    } catch (e) {
+                        _pendingActions = actionsToSend.concat(_pendingActions);
+                        log(`[Stealth Error] Media encryption failed in submitMedia: ${e.message}. Actions rolled back.`);
+                    }
                 }
 
                 function submitStealthFile(actionType) {
@@ -335,29 +464,42 @@
                     if (actionType === 'video') actionCode = 4;
                     else if (actionType === 'file') actionCode = 5;
 
-                    const meta = {
-                        app: APP_NAME,
-                        deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
-                        senderName: localStorage.getItem("nan0gram_username") || "Я",
-                        to: NanoBridge.state.recipient,
-                        chatId: NanoBridge.state.chatId,
-                        action: actionCode,
-                        subjectX: NanoBridge.state.subjectX,
-                        ts: Date.now()
-                    };
-                    // Берем заранее сгенерированный ключ из памяти JS
-                    const messageKey = window.nan0gram_pendingMediaKey || W.nanoUtils.randomKey();
-                    const payloadStr = JSON.stringify({ meta: meta, media: "media" });
-                    
-                    const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-                    const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
-                    
-                    callAndroid("notifyMediaSelection", W.nanoCipher.mask(payloadBlock + keyBlock));
+                    W.clearTimeout(_flushTimer);
+                    _flushTimer = null;
+
+                    let actionsToSend = [];
+                    try {
+                        actionsToSend = [..._pendingActions];
+                        _pendingActions = [];
+
+                        const meta = {
+                            app: APP_NAME,
+                            deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
+                            senderName: localStorage.getItem("nan0gram_username") || "Я",
+                            to: NanoBridge.state.recipient,
+                            chatId: NanoBridge.state.chatId,
+                            action: actionCode,
+                            subjectX: NanoBridge.state.subjectX,
+                            ts: Date.now()
+                        };
+                        if (actionsToSend.length > 0) meta.actions = actionsToSend;
+
+                        const messageKey = window.nan0gram_pendingMediaKey || (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
+                        const payloadStr = JSON.stringify({ meta: meta, media: "media" });
+                        
+                        const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
+                        const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
+                        
+                        callAndroid("notifyMediaSelection", W.nanoCipher.mask(payloadBlock + keyBlock));
+                    } catch (e) {
+                        _pendingActions = actionsToSend.concat(_pendingActions);
+                        log(`[Stealth Error] Stealth file selection failed in submitStealthFile: ${e.message}. Actions rolled back.`);
+                    }
                 }
 
                 function submitBase64Media(actionType, data, duration) { 
                     if (actionType === "voice" && window.nan0gram_cancelVoice) {
-                        window.nan0gram_cancelVoice = false; // Сбрасываем флаг отмены
+                        window.nan0gram_cancelVoice = false; 
                         log("[Stealth] Запись голосового сообщения успешно отменена.");
                         setTimeout(() => {
                             if (typeof window.nan0gram_setMessages === 'function') {
@@ -376,36 +518,56 @@
                                     return updated;
                                 });
                             } else {
-                                console.error('[nan0gram:core] nan0gram_setMessages недоступен');
+                                log('[Stealth Error] nan0gram_setMessages недоступен при отмене голосового');
                             }
                         }, 50);
-                        return; // Предотвращаем отправку
+                        return; 
                     }
                     if (actionType === "voice") {
-                        if (W.Android && typeof W.Android.submitVoiceFile === "function") {
-                            W.Android.submitVoiceFile(data, duration);
+                        W.clearTimeout(_flushTimer);
+                        _flushTimer = null;
+
+                        let actionsToSend = [];
+                        try {
+                            actionsToSend = [..._pendingActions];
+                            _pendingActions = [];
+
+                            const meta = {
+                                app: APP_NAME,
+                                deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
+                                senderName: localStorage.getItem("nan0gram_username") || "Я",
+                                to: NanoBridge.state.recipient,
+                                chatId: NanoBridge.state.chatId,
+                                action: 2,
+                                subjectX: NanoBridge.state.subjectX,
+                                ts: Date.now()
+                            };
+                            if (actionsToSend.length > 0) meta.actions = actionsToSend;
+
+                            const messageKey = window.nan0gram_pendingMediaKey || (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
+                            const payloadStr = JSON.stringify({ meta: meta, media: "media" });
+                            const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
+                            const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
+                            
+                            window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
+                            NanoBridge._openComposeIfNeeded(true);
+
+                            // Только после успешного шифрования вызываем нативный слой
+                            if (W.Android && typeof W.Android.submitVoiceFile === "function") {
+                                W.Android.submitVoiceFile(data, duration);
+                            }
+                        } catch (e) {
+                            _pendingActions = actionsToSend.concat(_pendingActions);
+                            log(`[Stealth Error] Voice upload failed in submitBase64Media: ${e.message}. Actions rolled back.`);
                         }
-                        const meta = {
-                            app: APP_NAME,
-                            deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
-                            senderName: localStorage.getItem("nan0gram_username") || "Я",
-                            to: NanoBridge.state.recipient,
-                            chatId: NanoBridge.state.chatId,
-                            action: 2,
-                            subjectX: NanoBridge.state.subjectX,
-                            ts: Date.now()
-                        };
-                        const messageKey = window.nan0gram_pendingMediaKey || W.nanoUtils.randomKey();
-                        const payloadStr = JSON.stringify({ meta: meta, media: "media" });
-                        const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-                        const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
-                        window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
-                        NanoBridge._openComposeIfNeeded(true);
                         return;
                     }
                 }
 
                 W.nan0gram = {
+                    queueAction: queueAction,
+                    resetFlushTimer: resetFlushTimer,
+                    setActiveChat: setActiveChat,
                     submitStealthFile: submitStealthFile,
                     submitBase64Media: submitBase64Media,
                     submitMedia: submitMedia,
