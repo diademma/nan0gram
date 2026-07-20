@@ -203,6 +203,7 @@
                 chatId: "", recipient: DEFAULT_RECIPIENT, subjectX: 0,
                 subject: "", messageKey: "", systemBlock: "", keyBlock: "", openedAt: 0
             },
+            _replyToId: null,
 
             _findInput() {
                 if (this._inputEl && W.document.contains(this._inputEl)) return this._inputEl;
@@ -228,7 +229,7 @@
             },
 
             _buildMeta() {
-                return {
+                const meta = {
                     app: APP_NAME,
                     deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
                     senderName: localStorage.getItem("nan0gram_username") || "Я",
@@ -238,6 +239,8 @@
                     subjectX: this.state.subjectX,
                     ts: Date.now()
                 };
+                if (this._replyToId) meta.replyToId = this._replyToId;
+                return meta;
             },
 
             _buildBody(plainText) {
@@ -283,7 +286,7 @@
             },
 
             _openComposeIfNeeded(force = false) {
-                const chatId = this._getChatId();
+                const chatId = this.state.chatId || this._getChatId();
                 if (!force && this._composeOpen && this.state.chatId === chatId) return;
 
                 if (this._composeOpen && this.state.chatId && this.state.chatId !== chatId) {
@@ -333,6 +336,7 @@
                 this._pushBody(text);
                 callAndroid("submitCompose");
                 this._composeOpen = false;
+                this._replyToId = null;
 
                 W.setTimeout(() => {
                     this._sendPending = false;
@@ -584,6 +588,7 @@
                     submitCompose: (plainText) => NanoBridge._submitCompose(String(plainText || "")),
                     cancelCompose: () => NanoBridge._cancelCompose(),
                     rebuild: () => NanoBridge._pushBody(NanoBridge._lastText),
+                    setReplyContext: (replyToId) => { NanoBridge._replyToId = replyToId || null; },
                     state: () => ({ ...NanoBridge.state })
                 };
             }

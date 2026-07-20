@@ -57,16 +57,17 @@ function AppController() {
     const [offset, setOffset] = T.useState(0);
     const [ukrnetError, setUkrnetError] = T.useState(null);
 
+    const chatsRef = T.useRef(chats);
+    T.useEffect(() => { chatsRef.current = chats; }, [chats]);
+
     T.useEffect(() => {
         window.nan0gram_activeChatId = activeChatId;
-        if (activeChatId) {
-            const activeChatObj = chats.find(c => c.id === activeChatId);
+        if (activeChatId && window.nan0gram && typeof window.nan0gram.setActiveChat === 'function') {
+            const activeChatObj = chatsRef.current.find(c => c.id === activeChatId);
             const recipient = activeChatObj ? activeChatObj.username : undefined;
-            if (window.nan0gram && typeof window.nan0gram.setActiveChat === 'function') {
-                window.nan0gram.setActiveChat(activeChatId, recipient);
-            }
+            window.nan0gram.setActiveChat(activeChatId, recipient);
         }
-    }, [activeChatId, chats]);
+    }, [activeChatId]);
 
     const [pinnedMsgs, setPinnedMsgs] = T.useState(() => {
         try {

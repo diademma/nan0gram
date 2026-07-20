@@ -801,6 +801,12 @@ export function ChatArea({
         setPinnedMessageState(pinnedMessage || null);
     }, [pinnedMessage]);
 
+    T.useEffect(() => {
+        if (window.nan0gram && typeof window.nan0gram.setReplyContext === 'function') {
+            window.nan0gram.setReplyContext(replyMessage ? String(replyMessage.id) : null);
+        }
+    }, [replyMessage]);
+
     const resetInputState = T.useCallback(() => {
         setReplyMessage(null);
         setEditingMessageId(null);
