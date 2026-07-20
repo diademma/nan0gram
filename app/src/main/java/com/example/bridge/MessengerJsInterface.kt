@@ -276,4 +276,70 @@ class MessengerJsInterface(
     fun abandonFocus() {
         audio.abandonFocus()
     }
+
+    @JavascriptInterface
+    fun retryUkrnet() {
+        log("[JsInterface] Получен нативный запрос на перезапуск Укрнета.")
+        ukrnetRetryCounter = 0
+        isUkrnetRetrying = false
+        ui.post {
+            val ukr = getUkrnetWebView() ?: findUkrnetWebViewFromMessenger(getMessengerWebView?.invoke())
+            if (ukr != null) {
+                val currentUrl = ukr.url
+                if (currentUrl.isNullOrEmpty() || currentUrl == "about:blank") {
+                    log("[JsInterface] URL пуст, загружаем стартовую страницу Укрнета.")
+                    ukr.loadUrl("https://mail.ukr.net/desktop/login")
+                } else {
+                    log("[JsInterface] Выполняем принудительный reload страницы: $currentUrl")
+                    ukr.reload()
+                }
+            } else {
+                log("[JsInterface Error] Не удалось найти WebView Укрнета во всем дереве экранов для перезапуска.")
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun copyUkrnetError(err: String) {
+        log("[JsInterface] Нативный запрос на копирование кода ошибки.")
+        ui.post {
+            val ukr = getUkrnetWebView() ?: findUkrnetWebViewFromMessenger(getMessengerWebView?.invoke())
+            val ctx = ukr?.context ?: getMessengerWebView?.invoke()?.context
+            if (ctx != null) {
+                val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("Ukrnet Error", err)
+                clipboard?.setPrimaryClip(clip)
+                log("[Stealth] Текст ошибки скопирован в буфер обмена natively.")
+            } else {
+                log("[Stealth] Ошибка копирования: Context недоступен.")
+            }
+        }
+    }
+
+    private fun findUkrnetWebViewFromMessenger(messenger: WebView?): WebView? {
+        val ctx = messenger?.context ?: return null
+        var currentContext = ctx
+        while (currentContext is android.content.ContextWrapper) {
+            if (currentContext is android.app.Activity) {
+                val rootView = currentContext.window.decorView
+                return findWebViewByTag(rootView, "ukrnet")
+            }
+            currentContext = currentContext.baseContext
+        }
+        return null
+    }
+
+    private fun findWebViewByTag(view: android.view.View, tag: String): WebView? {
+        if (view is WebView && view.tag?.toString() == tag) {
+            return view
+        }
+        if (view is android.view.ViewGroup) {
+            for (i in 0 until view.childCount) {
+                val child = view.getChildAt(i)
+                val result = findWebViewByTag(child, tag)
+                if (result != null) return result
+            }
+        }
+        return null
+    }
 }
