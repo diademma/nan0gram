@@ -125,34 +125,60 @@ export function saveMessageToDb(messageDataObj) {
 }
 
 /**
- * Удаляет сообщение из БД SQLite.
+ * Удаляет сообщение из БД SQLite и ставит действие в очередь на отправку.
  * @param {string} chatId Идентификатор чата.
  * @param {string} messageId Идентификатор сообщения.
- * @returns {boolean} true при успешном вызове, false при недоступности моста.
+ * @returns {boolean} true при успешном вызове.
  */
 export function deleteMessageFromDb(chatId, messageId) {
     if (window.Android && typeof window.Android.deleteMessageFromDb === 'function') {
         window.Android.deleteMessageFromDb(chatId, String(messageId));
-        return true;
     }
-    console.warn("Native method window.Android.deleteMessageFromDb is not available.");
-    return false;
+    if (window.nan0gram && typeof window.nan0gram.queueAction === 'function') {
+        window.nan0gram.queueAction(chatId, {
+            type: "delete",
+            targetMessageId: String(messageId)
+        });
+    }
+    return true;
 }
 
 /**
- * Обновляет реакцию на сообщении в БД SQLite.
+ * Обновляет реакцию на сообщении в БД SQLite и ставит действие в очередь на отправку.
  * @param {string} chatId Идентификатор чата.
  * @param {string} messageId Идентификатор сообщения.
  * @param {string} reaction Текст или эмодзи реакции.
- * @returns {boolean} true при успешном вызове, false при недоступности моста.
+ * @returns {boolean} true при успешном вызове.
  */
 export function updateMessageReactionInDb(chatId, messageId, reaction) {
     if (window.Android && typeof window.Android.updateMessageReactionInDb === 'function') {
         window.Android.updateMessageReactionInDb(chatId, String(messageId), reaction);
-        return true;
     }
-    console.warn("Native method window.Android.updateMessageReactionInDb is not available.");
-    return false;
+    if (window.nan0gram && typeof window.nan0gram.queueAction === 'function') {
+        window.nan0gram.queueAction(chatId, {
+            type: "reaction",
+            targetMessageId: String(messageId),
+            value: reaction
+        });
+    }
+    return true;
+}
+
+/**
+ * Ставит действие по закреплению/откреплению сообщения в очередь на отправку.
+ * @param {string} chatId Идентификатор чата.
+ * @param {Object|null} message Объект сообщения для закрепа или null для открепления.
+ * @returns {boolean} true.
+ */
+export function pinMessage(chatId, message) {
+    if (window.nan0gram && typeof window.nan0gram.queueAction === 'function') {
+        window.nan0gram.queueAction(chatId, {
+            type: "pin",
+            targetMessageId: message ? String(message.id) : "",
+            value: message ? JSON.stringify(message) : ""
+        });
+    }
+    return true;
 }
 
 /**

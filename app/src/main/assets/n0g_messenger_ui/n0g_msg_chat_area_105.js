@@ -830,6 +830,10 @@ export function ChatArea({
         const target = e.target;
         target.style.height = "auto";
         target.style.height = Math.min(target.scrollHeight, 100) + "px";
+
+        if (window.nan0gram && typeof window.nan0gram.resetFlushTimer === 'function') {
+            window.nan0gram.resetFlushTimer();
+        }
     }, []);
 
     const handleMediaChange = T.useCallback(e => {

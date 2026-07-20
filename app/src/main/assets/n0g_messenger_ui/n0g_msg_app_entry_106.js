@@ -6,7 +6,8 @@ import {
     saveChatToDb, 
     saveMessageToDb, 
     deleteMessageFromDb, 
-    updateMessageReactionInDb 
+    updateMessageReactionInDb,
+    pinMessage
 } from './n0g_msg_bridge_102.js';
 import { Sidebar, ProfileModal, Lightbox, Toast } from './n0g_msg_ui_modals_104.js';
 import { ChatArea } from './n0g_msg_chat_area_105.js';
@@ -58,7 +59,14 @@ function AppController() {
 
     T.useEffect(() => {
         window.nan0gram_activeChatId = activeChatId;
-    }, [activeChatId]);
+        if (activeChatId) {
+            const activeChatObj = chats.find(c => c.id === activeChatId);
+            const recipient = activeChatObj ? activeChatObj.username : undefined;
+            if (window.nan0gram && typeof window.nan0gram.setActiveChat === 'function') {
+                window.nan0gram.setActiveChat(activeChatId, recipient);
+            }
+        }
+    }, [activeChatId, chats]);
 
     const [pinnedMsgs, setPinnedMsgs] = T.useState(() => {
         try {
@@ -517,6 +525,7 @@ function AppController() {
                 localStorage.setItem("nan0gram_pinned_messages", JSON.stringify(updated));
                 return updated;
             });
+            pinMessage(activeChatId, message);
         }
     }, [activeChatId]);
 
