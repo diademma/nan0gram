@@ -119,13 +119,8 @@ fun BridgeEffects(
         }
     }
 
-    // DOM-сканер координат (медленнее если compose уже найден)
-    LaunchedEffect(isBgServiceActive, ukrnetWebView) {
-        while (!isBgServiceActive && ukrnetWebView != null) {
-            delay(if (coords.composeX != null) 8000L else 1500L)
-            ukrnetWebView.evaluateJavascript(SCANNING_JS, null)
-        }
-    }
+    // DOM-сканер координат удалён: SMART_SCAN_JS инжектируется в onPageFinished
+    // и работает через MutationObserver без фонового поллинга.
 
     // Ридер входящих (включается кнопкой «Радар» в панели логов)
     LaunchedEffect(isBgServiceActive, ukrnetWebView, isParserEnabled) {
