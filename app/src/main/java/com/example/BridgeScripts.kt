@@ -1,8 +1,17 @@
 
 package com.example
 
-// ════════════════ ДОМ-селекторы веб-версии Ukr.net ═════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// ЕДИНЫЙ РЕЕСТР СЕЛЕКТОРОВ Ukr.net
+// Все CSS-селекторы хранятся ТОЛЬКО здесь.
+// Если Ukr.net изменит вёрстку — правим только этот файл.
+//
+// [SENDER]  — UkrnetWebView (отправка писем)
+// [READER]  — зарезервировано для будущего DraftsWebView (чтение черновиков)
+// ════════════════════════════════════════════════════════════════════════════
 object UkrnetSelectors {
+
+    // ── [SENDER] Основные элементы формы отправки ────────────────────────────
     const val COMPOSE_BUTTON = ".ml-header__compose"
     const val TO_INPUT = ".sm-auto-complete__input"
     const val SUBJECT_INPUT = "#sendmsg__subject"
@@ -11,11 +20,33 @@ object UkrnetSelectors {
     const val ATTACH_BUTTON = "button.sm-header__attach"
     const val CANCEL_BUTTON = ".sm-header__cancel"
 
-    // Индикаторы загрузки
+    // ── [SENDER] Индикаторы загрузки ─────────────────────────────────────────
     const val ATTACH_PROGRESS = ".sm-attachments__progress-state"
     const val LOADER = ".sm-header__loader"
 
-    // Селекторы списка писем и чтения для Радара
+    // ── [SENDER] Fallback-цепочки (порядок важен: специфичный → общий) ───────
+    const val ATTACH_BUTTON_FALLBACK = "[class*='attach']"
+    const val SEND_BUTTON_FALLBACK_SUBMIT = "button[type='submit']"
+    const val SEND_BUTTON_FALLBACK_DATA = "[data-id='send']"
+    const val SEND_BUTTON_FALLBACK_INPUT = "input[type='submit']"
+    const val SEND_BUTTON_FALLBACK_ARIA_UA = "[aria-label='Відправити']"
+    const val SEND_BUTTON_FALLBACK_ARIA_RU = "[aria-label='Отправить']"
+
+    const val TO_INPUT_FALLBACK_NAME = "input[name='to']"
+    const val TO_INPUT_FALLBACK_EMAIL = "input[type='email']"
+    const val TO_INPUT_FALLBACK_PLACEHOLDER = "input[placeholder]"
+
+    const val SUBJECT_INPUT_FALLBACK_NAME = "input[name='subject']"
+    const val SUBJECT_INPUT_FALLBACK_PLACEHOLDER = "input[placeholder*='ема']"
+
+    const val BODY_AREA_FALLBACK_EDITABLE = "[contenteditable='true']"
+    const val BODY_AREA_FALLBACK_NAME = "textarea[name='body']"
+    const val BODY_AREA_FALLBACK_TAG = "textarea"
+
+    const val ATTACH_CHIP_FALLBACK_ITEM = ".sm-auto-complete__item"
+    const val ATTACH_CHIP_FALLBACK_TOKEN = ".sm-auto-complete__token"
+
+    // ── [READER] Список писем и навигация — будущий DraftsWebView ────────────
     const val MAIL_ITEM = ".ml-item"
     const val MAIL_ITEM_VIEW = ".mli-view"
     const val MAIL_ITEM_TITLE = ".mli-view__title"
@@ -24,28 +55,6 @@ object UkrnetSelectors {
     const val READ_BODY = ".rm-body__content"
     const val READ_SUBJECT = ".readmsg__subject"
     const val BACK_BUTTON = ".rm-header__list"
-
-    // Вспомогательные и резервные селекторы
-    const val ATTACH_BUTTON_FALLBACK = "[class*='attach']"
-    const val SEND_BUTTON_FALLBACK_SUBMIT = "button[type='submit']"
-    const val SEND_BUTTON_FALLBACK_DATA = "[data-id='send']"
-    const val SEND_BUTTON_FALLBACK_INPUT = "input[type='submit']"
-    const val SEND_BUTTON_FALLBACK_ARIA_UA = "[aria-label='Відправити']"
-    const val SEND_BUTTON_FALLBACK_ARIA_RU = "[aria-label='Отправить']"
-    
-    const val TO_INPUT_FALLBACK_NAME = "input[name='to']"
-    const val TO_INPUT_FALLBACK_EMAIL = "input[type='email']"
-    const val TO_INPUT_FALLBACK_PLACEHOLDER = "input[placeholder]"
-    
-    const val SUBJECT_INPUT_FALLBACK_NAME = "input[name='subject']"
-    const val SUBJECT_INPUT_FALLBACK_PLACEHOLDER = "input[placeholder*='ема']"
-    
-    const val BODY_AREA_FALLBACK_EDITABLE = "[contenteditable='true']"
-    const val BODY_AREA_FALLBACK_NAME = "textarea[name='body']"
-    const val BODY_AREA_FALLBACK_TAG = "textarea"
-
-    const val ATTACH_CHIP_FALLBACK_ITEM = ".sm-auto-complete__item"
-    const val ATTACH_CHIP_FALLBACK_TOKEN = ".sm-auto-complete__token"
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
