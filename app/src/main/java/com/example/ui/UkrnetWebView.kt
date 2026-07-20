@@ -104,6 +104,7 @@ internal fun buildUkrnetWebView(
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     view?.evaluateJavascript(MONITORING_JS, null)
+                    view?.evaluateJavascript(SMART_SCAN_JS, null)
                     
                     if (url != null && !url.startsWith("chrome-error") && !url.startsWith("data:") && !url.contains("error") && !isUkrnetRetrying) {
                         ukrnetRetryCounter = 0
