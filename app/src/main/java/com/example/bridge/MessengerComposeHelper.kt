@@ -92,16 +92,27 @@ internal class MessengerComposeHelper(
             isUkrnetRetrying = false
             log("[Compose] Получена команда перезапуска сети. Сбрасываем счетчики и перезагружаем Ukrnet.")
             ui.post {
-                val ukr = getUkrnetWebView()
-                ukr?.loadUrl("https://mail.ukr.net/touch/u0/sendmsg/")
+                val ukr = getUkrnetWebView() ?: findUkrnetWebViewFromMessenger(getMessengerWebView())
+                if (ukr != null) {
+                    val currentUrl = ukr.url
+                    if (currentUrl.isNullOrEmpty() || currentUrl == "about:blank") {
+                        log("[Compose] URL пуст, загружаем стартовую страницу Укрнета.")
+                        ukr.loadUrl("https://mail.ukr.net/desktop/login")
+                    } else {
+                        log("[Compose] Выполняем принудительный reload страницы: $currentUrl")
+                        ukr.reload()
+                    }
+                } else {
+                    log("[Compose Error] Не удалось найти WebView Укрнета во всем дереве экранов для перезапуска.")
+                }
             }
             return
         }
         if (configJson.startsWith("COPY_ERROR:")) {
             val err = configJson.substring(11)
             ui.post {
-                val ukr = getUkrnetWebView()
-                val ctx = ukr?.context
+                val ukr = getUkrnetWebView() ?: findUkrnetWebViewFromMessenger(getMessengerWebView())
+                val ctx = ukr?.context ?: getMessengerWebView()?.context
                 if (ctx != null) {
                     val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                     val clip = android.content.ClipData.newPlainText("Ukrnet Error", err)
