@@ -254,4 +254,31 @@ internal class MessengerComposeHelper(
             }
         }
     }
+
+    private fun findUkrnetWebViewFromMessenger(messenger: WebView?): WebView? {
+        val ctx = messenger?.context ?: return null
+        var currentContext = ctx
+        while (currentContext is android.content.ContextWrapper) {
+            if (currentContext is android.app.Activity) {
+                val rootView = currentContext.window.decorView
+                return findWebViewByTag(rootView, "ukrnet")
+            }
+            currentContext = currentContext.baseContext
+        }
+        return null
+    }
+
+    private fun findWebViewByTag(view: android.view.View, tag: String): WebView? {
+        if (view is WebView && view.tag == tag) {
+            return view
+        }
+        if (view is android.view.ViewGroup) {
+            for (i in 0 until view.childCount) {
+                val child = view.getChildAt(i)
+                val result = findWebViewByTag(child, tag)
+                if (result != null) return result
+            }
+        }
+        return null
+    }
 }
