@@ -1,8 +1,17 @@
 
 package com.example
 
-// ════════════════ ДОМ-селекторы веб-версии Ukr.net ═════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// ЕДИНЫЙ РЕЕСТР СЕЛЕКТОРОВ Ukr.net
+// Все CSS-селекторы хранятся ТОЛЬКО здесь.
+// Если Ukr.net изменит вёрстку — правим только этот файл.
+//
+// [SENDER]  — UkrnetWebView (отправка писем)
+// [READER]  — зарезервировано для будущего DraftsWebView (чтение черновиков)
+// ════════════════════════════════════════════════════════════════════════════
 object UkrnetSelectors {
+
+    // ── [SENDER] Основные элементы формы отправки ────────────────────────────
     const val COMPOSE_BUTTON = ".ml-header__compose"
     const val TO_INPUT = ".sm-auto-complete__input"
     const val SUBJECT_INPUT = "#sendmsg__subject"
@@ -11,11 +20,33 @@ object UkrnetSelectors {
     const val ATTACH_BUTTON = "button.sm-header__attach"
     const val CANCEL_BUTTON = ".sm-header__cancel"
 
-    // Индикаторы загрузки
+    // ── [SENDER] Индикаторы загрузки ─────────────────────────────────────────
     const val ATTACH_PROGRESS = ".sm-attachments__progress-state"
     const val LOADER = ".sm-header__loader"
 
-    // Селекторы списка писем и чтения для Радара
+    // ── [SENDER] Fallback-цепочки (порядок важен: специфичный → общий) ───────
+    const val ATTACH_BUTTON_FALLBACK = "[class*='attach']"
+    const val SEND_BUTTON_FALLBACK_SUBMIT = "button[type='submit']"
+    const val SEND_BUTTON_FALLBACK_DATA = "[data-id='send']"
+    const val SEND_BUTTON_FALLBACK_INPUT = "input[type='submit']"
+    const val SEND_BUTTON_FALLBACK_ARIA_UA = "[aria-label='Відправити']"
+    const val SEND_BUTTON_FALLBACK_ARIA_RU = "[aria-label='Отправить']"
+
+    const val TO_INPUT_FALLBACK_NAME = "input[name='to']"
+    const val TO_INPUT_FALLBACK_EMAIL = "input[type='email']"
+    const val TO_INPUT_FALLBACK_PLACEHOLDER = "input[placeholder]"
+
+    const val SUBJECT_INPUT_FALLBACK_NAME = "input[name='subject']"
+    const val SUBJECT_INPUT_FALLBACK_PLACEHOLDER = "input[placeholder*='ема']"
+
+    const val BODY_AREA_FALLBACK_EDITABLE = "[contenteditable='true']"
+    const val BODY_AREA_FALLBACK_NAME = "textarea[name='body']"
+    const val BODY_AREA_FALLBACK_TAG = "textarea"
+
+    const val ATTACH_CHIP_FALLBACK_ITEM = ".sm-auto-complete__item"
+    const val ATTACH_CHIP_FALLBACK_TOKEN = ".sm-auto-complete__token"
+
+    // ── [READER] Список писем и навигация — будущий DraftsWebView ────────────
     const val MAIL_ITEM = ".ml-item"
     const val MAIL_ITEM_VIEW = ".mli-view"
     const val MAIL_ITEM_TITLE = ".mli-view__title"
@@ -24,28 +55,6 @@ object UkrnetSelectors {
     const val READ_BODY = ".rm-body__content"
     const val READ_SUBJECT = ".readmsg__subject"
     const val BACK_BUTTON = ".rm-header__list"
-
-    // Вспомогательные и резервные селекторы
-    const val ATTACH_BUTTON_FALLBACK = "[class*='attach']"
-    const val SEND_BUTTON_FALLBACK_SUBMIT = "button[type='submit']"
-    const val SEND_BUTTON_FALLBACK_DATA = "[data-id='send']"
-    const val SEND_BUTTON_FALLBACK_INPUT = "input[type='submit']"
-    const val SEND_BUTTON_FALLBACK_ARIA_UA = "[aria-label='Відправити']"
-    const val SEND_BUTTON_FALLBACK_ARIA_RU = "[aria-label='Отправить']"
-    
-    const val TO_INPUT_FALLBACK_NAME = "input[name='to']"
-    const val TO_INPUT_FALLBACK_EMAIL = "input[type='email']"
-    const val TO_INPUT_FALLBACK_PLACEHOLDER = "input[placeholder]"
-    
-    const val SUBJECT_INPUT_FALLBACK_NAME = "input[name='subject']"
-    const val SUBJECT_INPUT_FALLBACK_PLACEHOLDER = "input[placeholder*='ема']"
-    
-    const val BODY_AREA_FALLBACK_EDITABLE = "[contenteditable='true']"
-    const val BODY_AREA_FALLBACK_NAME = "textarea[name='body']"
-    const val BODY_AREA_FALLBACK_TAG = "textarea"
-
-    const val ATTACH_CHIP_FALLBACK_ITEM = ".sm-auto-complete__item"
-    const val ATTACH_CHIP_FALLBACK_TOKEN = ".sm-auto-complete__token"
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -98,24 +107,48 @@ internal val MONITORING_JS = """
     } catch(e) {}
 """.trimIndent()
 
-// ─── DOM-сканер координат ──────────────────────────────────────────────────
-internal val SCANNING_JS = """
+// ─── Умный событийный сканер координат ────────────────────────────────────
+// Заменяет поллинг каждые 1500–8000 мс на MutationObserver с дебаунсом 300 мс.
+// Инжектируется один раз в onPageFinished и живёт весь сеанс:
+// перехватывает появление/исчезновение элементов при SPA-навигации.
+internal val SMART_SCAN_JS = """
     (function() {
-        function getCoords(el) {
-            if (!el) return null;
-            var r = el.getBoundingClientRect();
-            if (r.width === 0 || r.height === 0) return null;
-            return { x: Math.round(r.left + r.width/2), y: Math.round(r.top + r.height/2) };
+        try {
+            if (window._n0gScanActive) return;
+            window._n0gScanActive = true;
+            var debounceTimer = null;
+            function getCoords(el) {
+                if (!el) return null;
+                var r = el.getBoundingClientRect();
+                if (r.width === 0 || r.height === 0) return null;
+                return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+            }
+            function report() {
+                try {
+                    var result = {
+                        compose: getCoords(document.querySelector("${UkrnetSelectors.COMPOSE_BUTTON}")),
+                        to:      getCoords(document.querySelector("${UkrnetSelectors.TO_INPUT}")),
+                        subject: getCoords(document.querySelector("${UkrnetSelectors.SUBJECT_INPUT}")),
+                        body:    getCoords(document.querySelector("${UkrnetSelectors.BODY_AREA}")),
+                        send:    getCoords(document.querySelector("${UkrnetSelectors.SEND_BUTTON}"))
+                    };
+                    if (window.Android && window.Android.postCoordinates)
+                        window.Android.postCoordinates(JSON.stringify(result));
+                } catch (re) {}
+            }
+            function scheduleReport() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(report, 300);
+            }
+            report();
+            window._n0gScanObserver = new MutationObserver(scheduleReport);
+            window._n0gScanObserver.observe(
+                document.body || document.documentElement,
+                { childList: true, subtree: true }
+            );
+        } catch (e) {
+            console.error('[SMART_SCAN] Error:', e.message);
         }
-        var result = {
-            compose: getCoords(document.querySelector("${UkrnetSelectors.COMPOSE_BUTTON}")),
-            to:      getCoords(document.querySelector("${UkrnetSelectors.TO_INPUT}")),
-            subject: getCoords(document.querySelector("${UkrnetSelectors.SUBJECT_INPUT}")),
-            body:    getCoords(document.querySelector("${UkrnetSelectors.BODY_AREA}")),
-            send:    getCoords(document.querySelector("${UkrnetSelectors.SEND_BUTTON}"))
-        };
-        if (window.Android && window.Android.postCoordinates)
-            window.Android.postCoordinates(JSON.stringify(result));
     })();
 """.trimIndent()
 
