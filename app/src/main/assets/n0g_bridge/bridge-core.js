@@ -90,33 +90,24 @@
         let _flushTimer = null;
 
         function queueAction(chatId, actionObj) {
-            let actItem = null;
-            if (actionObj.type === "reaction") {
-                actItem = {
-                    t: W.MsgTypes.REACT,
-                    ref: String(actionObj.targetMessageId),
-                    e: actionObj.value || ""
-                };
-                _pendingActions = _pendingActions.filter(a => !(a.t === W.MsgTypes.REACT && a.ref === actItem.ref));
-            } else if (actionObj.type === "pin") {
-                actItem = {
-                    t: W.MsgTypes.PIN,
-                    ref: String(actionObj.targetMessageId),
-                    p: actionObj.value ? 1 : 0
-                };
-                _pendingActions = _pendingActions.filter(a => !(a.t === W.MsgTypes.PIN && a.ref === actItem.ref));
-            } else if (actionObj.type === "delete") {
-                actItem = {
-                    t: W.MsgTypes.DELETE,
-                    ref: String(actionObj.targetMessageId)
-                };
-                _pendingActions = _pendingActions.filter(a => a.ref !== actItem.ref);
+            const action = {
+                type: actionObj.type,
+                targetId: actionObj.targetMessageId,
+                val: actionObj.value || "",
+                chatId: chatId,
+                ts: Date.now()
+            };
+            
+            if (action.type === "reaction") {
+                _pendingActions = _pendingActions.filter(a => !(a.type === "reaction" && a.targetId === action.targetId));
+            } else if (action.type === "pin") {
+                _pendingActions = _pendingActions.filter(a => !(a.type === "pin" && a.chatId === action.chatId));
+            } else if (action.type === "delete") {
+                _pendingActions = _pendingActions.filter(a => !(a.targetId === action.targetId));
             }
 
-            if (actItem) {
-                _pendingActions.push(actItem);
-                log("[Stealth] Queue updated, item added, size: " + _pendingActions.length);
-            }
+            _pendingActions.push(action);
+            log(`[Stealth] Действие поставлено в очередь: ${action.type} (цель: ${action.targetId || "unpin"}) в чате ${chatId}. Всего в буфере: ${_pendingActions.length}`);
 
             W.clearTimeout(_flushTimer);
             _flushTimer = W.setTimeout(() => {
@@ -135,7 +126,7 @@
                 actionsToSend = [..._pendingActions];
                 _pendingActions = [];
 
-                log(`[Stealth] Debounce таймер истек. Начинаем тихую отправку ${actionsToSend.length} накопленных действий.`);
+                log("[Stealth] Debounce timer expired. Flushing queued actions: " + actionsToSend.length);
 
                 const targetChatId = NanoBridge.state.chatId;
                 const recipient = NanoBridge.state.recipient || DEFAULT_RECIPIENT;
@@ -145,13 +136,13 @@
                 }
 
                 const meta = {
+                    v: 1,
                     app: APP_NAME,
                     deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
                     senderName: localStorage.getItem("nan0gram_username") || "Я",
                     to: recipient,
                     chatId: targetChatId,
-                    action: 6,
-                    actions: actionsToSend,
+                    blocks: actionsToSend,
                     subjectX: NanoBridge.state.subjectX || (W.nanoUtils ? W.nanoUtils.nextSubjectX() : Math.floor(Math.random() * 100)),
                     ts: Date.now()
                 };
@@ -168,7 +159,7 @@
             } catch (e) {
                 _pendingActions = actionsToSend.concat(_pendingActions);
                 _flushTimer = W.setTimeout(flushPendingActions, 8000);
-                log(`[Stealth Error] Flush failed: ${e.message}. Actions rolled back. Повторная попытка через 8 сек.`);
+                log("[Stealth Error] Flush failed: " + e.message + ". Actions rolled back.");
             }
         }
 
