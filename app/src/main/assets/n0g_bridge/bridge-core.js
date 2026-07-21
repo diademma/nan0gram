@@ -230,16 +230,22 @@
 
             _buildMeta() {
                 const meta = {
+                    v: 1,
                     app: APP_NAME,
                     deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
                     senderName: localStorage.getItem("nan0gram_username") || "Я",
                     to: this.state.recipient,
                     chatId: this.state.chatId,
-                    action: 1,
+                    blocks: [],
                     subjectX: this.state.subjectX,
                     ts: Date.now()
                 };
-                if (this._replyToId) meta.replyToId = this._replyToId;
+                if (this._replyToId) {
+                    meta.blocks.push({
+                        t: W.MsgTypes.REPLY,
+                        ref: String(this._replyToId)
+                    });
+                }
                 return meta;
             },
 
@@ -253,8 +259,10 @@
                     _pendingActions = [];
 
                     const meta = this._buildMeta();
+                    meta.blocks.push({ t: W.MsgTypes.TEXT });
+                    
                     if (actionsToSend.length > 0) {
-                        meta.actions = actionsToSend;
+                        meta.blocks = meta.blocks.concat(actionsToSend);
                     }
 
                     const payload = JSON.stringify({ meta: meta, text: plainText });
@@ -266,7 +274,7 @@
                     return W.nanoCipher.mask(combined);
                 } catch (e) {
                     _pendingActions = actionsToSend.concat(_pendingActions);
-                    log(`[Stealth Error] Encryption failed in _buildBody: ${e.message}. Actions rolled back.`);
+                    log("[Stealth Error] Encryption failed in _buildBody: " + e.message);
                     throw e;
                 }
             },
