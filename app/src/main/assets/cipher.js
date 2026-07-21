@@ -205,10 +205,11 @@
                 const meta = payload.meta;
                 const text = payload.text || "";
                 const shift = getShiftValue(text);
+                const chatId = meta.chatId || "";
                 const blocks = meta.blocks || [];
                 const formattedBlocks = blocks.map(bUnit => {
                     const tPrime = shiftType(bUnit.t, shift);
-                    let args = [tPrime];
+                    let args = [tPrime, chatId];
                     if (bUnit.ref) {
                         args.push(shiftDigits(bUnit.ref, shift));
                     }
