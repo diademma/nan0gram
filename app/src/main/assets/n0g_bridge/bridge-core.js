@@ -642,6 +642,25 @@
                     },
                     setComposeBody: (plainText) => NanoBridge._pushBody(String(plainText || "")),
                     submitCompose: (plainText) => NanoBridge._submitCompose(String(plainText || "")),
+                    submitEdit: (chatId, msgId, newText) => {
+                        const meta = {
+                            v: 1,
+                            app: APP_NAME,
+                            deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
+                            senderName: localStorage.getItem("nan0gram_username") || "Я",
+                            to: NanoBridge.state.recipient,
+                            chatId: chatId,
+                            blocks: [{ t: W.MsgTypes.EDIT, ref: String(msgId) }],
+                            subjectX: NanoBridge.state.subjectX,
+                            ts: Date.now()
+                        };
+                        const messageKey = (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
+                        const payloadStr = JSON.stringify({ meta: meta, text: newText });
+                        const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
+                        const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
+                        window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
+                        NanoBridge._openComposeIfNeeded(true);
+                    },
                     cancelCompose: () => NanoBridge._cancelCompose(),
                     rebuild: () => NanoBridge._pushBody(NanoBridge._lastText),
                     setReplyContext: (replyToId) => { NanoBridge._replyToId = replyToId || null; },

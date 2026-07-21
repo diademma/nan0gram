@@ -493,6 +493,10 @@ function AppController() {
                             reaction: newMsg.reaction || ""
                         });
 
+                        if (window.nan0gram && typeof window.nan0gram.submitEdit === 'function') {
+                            window.nan0gram.submitEdit(activeChatId, String(msgId), newText);
+                        }
+
                         return { 
                             ...newMsg, 
                             mediaType: mediaType,
@@ -513,22 +517,40 @@ function AppController() {
         if (activeChatId) {
             setMessages(prev => ({
                 ...prev,
-                [activeChatId]: prev[activeChatId].filter(msg => msg.id !== msgId)
+                [activeChatId]: (prev[activeChatId] || []).filter(msg => msg.id !== msgId)
             }));
             deleteMessageFromDb(activeChatId, String(msgId));
+
+            if (window.nan0gram && typeof window.nan0gram.queueAction === 'function') {
+                window.nan0gram.queueAction(activeChatId, {
+                    type: "delete",
+                    targetMessageId: String(msgId)
+                });
+            }
         }
     }, [activeChatId]);
 
     const handlePinMessage = T.useCallback(message => {
         if (activeChatId) {
+            const currentPinned = pinnedMsgs[activeChatId];
+            const targetId = message ? String(message.id) : (currentPinned ? String(currentPinned.id) : "");
+
             setPinnedMsgs(prev => {
                 const updated = { ...prev, [activeChatId]: message };
                 localStorage.setItem("nan0gram_pinned_messages", JSON.stringify(updated));
                 return updated;
             });
             pinMessage(activeChatId, message);
+
+            if (targetId && window.nan0gram && typeof window.nan0gram.queueAction === 'function') {
+                window.nan0gram.queueAction(activeChatId, {
+                    type: "pin",
+                    targetMessageId: targetId,
+                    value: message ? 1 : 0
+                });
+            }
         }
-    }, [activeChatId]);
+    }, [activeChatId, pinnedMsgs]);
 
     const handleToggleReaction = T.useCallback((msgId, reactionSymbol) => {
         if (activeChatId) {
@@ -545,6 +567,14 @@ function AppController() {
             }));
 
             updateMessageReactionInDb(activeChatId, String(msgId), nextReaction);
+
+            if (window.nan0gram && typeof window.nan0gram.queueAction === 'function') {
+                window.nan0gram.queueAction(activeChatId, {
+                    type: "reaction",
+                    targetMessageId: String(msgId),
+                    value: nextReaction
+                });
+            }
         }
     }, [activeChatId, messages]);
 
