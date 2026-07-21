@@ -212,6 +212,7 @@ export function SettingsPanel({
     const [sidebarDarkness, setSidebarDarkness] = T.useState(() => Number(localStorage.getItem("nan0gram_sidebar_darkness") || "50"));
     const [username, setUsername] = T.useState(() => localStorage.getItem("nan0gram_username") || "Я");
     const [copied, setCopied] = T.useState(false);
+    const [encryptMessages, setEncryptMessages] = T.useState(() => localStorage.getItem("nan0gram_encrypt_messages") === "true");
 
     const deviceId = getDeviceId();
 

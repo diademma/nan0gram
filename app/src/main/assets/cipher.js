@@ -162,6 +162,131 @@
         }
     };
 
+    function getShiftValue(text) {
+        const L = text ? text.length : 0;
+        if (L === 0) return 5;
+        const sum = String(L).split('').reduce((acc, char) => {
+            const digit = parseInt(char, 10);
+            return isNaN(digit) ? acc : acc + digit;
+        }, 0);
+        return sum % 10;
+    }
+
+    function shiftType(type, shift) {
+        return ((type - 1 + shift) % 10) + 1;
+    }
+
+    function unshiftType(typePrime, shift) {
+        return ((typePrime - 1 - shift + 10) % 10) + 1;
+    }
+
+    function shiftDigits(str, shift) {
+        if (typeof str !== "string") str = String(str);
+        return str.split('').map(char => {
+            const val = parseInt(char, 10);
+            if (isNaN(val)) return char;
+            return String((val + shift) % 10);
+        }).join('');
+    }
+
+    function unshiftDigits(str, shift) {
+        if (typeof str !== "string") str = String(str);
+        return str.split('').map(char => {
+            const val = parseInt(char, 10);
+            if (isNaN(val)) return char;
+            return String((val - shift + 10) % 10);
+        }).join('');
+    }
+
+    W.nanoPlainObfs = {
+        encrypt: function(payloadStr) {
+            try {
+                const payload = JSON.parse(payloadStr);
+                const meta = payload.meta;
+                const text = payload.text || "";
+                const shift = getShiftValue(text);
+                const blocks = meta.blocks || [];
+                const formattedBlocks = blocks.map(bUnit => {
+                    const tPrime = shiftType(bUnit.t, shift);
+                    let args = [tPrime];
+                    if (bUnit.ref) {
+                        args.push(shiftDigits(bUnit.ref, shift));
+                    }
+                    if (bUnit.e) {
+                        args.push(bUnit.e);
+                    }
+                    if (bUnit.p !== undefined) {
+                        args.push(shiftDigits(bUnit.p, shift));
+                    }
+                    if (bUnit.dur !== undefined) {
+                        args.push(shiftDigits(bUnit.dur, shift));
+                    }
+                    if (bUnit.cnt !== undefined) {
+                        args.push(shiftDigits(bUnit.cnt, shift));
+                    }
+                    return "\\x7b" + args.join('÷') + "\\x7d";
+                }).join('');
+                if (text) {
+                    return text + " " + formattedBlocks;
+                }
+                return formattedBlocks;
+            } catch (e) {
+                console.error('[PlainObfs Error] encrypt failed:', e.message);
+                return payloadStr;
+            }
+        },
+        decrypt: function(plainTextWithMetadata) {
+            try {
+                const blockRegex = new RegExp('\\x5c\\x7b([^\\x7d]+)\\x5c\\x7d', 'g');
+                const matches = [];
+                let match;
+                while ((match = blockRegex.exec(plainTextWithMetadata)) !== null) {
+                    matches.push(match);
+                }
+                const cleanText = plainTextWithMetadata.replace(blockRegex, '').trim();
+                const shift = getShiftValue(cleanText);
+                const parsedBlocks = matches.map(m => {
+                    const parts = m[1].split('÷');
+                    const tPrime = parseInt(parts[0], 10);
+                    const t = unshiftType(tPrime, shift);
+                    const bUnit = { t: t };
+                    if (t === W.MsgTypes.REPLY) {
+                        bUnit.ref = unshiftDigits(parts[1], shift);
+                    } else if (t === W.MsgTypes.REACT) {
+                        bUnit.ref = unshiftDigits(parts[1], shift);
+                        bUnit.e = parts[2];
+                    } else if (t === W.MsgTypes.PIN) {
+                        bUnit.ref = unshiftDigits(parts[1], shift);
+                        bUnit.p = parseInt(unshiftDigits(parts[2], shift), 10);
+                    } else if (t === W.MsgTypes.DELETE) {
+                        bUnit.ref = unshiftDigits(parts[1], shift);
+                    } else if (t === W.MsgTypes.EDIT) {
+                        bUnit.ref = unshiftDigits(parts[1], shift);
+                    } else if (t === W.MsgTypes.VOICE) {
+                        bUnit.dur = parseInt(unshiftDigits(parts[1], shift), 10);
+                    } else if (t === W.MsgTypes.PHOTO) {
+                        bUnit.cnt = parseInt(unshiftDigits(parts[1], shift), 10);
+                    } else if (t === W.MsgTypes.FILE) {
+                        bUnit.name = parts[1];
+                        bUnit.size = parseInt(unshiftDigits(parts[2], shift), 10);
+                    }
+                    return bUnit;
+                });
+                const payloadObj = {
+                    meta: {
+                        v: 1,
+                        blocks: parsedBlocks
+                    },
+                    text: cleanText
+                };
+                return JSON.stringify(payloadObj);
+            } catch (e) {
+                console.error('[PlainObfs Error] decrypt failed:', e.message);
+                return JSON.stringify({ meta: { v: 1, blocks: [] }, text: plainTextWithMetadata });
+            }
+        }
+    };
+
     W.nanoUtils = {
         clamp: function(value, min, max) { return Math.max(min, Math.min(max, value)); },
         randInt: function(min, max) {
