@@ -807,28 +807,34 @@
                 parsed.forEach(msg => {
                     try {
                         const rawBody = msg.text.trim();
-                        const clean = rawBody.replace(/\s+/g, "");
-                        
-                        const keyBlockLength = 342;
-                        if (clean.length <= keyBlockLength) return;
-                        
-                        const payloadBlock = clean.substring(0, clean.length - keyBlockLength);
-                        const keyBlock = clean.substring(clean.length - keyBlockLength);
-                        
-                        const privateKey = (window.Android && typeof window.Android.getSettingString === "function") 
-                            ? window.Android.getSettingString("private_key", "") 
-                            : "";
-                        
-                        if (!privateKey) return;
-                        
-                        const stdKeyBlock = W.nanoCipher.customToStd(keyBlock);
-                        const decryptedAesKey = (window.Android && typeof window.Android.decryptRsa === "function")
-                            ? window.Android.decryptRsa(stdKeyBlock, privateKey)
-                            : "";
-                        
-                        if (!decryptedAesKey) return;
-                        
-                        const decryptedJsonStr = W.nanoCipher.decryptRaw(payloadBlock, decryptedAesKey);
+                        let decryptedJsonStr = null;
+
+                        if (rawBody.includes("\x7b") && rawBody.includes("\x7d")) {
+                            decryptedJsonStr = W.nanoPlainObfs.decrypt(rawBody);
+                        } else {
+                            const clean = rawBody.replace(/\s+/g, "");
+                            const keyBlockLength = 342;
+                            if (clean.length > keyBlockLength) {
+                                const payloadBlock = clean.substring(0, clean.length - keyBlockLength);
+                                const keyBlock = clean.substring(clean.length - keyBlockLength);
+                                
+                                const privateKey = (window.Android && typeof window.Android.getSettingString === "function") 
+                                    ? window.Android.getSettingString("private_key", "") 
+                                    : "";
+                                
+                                if (privateKey) {
+                                    const stdKeyBlock = W.nanoCipher.customToStd(keyBlock);
+                                    const decryptedAesKey = (window.Android && typeof window.Android.decryptRsa === "function")
+                                        ? window.Android.decryptRsa(stdKeyBlock, privateKey)
+                                        : "";
+                                    
+                                    if (decryptedAesKey) {
+                                        decryptedJsonStr = W.nanoCipher.decryptRaw(payloadBlock, decryptedAesKey);
+                                    }
+                                }
+                            }
+                        }
+
                         if (!decryptedJsonStr || decryptedJsonStr.startsWith("[Ошибка"/*]*/)) return;
                         
                         const payloadObj = JSON.parse(decryptedJsonStr);
