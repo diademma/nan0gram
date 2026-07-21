@@ -48,7 +48,10 @@ data class MessageEntity(
     val fileSize: Long,
     val audioDuration: Int,
     val replyToId: String,
-    val reaction: String
+    val reaction: String,
+    val isPinned: Boolean = false,
+    val editedText: String = "",
+    val schemaVer: Int = 1
 )
 
 // ============================================================================
@@ -98,17 +101,33 @@ interface ChatDao {
     // Обновление реакции
     @Query("UPDATE messages SET reaction = :reaction WHERE chatId = :chatId AND msgId = :msgId")
     suspend fun updateReaction(chatId: String, msgId: String, reaction: String)
+
+    // Обновление статуса закрепа сообщения
+    @Query("UPDATE messages SET isPinned = :isPinned WHERE chatId = :chatId AND msgId = :msgId")
+    suspend fun updatePinStatus(chatId: String, msgId: String, isPinned: Boolean)
+
+    // Обновление измененного текста сообщения
+    @Query("UPDATE messages SET text = :text, editedText = :editedText WHERE chatId = :chatId AND msgId = :msgId")
+    suspend fun updateEditedText(chatId: String, msgId: String, text: String, editedText: String)
 }
 
 // ============================================================================
 // 3. ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ
 // ============================================================================
 
-@Database(entities = [ChatEntity::class, MessageEntity::class], version = 1, exportSchema = false)
+@Database(entities = [ChatEntity::class, MessageEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
 
     companion object {
+        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(database: androidx.sqlite.db.SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE messages ADD COLUMN isPinned INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE messages ADD COLUMN editedText TEXT NOT NULL DEFAULT ''")
+                database.execSQL("ALTER TABLE messages ADD COLUMN schemaVer INTEGER NOT NULL DEFAULT 1")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -119,6 +138,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "nan0gram_database"
                 )
+                .addMigrations(MIGRATION_1_2)
                 .fallbackToDestructiveMigration() // При смене структуры БД старые данные стираются без крэша
                 .build()
                 INSTANCE = instance
@@ -215,6 +235,26 @@ class NanogramRepository(
             log("[DB] Обновлена реакция ($reaction) для сообщения $msgId в чате $chatId")
         } catch (e: Exception) {
             log("[DB Error] Ошибка обновления реакции: ${e.message}")
+        }
+    }
+
+    // Обновление статуса закрепа сообщения
+    suspend fun updatePinStatus(chatId: String, msgId: String, isPinned: Boolean) = withContext(Dispatchers.IO) {
+        try {
+            dao.updatePinStatus(chatId, msgId, isPinned)
+            log("[DB] Обновлен статус закрепа ($isPinned) для сообщения $msgId в чате $chatId")
+        } catch (e: Exception) {
+            log("[DB Error] Ошибка обновления статуса закрепа: ${e.message}")
+        }
+    }
+
+    // Обновление измененного текста сообщения
+    suspend fun updateEditedText(chatId: String, msgId: String, text: String, editedText: String) = withContext(Dispatchers.IO) {
+        try {
+            dao.updateEditedText(chatId, msgId, text, editedText)
+            log("[DB] Изменен текст сообщения [ID: $msgId] в чате $chatId на '$text'")
+        } catch (e: Exception) {
+            log("[DB Error] Ошибка сохранения измененного текста: ${e.message}")
         }
     }
 }
