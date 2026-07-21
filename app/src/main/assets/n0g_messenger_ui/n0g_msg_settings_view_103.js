@@ -770,6 +770,71 @@ export function SettingsPanel({
                                     children: "Этот идентификатор жестко привязан к вашему устройству. Передайте его контакту в Telegram, чтобы он мог отправить вам запрос на добавление."
                                 })
                             ]
+                        }),
+                        f.jsxs("div", {
+                            className: "theme-section",
+                            style: { marginTop: 10 },
+                            children: [
+                                f.jsx("div", {
+                                    className: "theme-section-title",
+                                    children: "Шифрование сообщений"
+                                }),
+                                f.jsxs("div", {
+                                    style: {
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        background: "#15101b",
+                                        borderRadius: "12px",
+                                        padding: "12px 16px",
+                                        border: "1px solid rgba(255,255,255,0.1)"
+                                    },
+                                    children: [
+                                        f.jsxs("div", {
+                                            children: [
+                                                f.jsx("div", {
+                                                    style: { fontSize: "15px", color: "#fff", fontWeight: 500 },
+                                                    children: encryptMessages ? "AES-GCM + RSA" : "Стандартный текст"
+                                                }),
+                                                f.jsx("div", {
+                                                    style: { fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" },
+                                                    children: encryptMessages ? "Сообщения зашифрованы" : "Шифрование отключено"
+                                                })
+                                            ]
+                                        }),
+                                        f.jsx("div", {
+                                            onClick: () => {
+                                                const next = !encryptMessages;
+                                                setEncryptMessages(next);
+                                                localStorage.setItem("nan0gram_encrypt_messages", String(next));
+                                            },
+                                            style: {
+                                                flexShrink: 0,
+                                                width: "48px",
+                                                height: "28px",
+                                                borderRadius: "14px",
+                                                background: encryptMessages ? "#a773d1" : "rgba(255,255,255,0.15)",
+                                                position: "relative",
+                                                cursor: "pointer",
+                                                transition: "background 0.25s"
+                                            },
+                                            children: f.jsx("div", {
+                                                style: {
+                                                    position: "absolute",
+                                                    top: "3px",
+                                                    left: encryptMessages ? "23px" : "3px",
+                                                    width: "22px",
+                                                    height: "22px",
+                                                    borderRadius: "50%",
+                                                    background: "#fff",
+                                                    transition: "left 0.25s",
+                                                    boxShadow: "0 1px 4px rgba(0,0,0,0.35)"
+                                                }
+                                            })
+                                        })
+                                    ]
+                                })
+                            ]
                         })
                     ]
                 })
