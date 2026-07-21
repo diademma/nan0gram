@@ -824,13 +824,102 @@
                         
                         const payloadObj = JSON.parse(decryptedJsonStr);
                         if (payloadObj && payloadObj.meta) {
-                            decryptedMessages.push({
-                                msgId: msg.msgId,
-                                chatId: payloadObj.meta.chatId,
-                                author: payloadObj.meta.senderName || "Собеседник",
-                                text: payloadObj.text || "",
-                                ts: msg.ts || Date.now()
+                            const meta = payloadObj.meta;
+                            const cid = meta.chatId;
+                            const senderName = meta.senderName || "Собеседник";
+                            const timestamp = msg.ts || Date.now();
+                            const arrItems = meta.blocks || [];
+
+                            arrItems.forEach(uItem => {
+                                if (uItem.t === W.MsgTypes.REACT) {
+                                    callAndroid("updateMessageReactionInDb", cid, String(uItem.ref), uItem.e || "");
+                                    ui(() => {
+                                        if (typeof window.nan0gram_setMessages === 'function') {
+                                            window.nan0gram_setMessages(prev => {
+                                                const updated = { ...prev };
+                                                if (updated[cid]) {
+                                                    updated[cid] = updated[cid].map(m => 
+                                                        String(m.id) === String(uItem.ref) ? { ...m, reaction: uItem.e || null } : m
+                                                    );
+                                                }
+                                                return updated;
+                                            });
+                                        }
+                                    });
+                                } else if (uItem.t === W.MsgTypes.PIN) {
+                                    callAndroid("updatePinStatus", cid, String(uItem.ref), uItem.p === 1);
+                                    ui(() => {
+                                        window.dispatchEvent(new CustomEvent("nan0gram:pin-updated", {
+                                            detail: JSON.stringify({ chatId: cid, msgId: uItem.ref, isPinned: uItem.p === 1 })
+                                        }));
+                                    });
+                                } else if (uItem.t === W.MsgTypes.DELETE) {
+                                    callAndroid("deleteMessageFromDb", cid, String(uItem.ref));
+                                    ui(() => {
+                                        if (typeof window.nan0gram_setMessages === 'function') {
+                                            window.nan0gram_setMessages(prev => {
+                                                const updated = { ...prev };
+                                                if (updated[cid]) {
+                                                    updated[cid] = updated[cid].filter(m => String(m.id) !== String(uItem.ref));
+                                                }
+                                                return updated;
+                                            });
+                                        }
+                                    });
+                                } else if (uItem.t === W.MsgTypes.EDIT) {
+                                    callAndroid("updateEditedText", cid, String(uItem.ref), payloadObj.text || "", payloadObj.text || "");
+                                    ui(() => {
+                                        if (typeof window.nan0gram_setMessages === 'function') {
+                                            window.nan0gram_setMessages(prev => {
+                                                const updated = { ...prev };
+                                                if (updated[cid]) {
+                                                    updated[cid] = updated[cid].map(m => 
+                                                        String(m.id) === String(uItem.ref) ? { ...m, text: payloadObj.text, edited: true } : m
+                                                    );
+                                                }
+                                                return updated;
+                                            });
+                                        }
+                                    });
+                                }
                             });
+
+                            const hasContent = arrItems.some(b => b.t >= 1 && b.t <= 5);
+                            if (hasContent || payloadObj.text) {
+                                let mediaType = "none";
+                                let audioDuration = 0;
+                                let replyToId = "";
+
+                                const replyItem = arrItems.find(b => b.t === W.MsgTypes.REPLY);
+                                if (replyItem) replyToId = String(replyItem.ref);
+
+                                const voiceItem = arrItems.find(b => b.t === W.MsgTypes.VOICE);
+                                const photoItem = arrItems.find(b => b.t === W.MsgTypes.PHOTO);
+                                const videoItem = arrItems.find(b => b.t === W.MsgTypes.VIDEO);
+                                const fileItem = arrItems.find(b => b.t === W.MsgTypes.FILE);
+
+                                if (voiceItem) {
+                                    mediaType = "voice";
+                                    audioDuration = voiceItem.dur || 0;
+                                } else if (photoItem) {
+                                    mediaType = "photo";
+                                } else if (videoItem) {
+                                    mediaType = "video";
+                                } else if (fileItem) {
+                                    mediaType = "file";
+                                }
+
+                                decryptedMessages.push({
+                                    msgId: msg.msgId,
+                                    chatId: cid,
+                                    author: senderName,
+                                    text: payloadObj.text || "",
+                                    ts: timestamp,
+                                    mediaType: mediaType,
+                                    audioDuration: audioDuration,
+                                    replyToId: replyToId
+                                });
+                            }
                         }
                     } catch (err) {}
                 });
@@ -847,7 +936,6 @@
                                 
                                 let textVal = msg.text;
 
-                                // Автоматически кэшируем расшифрованное входящее сообщение в Room DB
                                 if (window.Android && window.Android.saveMessageToDb) {
                                     window.Android.saveMessageToDb(JSON.stringify({
                                         id: String(msg.msgId),
@@ -855,11 +943,13 @@
                                         type: "in",
                                         author: msg.author,
                                         text: textVal,
-                                        timestamp: msg.ts
+                                        timestamp: msg.ts,
+                                        mediaType: msg.mediaType || "none",
+                                        audioDuration: msg.audioDuration || 0,
+                                        replyToId: msg.replyToId || ""
                                     }));
                                 }
 
-                                // Обновляем превью чата и таймштамп в боковой панели
                                 if (window.Android && window.Android.saveChatToDb) {
                                     const activeChatEl = document.querySelector(`.chat-item[data-chat-id="${cid}"]`);
                                     const name = activeChatEl ? activeChatEl.querySelector('.chat-name').textContent : "Собеседник";
@@ -881,12 +971,14 @@
                                     author: msg.author, 
                                     text: textVal, 
                                     time: timeStr,
-                                    timestamp: msg.ts
+                                    timestamp: msg.ts,
+                                    mediaType: msg.mediaType || "none",
+                                    audioDuration: msg.audioDuration || 0,
+                                    replyTo: msg.replyToId ? { id: msg.replyToId } : null
                                 });
                             }
                         });
 
-                        // Перезапрашиваем список чатов для мгновенной авто-сортировки по времени СМС
                         setTimeout(() => {
                             if (window.Android && window.Android.requestChatsList) {
                                 window.Android.requestChatsList();
