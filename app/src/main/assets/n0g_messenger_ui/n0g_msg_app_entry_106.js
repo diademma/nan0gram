@@ -98,6 +98,28 @@ function AppController() {
     }, []);
 
     T.useEffect(() => {
+        const handlePinUpdated = (e) => {
+            try {
+                const data = JSON.parse(e.detail);
+                setPinnedMsgs(prev => {
+                    const updated = { ...prev };
+                    if (data.isPinned) {
+                        updated[data.chatId] = { id: data.msgId };
+                    } else {
+                        delete updated[data.chatId];
+                    }
+                    localStorage.setItem("nan0gram_pinned_messages", JSON.stringify(updated));
+                    return updated;
+                });
+            } catch (err) {}
+        };
+        window.addEventListener('nan0gram:pin-updated', handlePinUpdated);
+        return () => {
+            window.removeEventListener('nan0gram:pin-updated', handlePinUpdated);
+        };
+    }, []);
+
+    T.useEffect(() => {
         window.nan0gram_setMessages = setMessages;
     }, [setMessages]);
 
