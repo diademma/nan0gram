@@ -2,6 +2,30 @@
     "use strict";
     try {
 
+    W.MsgTypes = Object.freeze({
+        TEXT: 1,
+        VOICE: 2,
+        PHOTO: 3,
+        VIDEO: 4,
+        FILE: 5,
+        REPLY: 6,
+        REACT: 7,
+        PIN: 8,
+        DELETE: 9,
+        EDIT: 10
+    });
+
+    W.MsgFields = Object.freeze({
+        REF: "ref",
+        CHAT: "cid",
+        EMOJI: "e",
+        PIN_ACTIVE: "p",
+        DUR: "dur",
+        CNT: "cnt",
+        NAME: "name",
+        SIZE: "size"
+    });
+
     W.APP_NAME = "nan0gram";
     W.DEFAULT_RECIPIENT = "270232@ukr.net";
     W.STORAGE = {
