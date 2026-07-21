@@ -237,7 +237,7 @@
         },
         decrypt: function(plainTextWithMetadata) {
             try {
-                const blockRegex = new RegExp('\\x5c\\x7b([^\\x7d]+)\\x5c\\x7d', 'g');
+                const blockRegex = new RegExp('\x7b([^\x7d]+)\x7d', 'g');
                 const matches = [];
                 let match;
                 while ((match = blockRegex.exec(plainTextWithMetadata)) !== null) {
