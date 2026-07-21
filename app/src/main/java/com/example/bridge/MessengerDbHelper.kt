@@ -213,4 +213,18 @@ internal class MessengerDbHelper(
             repo.updateReaction(chatId, msgId, reaction)
         }
     }
+
+    fun updatePinStatus(chatId: String, msgId: String, isPinned: Boolean) {
+        val repo = repository() ?: return
+        scope.launch {
+            repo.updatePinStatus(chatId, msgId, isPinned)
+        }
+    }
+
+    fun updateEditedText(chatId: String, msgId: String, text: String, editedText: String) {
+        val repo = repository() ?: return
+        scope.launch {
+            repo.updateEditedText(chatId, msgId, text, editedText)
+        }
+    }
 }

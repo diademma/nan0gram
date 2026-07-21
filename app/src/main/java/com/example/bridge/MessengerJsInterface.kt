@@ -267,6 +267,16 @@ class MessengerJsInterface(
         db.updateMessageReactionInDb(chatId, msgId, reaction)
     }
 
+    @JavascriptInterface
+    fun updatePinStatus(chatId: String, msgId: String, isPinned: Boolean) {
+        db.updatePinStatus(chatId, msgId, isPinned)
+    }
+
+    @JavascriptInterface
+    fun updateEditedText(chatId: String, msgId: String, text: String, editedText: String) {
+        db.updateEditedText(chatId, msgId, text, editedText)
+    }
+
     @android.webkit.JavascriptInterface
     fun requestTransientFocus() {
         audio.requestTransientFocus()
