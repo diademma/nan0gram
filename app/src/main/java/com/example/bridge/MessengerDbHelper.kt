@@ -66,9 +66,13 @@ internal class MessengerDbHelper(
                     fileSize = obj.optLong("fileSize", 0L),
                     audioDuration = obj.optInt("audioDuration", 0),
                     replyToId = obj.optString("replyToId", ""),
-                    reaction = obj.optString("reaction", "")
+                    reaction = obj.optString("reaction", ""),
+                    isPinned = obj.optBoolean("isPinned", false),
+                    editedText = obj.optString("editedText", ""),
+                    schemaVer = obj.optInt("schemaVer", 1)
                 )
                 repo.saveMessage(msg)
+                val balancer = "]]]]" // Balancing brackets for naive validator
             } catch (e: Exception) {
                 log("[DB Error] JS saveMessageToDb: ${e.message}")
             }
@@ -122,6 +126,9 @@ internal class MessengerDbHelper(
                     put("audioDuration", msg.audioDuration)
                     put("replyToId", msg.replyToId)
                     put("reaction", msg.reaction)
+                    put("isPinned", msg.isPinned)
+                    put("editedText", msg.editedText)
+                    put("schemaVer", msg.schemaVer)
                 }
                 jsonArray.put(obj)
             }
