@@ -11,6 +11,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -48,7 +50,10 @@ data class MessageEntity(
     val fileSize: Long,
     val audioDuration: Int,
     val replyToId: String,
-    val reaction: String
+    val reaction: String,
+    val isPinned: Boolean = false,   // Сообщение закреплено в чате
+    val editedText: String = "",     // Отредактированный текст (wire t:10 EDIT)
+    val schemaVer: Int = 1           // Версия wire-схемы (MsgTypes.SCHEMA_VER)
 )
 
 // ============================================================================
@@ -98,13 +103,31 @@ interface ChatDao {
     // Обновление реакции
     @Query("UPDATE messages SET reaction = :reaction WHERE chatId = :chatId AND msgId = :msgId")
     suspend fun updateReaction(chatId: String, msgId: String, reaction: String)
+
+    // Обновление флага закрепления (wire t:8 PIN)
+    @Query("UPDATE messages SET isPinned = :isPinned WHERE chatId = :chatId AND msgId = :msgId")
+    suspend fun updatePinStatus(chatId: String, msgId: String, isPinned: Boolean)
+
+    // Сохранение отредактированного текста (wire t:10 EDIT)
+    @Query("UPDATE messages SET editedText = :newText WHERE chatId = :chatId AND msgId = :msgId")
+    suspend fun updateEditedText(chatId: String, msgId: String, newText: String)
 }
 
 // ============================================================================
 // 3. ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ
 // ============================================================================
 
-@Database(entities = [ChatEntity::class, MessageEntity::class], version = 1, exportSchema = false)
+// Миграция 1 → 2: добавляем 3 колонки.
+// ALTER TABLE ADD COLUMN безопасен — существующие строки получают дефолтные значения.
+private val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE messages ADD COLUMN isPinned INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE messages ADD COLUMN editedText TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE messages ADD COLUMN schemaVer INTEGER NOT NULL DEFAULT 1")
+    }
+}
+
+@Database(entities = [ChatEntity::class, MessageEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
 
@@ -119,7 +142,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "nan0gram_database"
                 )
-                .fallbackToDestructiveMigration() // При смене структуры БД старые данные стираются без крэша
+                .addMigrations(MIGRATION_1_2)      // данные сохраняются
+                .fallbackToDestructiveMigration()  // страховка если миграция упала
                 .build()
                 INSTANCE = instance
                 instance
@@ -215,6 +239,26 @@ class NanogramRepository(
             log("[DB] Обновлена реакция ($reaction) для сообщения $msgId в чате $chatId")
         } catch (e: Exception) {
             log("[DB Error] Ошибка обновления реакции: ${e.message}")
+        }
+    }
+
+    // Обновление флага закрепления (wire t:8 PIN)
+    suspend fun updatePinStatus(chatId: String, msgId: String, isPinned: Boolean) = withContext(Dispatchers.IO) {
+        try {
+            dao.updatePinStatus(chatId, msgId, isPinned)
+            log("[DB] Пин сообщения $msgId в чате $chatId: isPinned=$isPinned")
+        } catch (e: Exception) {
+            log("[DB Error] Ошибка обновления пина: ${e.message}")
+        }
+    }
+
+    // Обновление отредактированного текста (wire t:10 EDIT)
+    suspend fun updateEditedText(chatId: String, msgId: String, newText: String) = withContext(Dispatchers.IO) {
+        try {
+            dao.updateEditedText(chatId, msgId, newText)
+            log("[DB] Текст редактирования для $msgId в чате $chatId обновлён")
+        } catch (e: Exception) {
+            log("[DB Error] Ошибка обновления редактирования: ${e.message}")
         }
     }
 }
