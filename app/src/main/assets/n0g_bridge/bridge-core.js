@@ -601,10 +601,8 @@
 
                             const messageKey = window.nan0gram_pendingMediaKey || (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
                             const payloadStr = JSON.stringify({ meta: meta, media: "media" });
-                            const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-                            const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
                             
-                            window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
+                            window.nan0gram_pendingMediaBody = encryptBody(payloadStr, messageKey);
                             NanoBridge._openComposeIfNeeded(true);
 
                             if (W.Android && typeof W.Android.submitVoiceFile === "function") {
@@ -650,9 +648,7 @@
                         };
                         const messageKey = (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
                         const payloadStr = JSON.stringify({ meta: meta, text: newText });
-                        const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-                        const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
-                        window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
+                        window.nan0gram_pendingMediaBody = encryptBody(payloadStr, messageKey);
                         NanoBridge._openComposeIfNeeded(true);
                     },
                     cancelCompose: () => NanoBridge._cancelCompose(),
