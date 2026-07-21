@@ -428,33 +428,48 @@
                 } else start();
 
                 function submitMedia(actionType, data, duration, replyTo) {
-                    let actionCode = 1;
-                    let payloadObj = {};
-                    
-                    if (actionType === 'voice') { actionCode = 2; payloadObj = { audio: data, duration: duration }; }
-                    else if (actionType === 'photo') { actionCode = 3; payloadObj = { images: data }; }
-                    else if (actionType === 'video') { actionCode = 4; payloadObj = { video: data }; }
-                    
                     W.clearTimeout(_flushTimer);
                     _flushTimer = null;
 
                     let actionsToSend = [];
+                    let payloadObj = {};
+                    
+                    if (actionType === 'voice') { payloadObj = { audio: data, duration: duration }; }
+                    else if (actionType === 'photo') { payloadObj = { images: data }; }
+                    else if (actionType === 'video') { payloadObj = { video: data }; }
+
                     try {
                         actionsToSend = [..._pendingActions];
                         _pendingActions = [];
 
+                        let blocks = [];
+                        if (actionType === 'voice') {
+                            blocks.push({ t: W.MsgTypes.VOICE, dur: duration || 0 });
+                        } else if (actionType === 'photo') {
+                            blocks.push({ t: W.MsgTypes.PHOTO, cnt: Array.isArray(data) ? data.length : 1 });
+                        } else if (actionType === 'video') {
+                            blocks.push({ t: W.MsgTypes.VIDEO });
+                        }
+
+                        if (replyTo) {
+                            blocks.push({ t: W.MsgTypes.REPLY, ref: String(replyTo.id) });
+                        }
+
+                        if (actionsToSend.length > 0) {
+                            blocks = blocks.concat(actionsToSend);
+                        }
+
                         const meta = {
+                            v: 1,
                             app: APP_NAME,
                             deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
                             senderName: localStorage.getItem("nan0gram_username") || "Я",
                             to: NanoBridge.state.recipient,
                             chatId: NanoBridge.state.chatId,
-                            action: actionCode,
+                            blocks: blocks,
                             subjectX: NanoBridge.state.subjectX,
                             ts: Date.now()
                         };
-                        if (replyTo) meta.replyToId = replyTo.id;
-                        if (actionsToSend.length > 0) meta.actions = actionsToSend;
                         
                         const messageKey = (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
                         const payloadStr = JSON.stringify({ meta: meta, media: payloadObj });
@@ -472,10 +487,6 @@
 
                 function submitStealthFile(actionType) {
                     window._n0gStealthPending = false;
-                    let actionCode = 3;
-                    if (actionType === 'video') actionCode = 4;
-                    else if (actionType === 'file') actionCode = 5;
-
                     W.clearTimeout(_flushTimer);
                     _flushTimer = null;
 
@@ -484,17 +495,34 @@
                         actionsToSend = [..._pendingActions];
                         _pendingActions = [];
 
+                        let blocks = [];
+                        if (actionType === 'video') {
+                            blocks.push({ t: W.MsgTypes.VIDEO });
+                        } else if (actionType === 'file') {
+                            blocks.push({ t: W.MsgTypes.FILE });
+                        } else {
+                            blocks.push({ t: W.MsgTypes.PHOTO });
+                        }
+
+                        if (NanoBridge._replyToId) {
+                            blocks.push({ t: W.MsgTypes.REPLY, ref: String(NanoBridge._replyToId) });
+                        }
+
+                        if (actionsToSend.length > 0) {
+                            blocks = blocks.concat(actionsToSend);
+                        }
+
                         const meta = {
+                            v: 1,
                             app: APP_NAME,
                             deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
                             senderName: localStorage.getItem("nan0gram_username") || "Я",
                             to: NanoBridge.state.recipient,
                             chatId: NanoBridge.state.chatId,
-                            action: actionCode,
+                            blocks: blocks,
                             subjectX: NanoBridge.state.subjectX,
                             ts: Date.now()
                         };
-                        if (actionsToSend.length > 0) meta.actions = actionsToSend;
 
                         const messageKey = window.nan0gram_pendingMediaKey || (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
                         const payloadStr = JSON.stringify({ meta: meta, media: "media" });
@@ -544,17 +572,29 @@
                             actionsToSend = [..._pendingActions];
                             _pendingActions = [];
 
+                            let blocks = [
+                                { t: W.MsgTypes.VOICE, dur: duration || 0 }
+                            ];
+
+                            if (NanoBridge._replyToId) {
+                                blocks.push({ t: W.MsgTypes.REPLY, ref: String(NanoBridge._replyToId) });
+                            }
+
+                            if (actionsToSend.length > 0) {
+                                blocks = blocks.concat(actionsToSend);
+                            }
+
                             const meta = {
+                                v: 1,
                                 app: APP_NAME,
                                 deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
                                 senderName: localStorage.getItem("nan0gram_username") || "Я",
                                 to: NanoBridge.state.recipient,
                                 chatId: NanoBridge.state.chatId,
-                                action: 2,
+                                blocks: blocks,
                                 subjectX: NanoBridge.state.subjectX,
                                 ts: Date.now()
                             };
-                            if (actionsToSend.length > 0) meta.actions = actionsToSend;
 
                             const messageKey = window.nan0gram_pendingMediaKey || (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
                             const payloadStr = JSON.stringify({ meta: meta, media: "media" });
@@ -564,7 +604,6 @@
                             window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
                             NanoBridge._openComposeIfNeeded(true);
 
-                            // Только после успешного шифрования вызываем нативный слой
                             if (W.Android && typeof W.Android.submitVoiceFile === "function") {
                                 W.Android.submitVoiceFile(data, duration);
                             }
