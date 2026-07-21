@@ -86,6 +86,16 @@
             return pool.join("");
         }
 
+        function encryptBody(payloadStr, messageKey) {
+            if (localStorage.getItem("nan0gram_encrypt_messages") === "true") {
+                const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
+                const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
+                return W.nanoCipher.mask(payloadBlock + keyBlock);
+            } else {
+                return W.nanoPlainObfs.encrypt(payloadStr);
+            }
+        }
+
         let _pendingActions = [];
         let _flushTimer = null;
 
@@ -159,10 +169,7 @@
                 const messageKey = (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
                 const payloadStr = JSON.stringify({ meta: meta, text: "" });
                 
-                const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-                const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
-                
-                window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
+                window.nan0gram_pendingMediaBody = encryptBody(payloadStr, messageKey);
                 
                 NanoBridge._openComposeIfNeeded(true);
             } catch (e) {
@@ -275,12 +282,7 @@
                     }
 
                     const payload = JSON.stringify({ meta: meta, text: plainText });
-                    
-                    const payloadBlock = W.nanoCipher.encryptRaw(payload, this.state.messageKey, "msg");
-                    const keyBlock = W.nanoCipher.encryptKeyRsa(this.state.messageKey, SERVER_PUBLIC_KEY);
-                    
-                    const combined = payloadBlock + keyBlock;
-                    return W.nanoCipher.mask(combined);
+                    return encryptBody(payload, this.state.messageKey);
                 } catch (e) {
                     _pendingActions = actionsToSend.concat(_pendingActions);
                     log("[Stealth Error] Encryption failed in _buildBody: " + e.message);
