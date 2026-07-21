@@ -1011,59 +1011,6 @@ export function SettingsPanel({
                             })
                         ]
                     }),
-                    f.jsxs("div", {
-                        className: "settings-item",
-                        style: { cursor: "default" },
-                        children: [
-                            f.jsx("div", {
-                                className: "settings-icon",
-                                children: "🔐"
-                            }),
-                            f.jsxs("div", {
-                                className: "settings-item-content",
-                                children: [
-                                    f.jsx("div", {
-                                        className: "settings-item-title",
-                                        children: "Шифрование сообщений"
-                                    }),
-                                    f.jsx("div", {
-                                        className: "settings-item-desc",
-                                        children: encryptMessages ? "Включено: AES-GCM + RSA" : "Выключено: стандартный текст"
-                                    })
-                                ]
-                            }),
-                            f.jsx("div", {
-                                onClick: () => {
-                                    const next = !encryptMessages;
-                                    setEncryptMessages(next);
-                                    localStorage.setItem("nan0gram_encrypt_messages", String(next));
-                                },
-                                style: {
-                                    flexShrink: 0,
-                                    width: "48px",
-                                    height: "28px",
-                                    borderRadius: "14px",
-                                    background: encryptMessages ? "#a773d1" : "rgba(255,255,255,0.15)",
-                                    position: "relative",
-                                    cursor: "pointer",
-                                    transition: "background 0.25s"
-                                },
-                                children: f.jsx("div", {
-                                    style: {
-                                        position: "absolute",
-                                        top: "3px",
-                                        left: encryptMessages ? "23px" : "3px",
-                                        width: "22px",
-                                        height: "22px",
-                                        borderRadius: "50%",
-                                        background: "#fff",
-                                        transition: "left 0.25s",
-                                        boxShadow: "0 1px 4px rgba(0,0,0,0.35)"
-                                    }
-                                })
-                            })
-                        ]
-                    }),
                     f.jsxs("button", {
                         className: "settings-item",
                         onClick: () => setActiveTab("storage"),
