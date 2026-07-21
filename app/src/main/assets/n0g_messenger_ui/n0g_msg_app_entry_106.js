@@ -98,28 +98,6 @@ function AppController() {
     }, []);
 
     T.useEffect(() => {
-        const handlePinUpdated = (e) => {
-            try {
-                const data = JSON.parse(e.detail);
-                setPinnedMsgs(prev => {
-                    const updated = { ...prev };
-                    if (data.isPinned) {
-                        updated[data.chatId] = { id: data.msgId };
-                    } else {
-                        delete updated[data.chatId];
-                    }
-                    localStorage.setItem("nan0gram_pinned_messages", JSON.stringify(updated));
-                    return updated;
-                });
-            } catch (err) {}
-        };
-        window.addEventListener('nan0gram:pin-updated', handlePinUpdated);
-        return () => {
-            window.removeEventListener('nan0gram:pin-updated', handlePinUpdated);
-        };
-    }, []);
-
-    T.useEffect(() => {
         window.nan0gram_setMessages = setMessages;
     }, [setMessages]);
 
@@ -205,14 +183,15 @@ function AppController() {
                 };
 
                 const formatted = incomingMessages.map(msg => {
-                    const isEdited = msg.text && msg.text.endsWith("\u200E");
-                    const cleanText = isEdited ? msg.text.slice(0, -1) : msg.text;
+                    const hasEditedText = !!msg.editedText;
+                    const isEditedHack = msg.text && msg.text.endsWith("\u200E");
+                    const cleanText = hasEditedText ? msg.editedText : (isEditedHack ? msg.text.slice(0, -1) : msg.text);
                     const mapped = {
                         id: String(msg.id),
                         type: msg.type,
                         author: msg.author,
                         text: cleanText,
-                        edited: isEdited,
+                        edited: hasEditedText || isEditedHack,
                         time: formatTime(msg.timestamp),
                         timestamp: msg.timestamp,
                         mediaType: msg.mediaType,
