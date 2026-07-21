@@ -90,24 +90,33 @@
         let _flushTimer = null;
 
         function queueAction(chatId, actionObj) {
-            const action = {
-                type: actionObj.type,
-                targetId: actionObj.targetMessageId,
-                val: actionObj.value || "",
-                chatId: chatId,
-                ts: Date.now()
-            };
-            
-            if (action.type === "reaction") {
-                _pendingActions = _pendingActions.filter(a => !(a.type === "reaction" && a.targetId === action.targetId));
-            } else if (action.type === "pin") {
-                _pendingActions = _pendingActions.filter(a => !(a.type === "pin" && a.chatId === action.chatId));
-            } else if (action.type === "delete") {
-                _pendingActions = _pendingActions.filter(a => !(a.targetId === action.targetId));
+            let actItem = null;
+            if (actionObj.type === "reaction") {
+                actItem = {
+                    t: W.MsgTypes.REACT,
+                    ref: String(actionObj.targetMessageId),
+                    e: actionObj.value || ""
+                };
+                _pendingActions = _pendingActions.filter(a => !(a.t === W.MsgTypes.REACT && a.ref === actItem.ref));
+            } else if (actionObj.type === "pin") {
+                actItem = {
+                    t: W.MsgTypes.PIN,
+                    ref: String(actionObj.targetMessageId),
+                    p: actionObj.value ? 1 : 0
+                };
+                _pendingActions = _pendingActions.filter(a => !(a.t === W.MsgTypes.PIN && a.ref === actItem.ref));
+            } else if (actionObj.type === "delete") {
+                actItem = {
+                    t: W.MsgTypes.DELETE,
+                    ref: String(actionObj.targetMessageId)
+                };
+                _pendingActions = _pendingActions.filter(a => a.ref !== actItem.ref);
             }
 
-            _pendingActions.push(action);
-            log(`[Stealth] Действие поставлено в очередь: ${action.type} (цель: ${action.targetId || "unpin"}) в чате ${chatId}. Всего в буфере: ${_pendingActions.length}`);
+            if (actItem) {
+                _pendingActions.push(actItem);
+                log("[Stealth] Queue updated, item added, size: " + _pendingActions.length);
+            }
 
             W.clearTimeout(_flushTimer);
             _flushTimer = W.setTimeout(() => {
