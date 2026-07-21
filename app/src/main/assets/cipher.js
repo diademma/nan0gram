@@ -205,11 +205,10 @@
                 const meta = payload.meta;
                 const text = payload.text || "";
                 const shift = getShiftValue(text);
-                const chatId = meta.chatId || "";
                 const blocks = meta.blocks || [];
                 const formattedBlocks = blocks.map(bUnit => {
                     const tPrime = shiftType(bUnit.t, shift);
-                    let args = [tPrime, chatId];
+                    let args = [tPrime];
                     if (bUnit.ref) {
                         args.push(shiftDigits(bUnit.ref, shift));
                     }
@@ -250,26 +249,26 @@
                     const parts = m[1].split('÷');
                     const tPrime = parseInt(parts[0], 10);
                     const t = unshiftType(tPrime, shift);
-                    const bUnit = { t: t };
+                    const bUnit = { t: t, chatId: parts[1] || "" };
                     if (t === W.MsgTypes.REPLY) {
-                        bUnit.ref = unshiftDigits(parts[1], shift);
+                        bUnit.ref = unshiftDigits(parts[2], shift);
                     } else if (t === W.MsgTypes.REACT) {
-                        bUnit.ref = unshiftDigits(parts[1], shift);
-                        bUnit.e = parts[2];
+                        bUnit.ref = unshiftDigits(parts[2], shift);
+                        bUnit.e = parts[3];
                     } else if (t === W.MsgTypes.PIN) {
-                        bUnit.ref = unshiftDigits(parts[1], shift);
-                        bUnit.p = parseInt(unshiftDigits(parts[2], shift), 10);
+                        bUnit.ref = unshiftDigits(parts[2], shift);
+                        bUnit.p = parseInt(unshiftDigits(parts[3], shift), 10);
                     } else if (t === W.MsgTypes.DELETE) {
-                        bUnit.ref = unshiftDigits(parts[1], shift);
+                        bUnit.ref = unshiftDigits(parts[2], shift);
                     } else if (t === W.MsgTypes.EDIT) {
-                        bUnit.ref = unshiftDigits(parts[1], shift);
+                        bUnit.ref = unshiftDigits(parts[2], shift);
                     } else if (t === W.MsgTypes.VOICE) {
-                        bUnit.dur = parseInt(unshiftDigits(parts[1], shift), 10);
+                        bUnit.dur = parseInt(unshiftDigits(parts[2], shift), 10);
                     } else if (t === W.MsgTypes.PHOTO) {
-                        bUnit.cnt = parseInt(unshiftDigits(parts[1], shift), 10);
+                        bUnit.cnt = parseInt(unshiftDigits(parts[2], shift), 10);
                     } else if (t === W.MsgTypes.FILE) {
-                        bUnit.name = parts[1];
-                        bUnit.size = parseInt(unshiftDigits(parts[2], shift), 10);
+                        bUnit.name = parts[2];
+                        bUnit.size = parseInt(unshiftDigits(parts[3], shift), 10);
                     }
                     return bUnit;
                 });
