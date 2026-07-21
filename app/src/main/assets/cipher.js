@@ -224,7 +224,7 @@
                     if (bUnit.cnt !== undefined) {
                         args.push(shiftDigits(bUnit.cnt, shift));
                     }
-                    return "\\x7b" + args.join('÷') + "\\x7d";
+                    return '\x7b' + args.join('\u00f7') + '\x7d';
                 }).join('');
                 if (text) {
                     return text + " " + formattedBlocks;
