@@ -483,10 +483,7 @@
                         const messageKey = (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
                         const payloadStr = JSON.stringify({ meta: meta, media: payloadObj });
                         
-                        const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-                        const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
-                        
-                        window.nan0gram_pendingMediaBody = W.nanoCipher.mask(payloadBlock + keyBlock);
+                        window.nan0gram_pendingMediaBody = encryptBody(payloadStr, messageKey);
                         NanoBridge._openComposeIfNeeded(true);
                     } catch (e) {
                         _pendingActions = actionsToSend.concat(_pendingActions);
@@ -536,10 +533,7 @@
                         const messageKey = window.nan0gram_pendingMediaKey || (W.nanoUtils ? W.nanoUtils.randomKey() : ("k" + Math.random().toString(36).substr(2, 16)));
                         const payloadStr = JSON.stringify({ meta: meta, media: "media" });
                         
-                        const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-                        const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
-                        
-                        callAndroid("notifyMediaSelection", W.nanoCipher.mask(payloadBlock + keyBlock));
+                        callAndroid("notifyMediaSelection", encryptBody(payloadStr, messageKey));
                     } catch (e) {
                         _pendingActions = actionsToSend.concat(_pendingActions);
                         log(`[Stealth Error] Stealth file selection failed in submitStealthFile: ${e.message}. Actions rolled back.`);
