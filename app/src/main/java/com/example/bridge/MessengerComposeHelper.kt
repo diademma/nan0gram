@@ -137,6 +137,7 @@ internal class MessengerComposeHelper(
         lastOpenMs = now
 
         ui.post {
+            getUkrnetWebView()?.evaluateJavascript("delete window._n0gFilled;", null)
             val c = getCoords()
             if (c.composeX == null || c.composeY == null) {
                 getUkrnetWebView()?.evaluateJavascript(
@@ -145,7 +146,6 @@ internal class MessengerComposeHelper(
                     val onSendmsg = res?.trim()?.replace("\"", "") == "true"
                     if (onSendmsg) {
                         log("[Compose] На sendmsg — compose уже готов, заполняем...")
-                        getUkrnetWebView()?.evaluateJavascript("delete window._n0gFilled;", null)
                         getUkrnetWebView()?.evaluateJavascript("window._n0gTargetRecipient = '$currentRecipient';", null)
                         getUkrnetWebView()?.evaluateJavascript(SENDMSG_FILL_JS.replace("%TO%", currentRecipient), null)
                     } else {
