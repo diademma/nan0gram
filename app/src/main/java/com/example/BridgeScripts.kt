@@ -248,7 +248,7 @@ internal val COMPOSE_FILL_JS = """
             if (attempts > 40 || (toEl && subjEl)) {
                 clearInterval(t);
                 if (!toEl || !subjEl) return;
-                if (!to || to === '%TO%' || to.trim() === '') return;
+                if (!to || to.indexOf('%') === 0 || to.trim() === '') return;
                 try {
                     var ns = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;
                     ns.call(toEl, to);
@@ -290,7 +290,7 @@ internal val SENDMSG_FILL_JS = """
             if (!toEl) return;
 
             var targetTo = (window._n0gTargetRecipient || '%TO%');
-            if (!targetTo || targetTo === '%TO%' || targetTo.trim() === '') return;
+            if (!targetTo || targetTo.indexOf('%') === 0 || targetTo.trim() === '') return;
 
             clearInterval(t);
             window._n0gFilled = true;
