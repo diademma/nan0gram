@@ -27,7 +27,7 @@
     });
 
     W.APP_NAME = "nan0gram";
-    W.DEFAULT_RECIPIENT = "270232@ukr.net";
+    W.DEFAULT_RECIPIENT = W.DEFAULT_RECIPIENT || "";
     W.STORAGE = {
         lastSubjectX: "nan0gram_last_subject_x",
         session: "nan0gram_session_v1"
