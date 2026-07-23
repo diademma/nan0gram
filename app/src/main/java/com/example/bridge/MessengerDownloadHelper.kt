@@ -20,7 +20,7 @@ import java.net.URLDecoder
 
 internal class MessengerDownloadHelper(
     private val log: (String) -> Unit,
-    private val scope: CoroutineScope,
+    private val getScope: () -> CoroutineScope,
     private val getMessengerWebView: () -> WebView?,
     private val getUkrnetWebView: () -> WebView?,
     private val mediaManager: () -> MediaManager?
@@ -28,9 +28,16 @@ internal class MessengerDownloadHelper(
     private val ui = Handler(Looper.getMainLooper())
 
     fun saveMediaToDownloads(urlOrBase64: String, suggestedName: String) {
-        val context = getMessengerWebView()?.context ?: getUkrnetWebView()?.context ?: return
-        val mm = mediaManager() ?: return
-        scope.launch(Dispatchers.IO) {
+        val context = getMessengerWebView()?.context ?: getUkrnetWebView()?.context ?: run {
+            log("[Download Error] Context is null for saveMediaToDownloads")
+            return
+        }
+        val mm = mediaManager() ?: run {
+            log("[Download Error] MediaManager is null for saveMediaToDownloads")
+            return
+        }
+        log("[MediaManager] Запуск сохранения медиафайла $suggestedName в Загрузки...")
+        getScope().launch(Dispatchers.IO) {
             try {
                 var bytes: ByteArray? = null
                 var mimeType: String? = null
