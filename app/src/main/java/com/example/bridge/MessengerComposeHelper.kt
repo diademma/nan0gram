@@ -22,6 +22,7 @@ internal class MessengerComposeHelper(
     val DEBOUNCE_MS = 300L
     @Volatile var uploadSequenceActive = false
     @Volatile var lastComposeBody: String = ""
+    @Volatile var currentRecipient: String = ""
 
     private val POPUP_CRUSHER_JS = """
         function ensureSent() {
@@ -87,6 +88,14 @@ internal class MessengerComposeHelper(
     }
 
     fun openCompose(configJson: String) {
+        try {
+            if (configJson.startsWith("{")) {
+                val obj = org.json.JSONObject(configJson)
+                val to = obj.optString("to", "")
+                if (to.isNotEmpty()) currentRecipient = to
+            }
+        } catch(e: Exception) {}
+
         if (configJson == "RETRY_UKRNET") {
             ukrnetRetryCounter = 0
             isUkrnetRetrying = false
@@ -137,7 +146,8 @@ internal class MessengerComposeHelper(
                     if (onSendmsg) {
                         log("[Compose] На sendmsg — compose уже готов, заполняем...")
                         getUkrnetWebView()?.evaluateJavascript("delete window._n0gFilled;", null)
-                        getUkrnetWebView()?.evaluateJavascript(SENDMSG_FILL_JS, null)
+                        getUkrnetWebView()?.evaluateJavascript("window._n0gTargetRecipient = '$currentRecipient';", null)
+                        getUkrnetWebView()?.evaluateJavascript(SENDMSG_FILL_JS.replace("%TO%", currentRecipient), null)
                     } else {
                         log("[Compose] Нет координат — loadUrl sendmsg")
                         getUkrnetWebView()?.loadUrl("https://mail.ukr.net/touch/u0/sendmsg/")
@@ -161,7 +171,7 @@ internal class MessengerComposeHelper(
                     }
                     val subject = "Re[${(2..30).random()}]:"
                     val fillJs = COMPOSE_FILL_JS
-                        .replace("%TO%", "270232@ukr.net")
+                        .replace("%TO%", currentRecipient)
                         .replace("%SUBJECT%", subject)
                     getUkrnetWebView()?.evaluateJavascript(fillJs, null)
                 }
@@ -218,7 +228,8 @@ internal class MessengerComposeHelper(
                         var toEl = document.querySelector(".sm-auto-complete__input");
                         var hasChip = document.querySelector(".sm-auto-complete__item, .sm-auto-complete__token");
                         if (toEl && !hasChip) {
-                            try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl,'270232@ukr.net'); } catch(e) { toEl.value='270232@ukr.net'; }
+                            var targetTo = window._n0gTargetRecipient || '$currentRecipient';
+                            try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, targetTo); } catch(e) { toEl.value = targetTo; }
                             toEl.dispatchEvent(new Event('input',{bubbles:true}));
                             toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
                             toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
