@@ -248,6 +248,7 @@ internal val COMPOSE_FILL_JS = """
             if (attempts > 40 || (toEl && subjEl)) {
                 clearInterval(t);
                 if (!toEl || !subjEl) return;
+                if (!to || to === '%TO%' || to.trim() === '') return;
                 try {
                     var ns = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;
                     ns.call(toEl, to);
@@ -294,6 +295,7 @@ internal val SENDMSG_FILL_JS = """
             var subj = 'Re[' + rndN + ']:';
 
             var targetTo = (window._n0gTargetRecipient || '%TO%');
+            if (!targetTo || targetTo === '%TO%' || targetTo.trim() === '') return;
             try {
                 Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
                     .set.call(toEl, targetTo);
