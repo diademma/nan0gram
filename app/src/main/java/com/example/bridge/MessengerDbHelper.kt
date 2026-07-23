@@ -11,7 +11,7 @@ import java.util.UUID
 
 internal class MessengerDbHelper(
     private val log: (String) -> Unit,
-    private val scope: CoroutineScope,
+    private val getScope: () -> CoroutineScope,
     private val getMessengerWebView: () -> WebView?,
     private val repository: () -> NanogramRepository?,
     private val mediaManager: () -> MediaManager?
@@ -19,9 +19,17 @@ internal class MessengerDbHelper(
     private val ui = Handler(Looper.getMainLooper())
 
     fun saveMessageToDb(jsonString: String) {
-        val repo = repository() ?: return
-        val mm = mediaManager() ?: return
-        scope.launch {
+        val repo = repository()
+        if (repo == null) {
+            log("[DB Error] Repository is null in saveMessageToDb")
+            return
+        }
+        val mm = mediaManager()
+        if (mm == null) {
+            log("[DB Error] MediaManager is null in saveMessageToDb")
+            return
+        }
+        getScope().launch {
             try {
                 val obj = JSONObject(jsonString)
                 
@@ -80,8 +88,12 @@ internal class MessengerDbHelper(
     }
 
     fun saveChatToDb(jsonString: String) {
-        val repo = repository() ?: return
-        scope.launch {
+        val repo = repository()
+        if (repo == null) {
+            log("[DB Error] Repository is null in saveChatToDb")
+            return
+        }
+        getScope().launch {
             try {
                 val obj = JSONObject(jsonString)
                 val chat = ChatEntity(
@@ -102,8 +114,12 @@ internal class MessengerDbHelper(
     }
 
     fun requestChatHistory(chatId: String, offset: Int, limit: Int) {
-        val repo = repository() ?: return
-        scope.launch {
+        val repo = repository()
+        if (repo == null) {
+            log("[DB Error] Repository is null in requestChatHistory")
+            return
+        }
+        getScope().launch {
             val msgs = repo.getMessages(chatId, limit, offset)
             val jsonArray = JSONArray()
             for (msg in msgs) {
@@ -149,8 +165,12 @@ internal class MessengerDbHelper(
     }
 
     fun requestChatsList() {
-        val repo = repository() ?: return
-        scope.launch {
+        val repo = repository()
+        if (repo == null) {
+            log("[DB Error] Repository is null in requestChatsList")
+            return
+        }
+        getScope().launch {
             val chats = repo.getChats()
             val jsonArray = JSONArray()
             for (chat in chats) {
@@ -176,8 +196,12 @@ internal class MessengerDbHelper(
     }
 
     fun clearMediaCache() {
-        val mm = mediaManager() ?: return
-        scope.launch {
+        val mm = mediaManager()
+        if (mm == null) {
+            log("[DB Error] MediaManager is null in clearMediaCache")
+            return
+        }
+        getScope().launch {
             val bytesFreed = mm.clearMediaCache()
             val mbFreed = bytesFreed / (1024 * 1024)
             ui.post {
@@ -189,8 +213,12 @@ internal class MessengerDbHelper(
     }
 
     fun clearAllHistoryLog() {
-        val repo = repository() ?: return
-        scope.launch {
+        val repo = repository()
+        if (repo == null) {
+            log("[DB Error] Repository is null in clearAllHistoryLog")
+            return
+        }
+        getScope().launch {
             repo.clearAllHistoryLog()
             ui.post {
                 getMessengerWebView()?.evaluateJavascript(
@@ -201,29 +229,45 @@ internal class MessengerDbHelper(
     }
 
     fun deleteMessageFromDb(chatId: String, msgId: String) {
-        val repo = repository() ?: return
-        scope.launch {
+        val repo = repository()
+        if (repo == null) {
+            log("[DB Error] Repository is null in deleteMessageFromDb")
+            return
+        }
+        getScope().launch {
             repo.deleteMessage(chatId, msgId)
         }
     }
 
     fun updateMessageReactionInDb(chatId: String, msgId: String, reaction: String) {
-        val repo = repository() ?: return
-        scope.launch {
+        val repo = repository()
+        if (repo == null) {
+            log("[DB Error] Repository is null in updateMessageReactionInDb")
+            return
+        }
+        getScope().launch {
             repo.updateReaction(chatId, msgId, reaction)
         }
     }
 
     fun updatePinStatus(chatId: String, msgId: String, isPinned: Boolean) {
-        val repo = repository() ?: return
-        scope.launch {
+        val repo = repository()
+        if (repo == null) {
+            log("[DB Error] Repository is null in updatePinStatus")
+            return
+        }
+        getScope().launch {
             repo.updatePinStatus(chatId, msgId, isPinned)
         }
     }
 
     fun updateEditedText(chatId: String, msgId: String, text: String, editedText: String) {
-        val repo = repository() ?: return
-        scope.launch {
+        val repo = repository()
+        if (repo == null) {
+            log("[DB Error] Repository is null in updateEditedText")
+            return
+        }
+        getScope().launch {
             repo.updateEditedText(chatId, msgId, text, editedText)
         }
     }
