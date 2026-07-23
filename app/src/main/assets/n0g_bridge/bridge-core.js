@@ -202,6 +202,9 @@
                     NanoBridge.state.recipient = DEFAULT_RECIPIENT;
                 }
                 log(`[Stealth] Активный чат обновлен на мосту: chatId="${NanoBridge.state.chatId}", recipient="${NanoBridge.state.recipient}"`);
+                if (NanoBridge.state.chatId) {
+                    NanoBridge._openComposeIfNeeded(true);
+                }
             } catch (e) {
                 log(`[Stealth Error] Ошибка установки активного чата: ${e.message}`);
             }
