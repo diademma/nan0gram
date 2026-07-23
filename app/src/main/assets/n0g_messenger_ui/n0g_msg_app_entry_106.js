@@ -264,7 +264,7 @@ function AppController() {
     }, []);
 
     T.useEffect(() => {
-        const bgUrl = wallpaper || "https://appassets.androidlocal/Wallpaper.jpg";
+        const bgUrl = wallpaper || "./Wallpaper.jpg";
         document.documentElement.style.setProperty("--wallpaper-url", `url('${bgUrl}')`);
     }, [wallpaper]);
 
@@ -631,7 +631,7 @@ function AppController() {
                     f.jsx("div", {
                         className: "chat-bg",
                         style: {
-                            backgroundImage: wallpaper ? `url('${wallpaper}')` : "url('https://appassets.androidlocal/Wallpaper.jpg')"
+                            backgroundImage: wallpaper ? `url('${wallpaper}')` : "url('./Wallpaper.jpg')"
                         }
                     }),
                     !isChatOpen && f.jsx("div", {

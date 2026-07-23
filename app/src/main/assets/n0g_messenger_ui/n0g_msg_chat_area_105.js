@@ -1116,7 +1116,7 @@ export function ChatArea({
             f.jsx("div", {
                 className: "chat-bg",
                 style: {
-                    backgroundImage: wallpaper ? `url('${wallpaper}')` : "url('https://appassets.androidlocal/Wallpaper.jpg')"
+                    backgroundImage: wallpaper ? `url('${wallpaper}')` : "url('./Wallpaper.jpg')"
                 }
             }),
             !isSelectionMode && f.jsxs("div", {
