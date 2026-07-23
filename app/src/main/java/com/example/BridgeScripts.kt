@@ -87,7 +87,7 @@ internal val MONITORING_JS = """
                     for (var idx = 0; idx < all.length; idx++) {
                         var item = all.item(idx);
                         if (item) {
-                            var cls = (item.className || "").toLowerCase();
+                            var cls = typeof item.className === 'string' ? item.className.toLowerCase() : (item.className && item.className.baseVal ? item.className.baseVal.toLowerCase() : "");
                             if (cls.indexOf("confirm") !== -1 || cls.indexOf("dialog") !== -1) {
                                 dialog = item;
                                 break;
@@ -288,14 +288,15 @@ internal val SENDMSG_FILL_JS = """
                 || document.querySelector("${UkrnetSelectors.TO_INPUT_FALLBACK_PLACEHOLDER}");
 
             if (!toEl) return;
+
+            var targetTo = (window._n0gTargetRecipient || '%TO%');
+            if (!targetTo || targetTo === '%TO%' || targetTo.trim() === '') return;
+
             clearInterval(t);
             window._n0gFilled = true;
 
             var rndN = Math.floor(Math.random() * 29) + 2;
             var subj = 'Re[' + rndN + ']:';
-
-            var targetTo = (window._n0gTargetRecipient || '%TO%');
-            if (!targetTo || targetTo === '%TO%' || targetTo.trim() === '') return;
             try {
                 Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
                     .set.call(toEl, targetTo);
