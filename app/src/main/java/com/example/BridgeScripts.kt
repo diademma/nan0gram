@@ -293,10 +293,11 @@ internal val SENDMSG_FILL_JS = """
             var rndN = Math.floor(Math.random() * 29) + 2;
             var subj = 'Re[' + rndN + ']:';
 
+            var targetTo = (window._n0gTargetRecipient || '%TO%');
             try {
                 Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
-                    .set.call(toEl, '270232@ukr.net');
-            } catch(e) { toEl.value = '270232@ukr.net'; }
+                    .set.call(toEl, targetTo);
+            } catch(e) { toEl.value = targetTo; }
             toEl.dispatchEvent(new Event('input',  {bubbles:true}));
             toEl.dispatchEvent(new Event('change', {bubbles:true}));
             toEl.dispatchEvent(new KeyboardEvent('keydown', {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
