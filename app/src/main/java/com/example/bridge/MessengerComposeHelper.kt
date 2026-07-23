@@ -173,6 +173,7 @@ internal class MessengerComposeHelper(
                     val fillJs = COMPOSE_FILL_JS
                         .replace("%TO%", currentRecipient)
                         .replace("%SUBJECT%", subject)
+                    getUkrnetWebView()?.evaluateJavascript("window._n0gTargetRecipient = '$currentRecipient';", null)
                     getUkrnetWebView()?.evaluateJavascript(fillJs, null)
                 }
             }
