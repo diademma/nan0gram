@@ -2,7 +2,9 @@ import { hslToRgb } from './n0g_msg_utils_101.js';
 import { 
     getDeviceId, 
     clearMediaCache, 
-    clearAllHistoryLog 
+    clearAllHistoryLog,
+    saveSettingString,
+    getSettingString
 } from './n0g_msg_bridge_102.js';
 
 const T = window.T || window.React;
@@ -208,11 +210,11 @@ export function SettingsPanel({
 }) {
     const [activeTab, setActiveTab] = T.useState("main");
     const [localTheme, setLocalTheme] = T.useState(initialDefaultTheme);
-    const [sidebarBlur, setSidebarBlur] = T.useState(() => Number(localStorage.getItem("nan0gram_sidebar_blur") || "20"));
-    const [sidebarDarkness, setSidebarDarkness] = T.useState(() => Number(localStorage.getItem("nan0gram_sidebar_darkness") || "50"));
-    const [username, setUsername] = T.useState(() => localStorage.getItem("nan0gram_username") || "Я");
+    const [sidebarBlur, setSidebarBlur] = T.useState(() => Number(getSettingString("nan0gram_sidebar_blur", "20")));
+    const [sidebarDarkness, setSidebarDarkness] = T.useState(() => Number(getSettingString("nan0gram_sidebar_darkness", "50")));
+    const [username, setUsername] = T.useState(() => getSettingString("nan0gram_username", "Я"));
     const [copied, setCopied] = T.useState(false);
-    const [encryptMessages, setEncryptMessages] = T.useState(() => localStorage.getItem("nan0gram_encrypt_messages") === "true");
+    const [encryptMessages, setEncryptMessages] = T.useState(() => getSettingString("nan0gram_encrypt_messages", "false") === "true");
 
     const deviceId = getDeviceId();
 
@@ -232,7 +234,7 @@ export function SettingsPanel({
     };
 
     const handleSaveName = () => {
-        localStorage.setItem("nan0gram_username", username);
+        saveSettingString("nan0gram_username", username);
         window.dispatchEvent(new CustomEvent('nan0gram:username-change', {
             detail: username
         }));
@@ -306,11 +308,11 @@ export function SettingsPanel({
                             className: "theme-save-btn",
                             onClick: () => {
                                 onSave(localTheme);
-                                localStorage.setItem("nan0gram_sidebar_blur", sidebarBlur);
-                                localStorage.setItem("nan0gram_sidebar_darkness", sidebarDarkness);
+                                saveSettingString("nan0gram_sidebar_blur", String(sidebarBlur));
+                                saveSettingString("nan0gram_sidebar_darkness", String(sidebarDarkness));
                                 document.documentElement.style.setProperty("--sidebar-blur", sidebarBlur + "px");
                                 document.documentElement.style.setProperty("--sidebar-brightness", (100 - sidebarDarkness) / 100);
-                                setActiveTab("main")
+                                setActiveTab("main");
                             },
                             children: "Применить"
                         })
@@ -806,7 +808,7 @@ export function SettingsPanel({
                                             onClick: () => {
                                                 const next = !encryptMessages;
                                                 setEncryptMessages(next);
-                                                localStorage.setItem("nan0gram_encrypt_messages", String(next));
+                                                saveSettingString("nan0gram_encrypt_messages", String(next));
                                             },
                                             style: {
                                                 flexShrink: 0,

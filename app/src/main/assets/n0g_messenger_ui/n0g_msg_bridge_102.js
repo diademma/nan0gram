@@ -16,16 +16,47 @@ export function getDeviceId() {
 }
 
 /**
- * Читает строковую настройку из SharedPreferences (нативный слой).
+ * Сохраняет строковую настройку в SharedPreferences (нативный слой) с фоллбэком в localStorage.
+ * @param {string} key Ключ настройки.
+ * @param {string} value Значение настройки.
+ * @returns {boolean} true при успешном вызове.
+ */
+export function saveSettingString(key, value) {
+    let saved = false;
+    if (window.Android && typeof window.Android.saveSettingString === 'function') {
+        try {
+            window.Android.saveSettingString(key, String(value));
+            saved = true;
+        } catch (e) {
+            console.warn("Failed to call Android.saveSettingString", e);
+        }
+    }
+    try {
+        localStorage.setItem(key, String(value));
+        saved = true;
+    } catch (e) {}
+    return saved;
+}
+
+/**
+ * Читает строковую настройку из SharedPreferences (нативный слой) с фоллбэком в localStorage.
  * @param {string} key Ключ настройки.
  * @param {string} [defaultValue=""] Значение по умолчанию.
  * @returns {string} Сохраненное значение или defaultValue.
  */
 export function getSettingString(key, defaultValue = "") {
     if (window.Android && typeof window.Android.getSettingString === 'function') {
-        return window.Android.getSettingString(key, defaultValue);
+        try {
+            const val = window.Android.getSettingString(key, defaultValue);
+            if (val !== undefined && val !== null && val !== "") return val;
+        } catch (e) {
+            console.warn("Failed to call Android.getSettingString", e);
+        }
     }
-    console.warn(`Native method window.Android.getSettingString is not available. Returning default: ${defaultValue}`);
+    try {
+        const localVal = localStorage.getItem(key);
+        if (localVal !== null && localVal !== undefined && localVal !== "") return localVal;
+    } catch (e) {}
     return defaultValue;
 }
 

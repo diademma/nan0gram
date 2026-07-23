@@ -36,7 +36,8 @@ class MessengerJsInterface(
     @Volatile var pendingMediaKey: String = ""
 
     private val prefs: SharedPreferences? by lazy {
-        getUkrnetWebView()?.context?.getSharedPreferences("nan0gram_crypto_prefs", Context.MODE_PRIVATE)
+        val ctx = getUkrnetWebView()?.context ?: getMessengerWebView?.invoke()?.context
+        ctx?.getSharedPreferences("nan0gram_crypto_prefs", Context.MODE_PRIVATE)
     }
 
     private val crypto by lazy { MessengerCryptoHelper(log) }
@@ -57,12 +58,25 @@ class MessengerJsInterface(
 
     @JavascriptInterface
     fun saveSettingString(key: String, value: String) {
-        prefs?.edit()?.putString(key, value)?.apply()
+        try {
+            val p = prefs ?: getMessengerWebView?.invoke()?.context?.getSharedPreferences("nan0gram_crypto_prefs", Context.MODE_PRIVATE)
+            p?.edit()?.putString(key, value)?.apply()
+            log("[DB] Сохранена нативная настройка: $key")
+        } catch (e: Exception) {
+            log("[DB Error] Не удалось сохранить настройку $key: ${e.message}")
+        }
     }
 
     @JavascriptInterface
     fun getSettingString(key: String, defValue: String): String {
-        return prefs?.getString(key, defValue) ?: defValue
+        return try {
+            val p = prefs ?: getMessengerWebView?.invoke()?.context?.getSharedPreferences("nan0gram_crypto_prefs", Context.MODE_PRIVATE)
+            val res = p?.getString(key, defValue) ?: defValue
+            res
+        } catch (e: Exception) {
+            log("[DB Error] Ошибка чтения настройки $key: ${e.message}")
+            defValue
+        }
     }
 
     @JavascriptInterface

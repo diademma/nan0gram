@@ -1,6 +1,7 @@
 import { INITIAL_CHATS_FALLBACK, DEFAULT_THEME } from './n0g_msg_utils_101.js';
 import { 
     getSettingString, 
+    saveSettingString,
     requestChatsList, 
     requestChatHistory, 
     saveChatToDb, 
@@ -50,7 +51,7 @@ function AppController() {
     const [lightboxItems, setLightboxItems] = T.useState(null);
     const [lightboxInitialIndex, setLightboxInitialIndex] = T.useState(0);
     const [toastMessage, setToastMessage] = T.useState(null);
-    const [wallpaper, setWallpaper] = T.useState(() => localStorage.getItem("wp"));
+    const [wallpaper, setWallpaper] = T.useState(() => getSettingString("wp", ""));
     const [chatThemes, setChatThemes] = T.useState({});
     const [defaultTheme, setDefaultTheme] = T.useState(DEFAULT_THEME);
     const [windowWidth, setWindowWidth] = T.useState(() => window.innerWidth);
@@ -153,6 +154,10 @@ function AppController() {
             if (savedTheme) {
                 setDefaultTheme(JSON.parse(savedTheme));
             }
+            const savedChatThemes = getSettingString("nan0gram_chat_themes", "");
+            if (savedChatThemes) {
+                setChatThemes(JSON.parse(savedChatThemes));
+            }
         } catch (e) {}
 
         requestChatsList();
@@ -252,22 +257,23 @@ function AppController() {
     }, [activeChatId, offset]);
 
     T.useEffect(() => {
-        const blur = localStorage.getItem("nan0gram_sidebar_blur") || "20";
-        const darkness = localStorage.getItem("nan0gram_sidebar_darkness") || "50";
+        const blur = getSettingString("nan0gram_sidebar_blur", "20");
+        const darkness = getSettingString("nan0gram_sidebar_darkness", "50");
         document.documentElement.style.setProperty("--sidebar-blur", blur + "px");
         document.documentElement.style.setProperty("--sidebar-brightness", (100 - Number(darkness)) / 100);
     }, []);
 
     T.useEffect(() => {
-        if (wallpaper) {
-            document.documentElement.style.setProperty("--wallpaper-url", `url('${wallpaper}')`);
-        } else {
-            document.documentElement.style.setProperty("--wallpaper-url", "url('https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=1000&auto=format&fit=crop')");
-        }
+        const bgUrl = wallpaper || "https://appassets.androidlocal/Wallpaper.jpg";
+        document.documentElement.style.setProperty("--wallpaper-url", `url('${bgUrl}')`);
     }, [wallpaper]);
 
     T.useEffect(() => {
-        const handleWallpaperChange = (e) => setWallpaper(e.detail);
+        const handleWallpaperChange = (e) => {
+            const newWp = e.detail;
+            setWallpaper(newWp);
+            saveSettingString("wp", newWp || "");
+        };
         window.addEventListener("wallpaper-change", handleWallpaperChange);
         return () => window.removeEventListener("wallpaper-change", handleWallpaperChange);
     }, []);
@@ -580,14 +586,16 @@ function AppController() {
     }, [activeChatId, messages]);
 
     const handleSaveTheme = T.useCallback((chatId, theme) => {
-        setChatThemes(prev => ({
-            ...prev,
-            [chatId]: theme
-        }));
+        setChatThemes(prev => {
+            const next = { ...prev, [chatId]: theme };
+            saveSettingString("nan0gram_chat_themes", JSON.stringify(next));
+            return next;
+        });
     }, []);
 
     const handleSaveDefaultTheme = T.useCallback(theme => {
         setDefaultTheme(theme);
+        saveSettingString("nan0gram_theme", JSON.stringify(theme));
     }, []);
 
     const handleOpenActiveProfile = T.useCallback(() => {
@@ -623,7 +631,7 @@ function AppController() {
                     f.jsx("div", {
                         className: "chat-bg",
                         style: {
-                            backgroundImage: wallpaper ? `url('${wallpaper}')` : "url('https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=1000&auto=format&fit=crop')"
+                            backgroundImage: wallpaper ? `url('${wallpaper}')` : "url('https://appassets.androidlocal/Wallpaper.jpg')"
                         }
                     }),
                     !isChatOpen && f.jsx("div", {
