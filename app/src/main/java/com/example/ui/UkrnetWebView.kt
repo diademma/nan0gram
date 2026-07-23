@@ -115,7 +115,6 @@ internal fun buildUkrnetWebView(
                         return
                     }
                     if (url.isSendMsgUrl()) {
-                        view?.evaluateJavascript(SENDMSG_FILL_JS, null)
                         val bufferedBody = messengerInterface.lastComposeBody
                         if (bufferedBody.isNotEmpty()) {
                             val esc = bufferedBody
