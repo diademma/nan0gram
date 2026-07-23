@@ -40,10 +40,14 @@ class MessengerJsInterface(
         ctx?.getSharedPreferences("nan0gram_crypto_prefs", Context.MODE_PRIVATE)
     }
 
+    private val safeScopeProvider: () -> CoroutineScope = {
+        if (::scope.isInitialized) scope else CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+    }
+
     private val crypto by lazy { MessengerCryptoHelper(log) }
-    private val download by lazy { MessengerDownloadHelper(log, scope, { getMessengerWebView?.invoke() }, getUkrnetWebView, { mediaManager }) }
-    private val compose by lazy { MessengerComposeHelper(log, scope, getUkrnetWebView, getCoords, { getMessengerWebView?.invoke() }) }
-    private val db by lazy { MessengerDbHelper(log, scope, { getMessengerWebView?.invoke() }, { repository }, { mediaManager }) }
+    private val download by lazy { MessengerDownloadHelper(log, safeScopeProvider, { getMessengerWebView?.invoke() }, getUkrnetWebView, { mediaManager }) }
+    private val compose by lazy { MessengerComposeHelper(log, safeScopeProvider, getUkrnetWebView, getCoords, { getMessengerWebView?.invoke() }) }
+    private val db by lazy { MessengerDbHelper(log, safeScopeProvider, { getMessengerWebView?.invoke() }, { repository }, { mediaManager }) }
     private val audio by lazy { MessengerAudioHelper(getUkrnetWebView) }
 
     @JavascriptInterface
