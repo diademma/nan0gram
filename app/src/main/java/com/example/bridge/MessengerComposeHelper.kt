@@ -11,7 +11,7 @@ import android.content.Context
 
 internal class MessengerComposeHelper(
     private val log: (String) -> Unit,
-    private val scope: CoroutineScope,
+    private val getScope: () -> CoroutineScope,
     private val getUkrnetWebView: () -> WebView?,
     private val getCoords: () -> DomCoords,
     private val getMessengerWebView: () -> WebView?
@@ -149,7 +149,7 @@ internal class MessengerComposeHelper(
                 "(document.querySelector('.sm-editor__area') !== null).toString();"
             ) { value ->
                 val isOpen = value?.trim()?.replace("\"", "") == "true"
-                scope.launch {
+                getScope().launch {
                     if (!isOpen) {
                         log("[Compose] Закрыт — открываем через simulateTouch")
                         getUkrnetWebView()?.evaluateJavascript(FOCUS_PATCH_JS, null)
@@ -228,7 +228,7 @@ internal class MessengerComposeHelper(
                 })();
             """.trimIndent()
             getUkrnetWebView()?.evaluateJavascript(js, null)
-            scope.launch {
+            getScope().launch {
                 delay(1500)
                 ui.post { getUkrnetWebView()?.loadUrl("https://mail.ukr.net/touch/u0/sendmsg/") }
             }
@@ -237,7 +237,7 @@ internal class MessengerComposeHelper(
 
     fun cancelCompose() {
         ui.post {
-            scope.launch {
+            getScope().launch {
                 val js = """(function(){ var btn = document.querySelector(".sm-header__cancel") || document.querySelector("[aria-label='Відмінити']") || document.querySelector("[aria-label='Отменить']"); if (btn) { btn.click(); return 'ok'; } history.back(); return 'fallback'; })();"""
                 getUkrnetWebView()?.evaluateJavascript(js, null)
             }
