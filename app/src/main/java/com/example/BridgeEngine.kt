@@ -40,17 +40,25 @@ internal fun simulateTouch(
     log: (String) -> Unit = {}
 ) {
     if (webView == null) return
-    val downTime = SystemClock.uptimeMillis()
-    val density  = webView.resources.displayMetrics.density
-    val px = cssX * density
-    val py = cssY * density
-    val dn = MotionEvent.obtain(downTime, downTime,       MotionEvent.ACTION_DOWN, px, py, 0)
-    val up = MotionEvent.obtain(downTime, downTime + 100, MotionEvent.ACTION_UP,   px, py, 0)
-    webView.post {
-        if (stealFocus) { webView.requestFocus(); webView.requestFocusFromTouch() }
-        webView.dispatchTouchEvent(dn); webView.dispatchTouchEvent(up)
-        dn.recycle(); up.recycle()
-        log("[Autoclicker] Клик: X=${px.toInt()}px, Y=${py.toInt()}px")
+    try {
+        val downTime = SystemClock.uptimeMillis()
+        val density  = webView.resources.displayMetrics.density
+        val px = cssX * density
+        val py = cssY * density
+        val dn = MotionEvent.obtain(downTime, downTime,       MotionEvent.ACTION_DOWN, px, py, 0)
+        val up = MotionEvent.obtain(downTime, downTime + 100, MotionEvent.ACTION_UP,   px, py, 0)
+        webView.post {
+            try {
+                if (stealFocus) { webView.requestFocus(); webView.requestFocusFromTouch() }
+                webView.dispatchTouchEvent(dn); webView.dispatchTouchEvent(up)
+                dn.recycle(); up.recycle()
+                log("[Stealth] Клик: X=${px.toInt()}px, Y=${py.toInt()}px")
+            } catch (e: Exception) {
+                log("[Stealth Error] Ошибка отправки тапа: ${e.message}")
+            }
+        }
+    } catch (e: Exception) {
+        log("[Stealth Error] Ошибка подготовки тапа: ${e.message}")
     }
 }
 
@@ -65,37 +73,47 @@ internal fun simulateType(
     isAutocomplete: Boolean = false
 ) {
     if (webView == null) return
-    val esc = text
-        .replace("\\", "\\\\").replace("'", "\\'")
-        .replace("\n", "\\n").replace("\r", "")
-    val js = """
-        (function() {
-            var el = document.querySelector('$selector');
-            if (!el) return 'not_found';
-            if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                try {
-                    var ns = Object.getOwnPropertyDescriptor(
-                        el.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype,
-                        'value'
-                    ).set;
-                    ns.call(el, '$esc');
-                } catch(e) { el.value = '$esc'; }
-                el.dispatchEvent(new Event('input',  { bubbles: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-                if ($isAutocomplete) {
-                    el.dispatchEvent(new KeyboardEvent('keydown', { bubbles:true, cancelable:true, key:'Enter', keyCode:13 }));
-                    el.dispatchEvent(new KeyboardEvent('keyup',   { bubbles:true, cancelable:true, key:'Enter', keyCode:13 }));
+    try {
+        val esc = text
+            .replace("\\", "\\\\").replace("'", "\\'")
+            .replace("\n", "\\n").replace("\r", "")
+        val js = """
+            (function() {
+                var el = document.querySelector('$selector');
+                if (!el) return 'not_found';
+                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                    try {
+                        var ns = Object.getOwnPropertyDescriptor(
+                            el.tagName === 'INPUT' ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype,
+                            'value'
+                        ).set;
+                        ns.call(el, '$esc');
+                    } catch(e) { el.value = '$esc'; }
+                    el.dispatchEvent(new Event('input',  { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    if ($isAutocomplete) {
+                        el.dispatchEvent(new KeyboardEvent('keydown', { bubbles:true, cancelable:true, key:'Enter', keyCode:13 }));
+                        el.dispatchEvent(new KeyboardEvent('keyup',   { bubbles:true, cancelable:true, key:'Enter', keyCode:13 }));
+                    }
+                    el.blur();
+                } else if (el.getAttribute('contenteditable') === 'true') {
+                    el.innerHTML = '$esc';
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.blur();
                 }
-                el.blur();
-            } else if (el.getAttribute('contenteditable') === 'true') {
-                el.innerHTML = '$esc';
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                el.blur();
+                return 'success';
+            })();
+        """.trimIndent()
+        webView.post {
+            try {
+                webView.evaluateJavascript(js, null)
+            } catch (e: Exception) {
+                // Игнорируем сбои оценки JS при некорректном состоянии WebView
             }
-            return 'success';
-        })();
-    """.trimIndent()
-    webView.post { webView.evaluateJavascript(js, null) }
+        }
+    } catch (e: Exception) {
+        // Предотвращаем фатальные исключения при формировании строки
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
