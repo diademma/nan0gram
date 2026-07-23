@@ -8,8 +8,12 @@
         }
 
         const APP_NAME = W.APP_NAME || "nan0gram";
-        const DEFAULT_RECIPIENT = W.DEFAULT_RECIPIENT || "270232@ukr.net";
-        const SERVER_PUBLIC_KEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtqwfyqcW4PcAMckgRd5l9SSNiCkGJTWfyZfXoolmqh+3h5rcU9Quh9qMVtXWDFLO0XEo3+tf7e8ctjGONl2od5HuPMYI/ytPrctnGKrogyjIApMEBzTb2bq7mhPNDkm8zXGP02usl81/kWjeH02rYNpdrRS5Iu1mC5MS52XMSp25uAkta8aRsIGoPLdCbRU8Dtt1nAZ2JuM36NDChfvrjPg80czWuRxH8UTfGgrEa+PitVdhgWjT05izwfR7tpGMUmW7/QvBB9Rquf+PcqM3deUgS5PvUepZL24cLMqtZocmeUCsufk4b7FYlz7M5ekEjXMZrJrbzJ5carLwvBlxswIDAQAB";
+        const DEFAULT_RECIPIENT = W.DEFAULT_RECIPIENT || "";
+
+        function getRecipientPublicKey(chatId) {
+            if (!chatId) return localStorage.getItem("nan0gram_public_key") || "";
+            return localStorage.getItem("nan0gram_pubkey_" + chatId) || localStorage.getItem("nan0gram_public_key") || "";
+        }
 
         const ui = (fn) => { try { return W.setTimeout(fn, 0); } catch (_) { return fn(); } };
         function log(...args) { try { console.log(`[${APP_NAME}]`, ...args); } catch (_) {} }
@@ -89,7 +93,8 @@
         function encryptBody(payloadStr, messageKey) {
             if (localStorage.getItem("nan0gram_encrypt_messages") === "true") {
                 const payloadBlock = W.nanoCipher.encryptRaw(payloadStr, messageKey, "msg");
-                const keyBlock = W.nanoCipher.encryptKeyRsa(messageKey, SERVER_PUBLIC_KEY);
+                const recipientPubKey = getRecipientPublicKey(NanoBridge.state ? NanoBridge.state.chatId : "");
+                const keyBlock = recipientPubKey ? W.nanoCipher.encryptKeyRsa(messageKey, recipientPubKey) : "";
                 return W.nanoCipher.mask(payloadBlock + keyBlock);
             } else {
                 return W.nanoPlainObfs.encrypt(payloadStr);
@@ -313,7 +318,7 @@
                 }
 
                 this.state.chatId = chatId;
-                this.state.recipient = DEFAULT_RECIPIENT;
+                this.state.recipient = this.state.recipient || DEFAULT_RECIPIENT;
                 this.state.subjectX = W.nanoUtils.nextSubjectX();
                 this.state.subject = `Re[${this.state.subjectX}]:`;
                 this.state.messageKey = W.nanoUtils.randomKey();
