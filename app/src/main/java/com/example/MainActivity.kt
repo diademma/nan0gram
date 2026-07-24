@@ -73,16 +73,27 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 val info = UpdateChecker.checkForUpdate(BuildConfig.VERSION_CODE)
                 if (info != null && info.isUpdateAvailable) {
-                    updateInfo = info
+                    val prefs = context.getSharedPreferences("nan0gram_web_update_prefs", android.content.Context.MODE_PRIVATE)
+                    val dismissed = prefs.getString("dismissed_update_version", "") ?: ""
+                    if (info.latestVersion != dismissed) {
+                        updateInfo = info
+                    }
                 }
-                
+
                 // ВЫЗОВ OTA: Вот та самая функция, которая из-за ошибки патчера никогда не запускалась!
                 UpdateChecker.checkAndDownloadWebUpdate(context) { msg ->
                     log(msg)
                 }
             }
             updateInfo?.let { info ->
-                UpdateDialog(updateInfo = info, onDismiss = { updateInfo = null })
+                UpdateDialog(
+                    updateInfo = info,
+                    onDismiss = {
+                        val prefs = context.getSharedPreferences("nan0gram_web_update_prefs", android.content.Context.MODE_PRIVATE)
+                        prefs.edit().putString("dismissed_update_version", info.latestVersion).apply()
+                        updateInfo = null
+                    }
+                )
             }
 
             var isBgServiceActive  by remember { mutableStateOf(false) } // Инициализируем как false для мгновенного старта Splash-экрана
