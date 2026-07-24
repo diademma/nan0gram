@@ -139,7 +139,9 @@ internal class MessengerComposeHelper(
         lastOpenMs = now
 
         ui.post {
-            getUkrnetWebView()?.evaluateJavascript("delete window._n0gFilled;", null)
+            // [FIX] Не сбрасываем _n0gFilled при переключении чата.
+            // Страница не перезагружается между чатами — флаг живёт в window
+            // и блокирует повторное заполнение. Сбросится сам при loadUrl после отправки.
             val c = getCoords()
             if (c.composeX == null || c.composeY == null) {
                 getUkrnetWebView()?.evaluateJavascript(
