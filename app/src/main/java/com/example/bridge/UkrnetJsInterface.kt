@@ -16,8 +16,7 @@ class UkrnetJsInterface(
     private val isLoginHandled: () -> Boolean,
     private val getCurrentCoords: () -> DomCoords,
     private val clearComposeBody: () -> Unit = {},
-    private val onLoginRequired: () -> Unit = {},
-    private val onSaveSetting: (String, String) -> Unit = { _, _ -> }
+    private val onLoginRequired: () -> Unit = {} // Новый коллбек требования авторизации
 ) {
     private val ui = Handler(Looper.getMainLooper())
 
@@ -99,6 +98,19 @@ class UkrnetJsInterface(
                     "window.dispatchEvent(new CustomEvent('nan0gram:email-received', { detail: \"$escaped\" }));", null
                 )
             }
+        }
+    }
+
+    @JavascriptInterface
+    fun saveSettingString(key: String, value: String) {
+        try {
+            val trimmed = value.trim()
+            if (key.isNotEmpty() && trimmed.isNotEmpty()) {
+                log("[System] ✓ Email идентифицирован: $trimmed")
+                ui.post { onSaveSetting(key, trimmed) }
+            }
+        } catch (e: Exception) {
+            log("[System] Ошибка сохранения настройки $key: ${e.message}")
         }
     }
 
