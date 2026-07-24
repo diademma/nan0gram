@@ -231,20 +231,26 @@ internal class MessengerComposeHelper(
                         || document.querySelector("[aria-label='Відправити']")
                         || document.querySelector("[aria-label='Отправить']")
                         || document.querySelector("input[type='submit']");
-                    var isTouch = (window.location.href.indexOf('touch') !== -1 || window.location.href.indexOf('sendmsg') !== -1);
-                    if (isTouch) {
-                        if (btn) btn.click();
+                    var toEl = document.querySelector("input[name='to']")
+                        || document.querySelector(".sm-auto-complete__input")
+                        || document.querySelector("input[type='email']");
+                    var hasChip = document.querySelector(".sm-auto-complete__item, .sm-auto-complete__token");
+
+                    function doSend() { if (btn) btn.click(); }
+
+                    if (!hasChip && toEl) {
+                        // Получателя нет — вставляем прямо сейчас перед отправкой.
+                        var targetTo = window._n0gTargetRecipient || '$currentRecipient';
+                        try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, targetTo); } catch(e) { toEl.value = targetTo; }
+                        toEl.dispatchEvent(new Event('input', {bubbles:true}));
+                        toEl.dispatchEvent(new Event('change', {bubbles:true}));
+                        toEl.dispatchEvent(new KeyboardEvent('keydown', {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
+                        toEl.dispatchEvent(new KeyboardEvent('keyup',   {bubbles:true, cancelable:true, key:'Enter', keyCode:13}));
+                        window._n0gFilled = true;
+                        // Даём SPA 120мс подтвердить чип, затем шлём.
+                        setTimeout(doSend, 120);
                     } else {
-                        var toEl = document.querySelector(".sm-auto-complete__input");
-                        var hasChip = document.querySelector(".sm-auto-complete__item, .sm-auto-complete__token");
-                        if (toEl && !hasChip) {
-                            var targetTo = window._n0gTargetRecipient || '$currentRecipient';
-                            try { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(toEl, targetTo); } catch(e) { toEl.value = targetTo; }
-                            toEl.dispatchEvent(new Event('input',{bubbles:true}));
-                            toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                            toEl.dispatchEvent(new KeyboardEvent('keyup',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
-                            setTimeout(function() { if (btn) btn.click(); }, 120);
-                        } else { if (btn) btn.click(); }
+                        doSend();
                     }
                 })();
             """.trimIndent()
