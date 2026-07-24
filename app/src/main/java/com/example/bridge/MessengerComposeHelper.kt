@@ -253,6 +253,20 @@ internal class MessengerComposeHelper(
                 delay(1500)
                 ui.post { getUkrnetWebView()?.loadUrl("https://mail.ukr.net/touch/u0/sendmsg/") }
             }
+            // [FIX] Гарантированный повторный fill после отправки.
+            // ComposeGuardian срабатывает сразу после отправки, но попадает в recoil.
+            // Если пользователь остаётся в том же чате — больше никто не вызовет
+            // openCompose(), и поле получателя останется пустым после перезагрузки.
+            // Ждём конца recoil + запас на загрузку страницы, затем заполняем сами.
+            getScope().launch {
+                delay(RECOIL_MS + 500L)
+                val recip = currentRecipient
+                ui.post {
+                    log("[Compose] Автозаполнение после отправки — принудительный fill")
+                    getUkrnetWebView()?.evaluateJavascript("window._n0gTargetRecipient = '$recip';", null)
+                    getUkrnetWebView()?.evaluateJavascript(SENDMSG_FILL_JS.replace("%TO%", recip), null)
+                }
+            }
         }
     }
 
