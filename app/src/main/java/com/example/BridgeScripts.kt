@@ -74,6 +74,32 @@ internal val MONITORING_JS = """
         if (!window.nan0gramBridgeInjected) {
             window.nan0gramBridgeInjected = true;
             setInterval(function() {
+                // [FIX] Захват email из поля формы входа ДО перехода на страницу почты.
+                // window._n0gLoginEmailCapture — флаг однократной подписки на клик.
+                if (window.location.href.indexOf('login') !== -1 && !window._n0gLoginEmailCapture) {
+                    window._n0gLoginEmailCapture = true;
+                    document.addEventListener('click', function(e) {
+                        var node = e.target;
+                        for (var i = 0; i < 6 && node && node !== document; i++, node = node.parentElement) {
+                            if (node.tagName === 'BUTTON' || (node.tagName === 'INPUT' && node.type === 'submit')) {
+                                var emailEl = document.querySelector("input[name='login']")
+                                    || document.querySelector("input[type='email']")
+                                    || document.querySelector("input[name='username']")
+                                    || document.querySelector("input[name='email']");
+                                if (emailEl && emailEl.value && emailEl.value.indexOf('@') !== -1) {
+                                    var captured = emailEl.value.trim();
+                                    try {
+                                        if (window.Android && window.Android.saveSettingString)
+                                            window.Android.saveSettingString('my_ukrnet_email', captured);
+                                    } catch(saveErr) {}
+                                    console.log('[nan0gram] Email захвачен из формы входа: ' + captured);
+                                }
+                                break;
+                            }
+                        }
+                    }, true);
+                }
+
                 var isMailUrl = window.location.href.indexOf('mail.ukr.net') !== -1
                     && window.location.href.indexOf('login') === -1
                     && window.location.href.indexOf('accounts') === -1;
