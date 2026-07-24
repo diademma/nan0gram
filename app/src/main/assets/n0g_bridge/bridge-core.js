@@ -152,6 +152,12 @@
 
             if (_pendingActions.length === 0) return;
 
+            if (NanoBridge._isSending) {
+                log("[Stealth] Flush реакций отложен — очередь текстов активна. Повтор через 3000 мс.");
+                _flushTimer = W.setTimeout(flushPendingActions, 3000);
+                return;
+            }
+
             let actionsToSend = [];
             try {
                 actionsToSend = [..._pendingActions];
@@ -396,22 +402,24 @@
                 const doSend = () => {
                     this._sendPending = true;
                     this._pushBody(text);
-                    callAndroid("submitCompose");
-                    this._composeOpen = false;
-                    this._replyToId = null;
-                    log(`[Stealth] submitCompose отправлен. Recoil-пауза 2200 мс...`);
-
                     W.setTimeout(() => {
-                        this._sendPending = false;
-                        if (this._sendQueue.length > 0) {
-                            log(`[Stealth] Recoil завершён. В очереди: ${this._sendQueue.length}. Открываем compose для следующего...`);
-                            this._openComposeIfNeeded(true);
-                            W.setTimeout(() => { this._drainSendQueue(); }, 500);
-                        } else {
-                            this._isSending = false;
-                            this._openComposeIfNeeded(true);
-                        }
-                    }, 2200);
+                        callAndroid("submitCompose");
+                        this._composeOpen = false;
+                        this._replyToId = null;
+                        log(`[Stealth] submitCompose отправлен для "${text.slice(0, 20).replace(/\n/g, ' ')}". Recoil-пауза 2200 мс...`);
+
+                        W.setTimeout(() => {
+                            this._sendPending = false;
+                            if (this._sendQueue.length > 0) {
+                                log(`[Stealth] Recoil завершён. В очереди: ${this._sendQueue.length}. Открываем compose для следующего...`);
+                                this._openComposeIfNeeded(true);
+                                W.setTimeout(() => { this._drainSendQueue(); }, 500);
+                            } else {
+                                this._isSending = false;
+                                this._openComposeIfNeeded(true);
+                            }
+                        }, 2200);
+                    }, 150);
                 };
 
                 if (!this._composeOpen) {
@@ -1091,6 +1099,10 @@
         window.addEventListener('nan0gram:compose-ready', function() {
             try {
                 if (window.nan0gram_pendingMediaBody) {
+                    if (window.nan0gram && window.nan0gram._isSending) {
+                        log("[Stealth] compose-ready: очередь текстов активна — pendingMediaBody ждёт следующего цикла.");
+                        return;
+                    }
                     if (W.Android && typeof W.Android.setComposeBody === "function") W.Android.setComposeBody(window.nan0gram_pendingMediaBody);
                     if (W.Android && typeof W.Android.submitCompose === "function") W.Android.submitCompose();
                     window.nan0gram_pendingMediaBody = null;
@@ -1107,7 +1119,12 @@
 
         window.addEventListener('nan0gram:media-sent', function() {
             try {
-                if (window.nan0gram) { window.nan0gram._composeOpen = false; window.nan0gram._openComposeIfNeeded(true); }
+                if (window.nan0gram && !window.nan0gram._isSending) {
+                    window.nan0gram._composeOpen = false;
+                    window.nan0gram._openComposeIfNeeded(true);
+                } else if (window.nan0gram && window.nan0gram._isSending) {
+                    log("[Stealth] media-sent: очередь текстов активна — reopen отложен.");
+                }
             } catch (err) {
                 console.error('[nan0gram:core] Ошибка в media-sent:', err.message);
             }
