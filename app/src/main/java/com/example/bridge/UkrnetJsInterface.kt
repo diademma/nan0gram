@@ -16,7 +16,8 @@ class UkrnetJsInterface(
     private val isLoginHandled: () -> Boolean,
     private val getCurrentCoords: () -> DomCoords,
     private val clearComposeBody: () -> Unit = {},
-    private val onLoginRequired: () -> Unit = {} // Новый коллбек требования авторизации
+    private val onLoginRequired: () -> Unit = {},
+    private val onSaveSetting: (String, String) -> Unit = { _, _ -> }
 ) {
     private val ui = Handler(Looper.getMainLooper())
 
