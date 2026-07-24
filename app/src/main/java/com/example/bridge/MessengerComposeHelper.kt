@@ -218,6 +218,11 @@ internal class MessengerComposeHelper(
         lastSubmitMs = System.currentTimeMillis()
         lastComposeBody = ""
         ui.post {
+            // [FIX] Сбрасываем _n0gFilled явно при отправке.
+            // Ukr.net SPA может обработать loadUrl(sendmsg) как внутреннюю навигацию
+            // без полной перезагрузки — тогда window._n0gFilled остаётся true,
+            // блокируя следующий fill на уже пустом поле получателя.
+            getUkrnetWebView()?.evaluateJavascript("delete window._n0gFilled;", null)
             val js = """
                 (function(){
                     var btn = document.querySelector(".sm-header__send")
