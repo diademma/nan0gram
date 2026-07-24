@@ -92,7 +92,9 @@ internal class MessengerComposeHelper(
             if (configJson.startsWith("{")) {
                 val obj = org.json.JSONObject(configJson)
                 val to = obj.optString("to", "")
-                if (to.isNotEmpty()) currentRecipient = to
+                val savedEmail = getUkrnetWebView()?.context?.getSharedPreferences("nan0gram_crypto_prefs", Context.MODE_PRIVATE)
+                    ?.getString("my_ukrnet_email", "") ?: ""
+                currentRecipient = if (to.contains("@") && to.contains(".")) to else savedEmail
             }
         } catch(e: Exception) {}
 
