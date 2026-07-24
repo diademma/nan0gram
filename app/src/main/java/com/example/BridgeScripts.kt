@@ -285,6 +285,21 @@ internal val FOCUS_PATCH_JS = """
 // ─── Заполнение полей compose + снятие focus-patch ────────────────────────
 internal val COMPOSE_FILL_JS = """
     (function(to, subject) {
+        if (!to || to.indexOf('%') === 0 || to.trim() === '') return;
+        // Если TO уже заполнен в этой сессии страницы — только обновляем тему
+        if (window._n0gToFilled) {
+            var subjEl2 = document.querySelector("${UkrnetSelectors.SUBJECT_INPUT}");
+            if (subjEl2) {
+                try {
+                    var ns2 = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;
+                    ns2.call(subjEl2, subject);
+                    subjEl2.dispatchEvent(new Event('input', {bubbles:true}));
+                    subjEl2.dispatchEvent(new Event('change',{bubbles:true}));
+                } catch(e) { subjEl2.value = subject; }
+            }
+            if (window.Android && window.Android.onComposeReady) window.Android.onComposeReady();
+            return;
+        }
         var attempts = 0;
         var t = setInterval(function() {
             attempts++;
@@ -294,18 +309,19 @@ internal val COMPOSE_FILL_JS = """
             if (attempts > 40 || (toEl && subjEl)) {
                 clearInterval(t);
                 if (!toEl || !subjEl) return;
-                if (!to || to.indexOf('%') === 0 || to.trim() === '') return;
                 try {
                     var ns = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;
                     ns.call(toEl, to);
                     toEl.dispatchEvent(new Event('input',{bubbles:true}));
                     toEl.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
                     toEl.dispatchEvent(new KeyboardEvent('keyup',  {bubbles:true,cancelable:true,key:'Enter',keyCode:13}));
+                    window._n0gToFilled = true;
                     ns.call(subjEl, subject);
                     subjEl.dispatchEvent(new Event('input', {bubbles:true}));
                     subjEl.dispatchEvent(new Event('change',{bubbles:true}));
                 } catch(e) {
                     toEl.value = to; subjEl.value = subject;
+                    window._n0gToFilled = true;
                 }
                 clearTimeout(window._n0FocusTimer);
                 if (window._n0OrigFocus) {
