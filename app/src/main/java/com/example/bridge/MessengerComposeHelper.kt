@@ -259,7 +259,7 @@ internal class MessengerComposeHelper(
             // openCompose(), и поле получателя останется пустым после перезагрузки.
             // Ждём конца recoil + запас на загрузку страницы, затем заполняем сами.
             getScope().launch {
-                delay(RECOIL_MS + 500L)
+                delay(1800L)
                 val recip = currentRecipient
                 ui.post {
                     log("[Compose] Автозаполнение после отправки — принудительный fill")
