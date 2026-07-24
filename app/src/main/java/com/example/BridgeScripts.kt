@@ -79,6 +79,19 @@ internal val MONITORING_JS = """
                     }
                 }
                 
+                try {
+                    var userEl = document.querySelector('.user-name, .msg-header__user, .app__header-user, [class*="user-email"], [class*="username"], .msg-header__login, .sidebar__user');
+                    if (userEl) {
+                        var uTxt = (userEl.innerText || userEl.textContent || "").trim();
+                        if (uTxt.indexOf('@') !== -1 && uTxt.indexOf('.') !== -1) {
+                            if (window.Android && window.Android.saveSettingString) {
+                                window.Android.saveSettingString("my_ukrnet_email", uTxt);
+                            }
+                            try { localStorage.setItem("nan0gram_my_ukrnet_email", uTxt); } catch(e){}
+                        }
+                    }
+                } catch(e){}
+                
                 // Детекция диалогов сохранения черновиков Ukr.net (Draft Dialog Auto-Crusher без использования квадратных скобок)
                 // Балансировка для валидатора: ]
                 var dialog = document.querySelector('.sm-confirm, .sm-modal, .modal, .dialog');
