@@ -46,6 +46,13 @@ object UkrnetSelectors {
     const val ATTACH_CHIP_FALLBACK_ITEM = ".sm-auto-complete__item"
     const val ATTACH_CHIP_FALLBACK_TOKEN = ".sm-auto-complete__token"
 
+    // ── [LOGIN] Поле ввода email / логина на странице авторизации ────────────
+    const val LOGIN_EMAIL_FIELD_NAME     = "input[name='login']"
+    const val LOGIN_EMAIL_FIELD_TYPE     = "input[type='email']"
+    const val LOGIN_EMAIL_FIELD_USERNAME = "input[name='username']"
+    const val LOGIN_EMAIL_FIELD_NAMEALT  = "input[name='email']"
+    const val LOGIN_SUBMIT_BUTTON        = "button[type='submit']"
+
     // ── [READER] Список писем и навигация — будущий DraftsWebView ────────────
     const val MAIL_ITEM = ".ml-item"
     const val MAIL_ITEM_VIEW = ".mli-view"
