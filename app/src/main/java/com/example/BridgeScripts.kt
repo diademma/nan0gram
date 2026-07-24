@@ -295,6 +295,15 @@ internal val COMPOSE_FILL_JS = """
                 clearInterval(t);
                 if (!toEl || !subjEl) return;
                 if (!to || to.indexOf('%') === 0 || to.trim() === '') return;
+                var existingChip = document.querySelector(".sm-auto-complete__item, .sm-auto-complete__token");
+                if (existingChip) {
+                    if (window.Android && window.Android.onComposeReady) window.Android.onComposeReady();
+                    return;
+                }
+                if (toEl.value && toEl.value.indexOf('@') !== -1) {
+                    if (window.Android && window.Android.onComposeReady) window.Android.onComposeReady();
+                    return;
+                }
                 try {
                     var ns = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;
                     ns.call(toEl, to);
