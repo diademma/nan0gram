@@ -121,6 +121,15 @@ class MainActivity : ComponentActivity() {
                     isLoginHandled      = { hasHandledLogin },
                     getCurrentCoords    = { coords },
                     clearComposeBody    = { messengerInterfaceRef?.lastComposeBody = "" },
+                    onSaveSetting       = { key, value ->
+                        try {
+                            context.getSharedPreferences("nan0gram_crypto_prefs", android.content.Context.MODE_PRIVATE)
+                                .edit().putString(key, value).apply()
+                            log("[System] ✓ SharedPreferences[$key] сохранён: $value")
+                        } catch (e: Exception) {
+                            log("[System] Ошибка записи SharedPreferences[$key]: ${e.message}")
+                        }
+                    },
                     onLoginRequired     = {
                         // Резервная задержка 800мс, предотвращающая ложное срабатывание при быстром автоматическом редиректе по кукам
                         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
