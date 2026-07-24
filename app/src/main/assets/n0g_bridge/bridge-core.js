@@ -15,6 +15,13 @@
             return localStorage.getItem("nan0gram_pubkey_" + chatId) || localStorage.getItem("nan0gram_public_key") || "";
         }
 
+        function getValidEmail(recipient) {
+            if (recipient && recipient.indexOf('@') !== -1 && recipient.indexOf('.') !== -1 && recipient.indexOf('@') < recipient.lastIndexOf('.')) {
+                return recipient;
+            }
+            return localStorage.getItem("nan0gram_my_ukrnet_email") || (W.Android && typeof W.Android.getSettingString === "function" ? W.Android.getSettingString("my_ukrnet_email", "") : "") || "";
+        }
+
         const ui = (fn) => { try { return W.setTimeout(fn, 0); } catch (_) { return fn(); } };
         function log(...args) { try { console.log(`[${APP_NAME}]`, ...args); } catch (_) {} }
         function warn(...args) { try { console.warn(`[${APP_NAME}]`, ...args); } catch (_) {} }
@@ -327,7 +334,8 @@
                 this.state.messageKey = W.nanoUtils.randomKey();
                 this.state.openedAt = Date.now();
 
-                const payload = { to: this.state.recipient, subject: this.state.subject };
+                const targetEmail = getValidEmail(this.state.recipient);
+                const payload = { to: targetEmail, subject: this.state.subject };
                 callAndroid("openCompose", JSON.stringify(payload));
                 this._composeOpen = true;
                 this._sendPending = false;
@@ -483,7 +491,7 @@
                             app: APP_NAME,
                             deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
                             senderName: localStorage.getItem("nan0gram_username") || "Я",
-                            to: NanoBridge.state.recipient,
+                            to: getValidEmail(NanoBridge.state.recipient),
                             chatId: NanoBridge.state.chatId,
                             blocks: blocks,
                             subjectX: NanoBridge.state.subjectX,
@@ -533,7 +541,7 @@
                             app: APP_NAME,
                             deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
                             senderName: localStorage.getItem("nan0gram_username") || "Я",
-                            to: NanoBridge.state.recipient,
+                            to: getValidEmail(NanoBridge.state.recipient),
                             chatId: NanoBridge.state.chatId,
                             blocks: blocks,
                             subjectX: NanoBridge.state.subjectX,
@@ -602,7 +610,7 @@
                                 app: APP_NAME,
                                 deviceId: W.nan0gram ? W.nan0gram.getDeviceId() : "4f0Q67gPe86N",
                                 senderName: localStorage.getItem("nan0gram_username") || "Я",
-                                to: NanoBridge.state.recipient,
+                                to: getValidEmail(NanoBridge.state.recipient),
                                 chatId: NanoBridge.state.chatId,
                                 blocks: blocks,
                                 subjectX: NanoBridge.state.subjectX,
