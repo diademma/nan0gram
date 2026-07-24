@@ -339,6 +339,17 @@ internal val COMPOSE_FILL_JS = """
 internal val SENDMSG_FILL_JS = """
     (function() {
         if (window._n0gFilled) return;
+        // [FIX] Синхронная проверка чипа ДО старта интервала.
+        // Чип от предыдущего fill может ещё не отрисоваться за 100 мс — поэтому
+        // проверяем сразу при вызове скрипта, не дожидаясь первого тика.
+        var chipNow = document.querySelector(".sm-auto-complete__item, .sm-auto-complete__token");
+        if (chipNow) {
+            window._n0gFilled = true;
+            setTimeout(function() {
+                if (window.Android && window.Android.onComposeReady) window.Android.onComposeReady();
+            }, 50);
+            return;
+        }
         var count = 0;
         var t = setInterval(function() {
             count++;
