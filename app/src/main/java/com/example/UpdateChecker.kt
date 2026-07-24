@@ -137,11 +137,12 @@ object UpdateChecker {
                 return@withContext
             }
 
-            // Оптимизация: если последний по времени релиз — это текущий APK, скачивать ресурсы не нужно
-            val currentBuildTag = "build-$currentApkVersion"
-            if (latestTagName == currentBuildTag) {
+            // Оптимизация: если номер релиза не новее текущего APK — OTA не нужна
+            // Сравниваем числа, а не строки, чтобы не зависеть от формата тега (build-N, ota-N и т.д.)
+            val latestBuildNumber = Regex("\\d+").findAll(latestTagName).lastOrNull()?.value?.toIntOrNull() ?: 0
+            if (latestBuildNumber <= currentApkVersion) {
                 prefs.edit().putString("web_version", latestTagName).apply()
-                log("[OTA] Локальная веб-версия соответствует текущему APK ($latestTagName). Скачивание пропущено.")
+                log("[OTA] Релиз $latestTagName (build $latestBuildNumber) не новее текущего APK (build $currentApkVersion). OTA пропущена.")
                 return@withContext
             }
 
