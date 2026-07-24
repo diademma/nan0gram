@@ -17,7 +17,7 @@ internal class MessengerComposeHelper(
     private val getMessengerWebView: () -> WebView?
 ) {
     @Volatile var lastSubmitMs = 0L
-    val RECOIL_MS = 3000L
+    val RECOIL_MS = 2000L
     @Volatile var lastOpenMs = 0L
     val DEBOUNCE_MS = 300L
     @Volatile var uploadSequenceActive = false
@@ -128,7 +128,7 @@ internal class MessengerComposeHelper(
         val now = System.currentTimeMillis()
         val msSinceSubmit = now - lastSubmitMs
         if (msSinceSubmit < RECOIL_MS) {
-            log("[Compose] Откат-блок $msSinceSubmit мс — ждём конца recoil")
+            log("[Upload] Recoil-блок: прошло $msSinceSubmit мс из $RECOIL_MS мс — письмо в пути, сообщение встало в очередь JS.")
             return
         }
         val msSinceOpen = now - lastOpenMs

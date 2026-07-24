@@ -221,12 +221,15 @@
             _inputEl: null,
             _composeOpen: false,
             _sendPending: false,
+            _sendQueue: [],
+            _isSending: false,
             _debTimer: null,
             _pollTimer: null,
             _isComposing: false,
             _lastText: "",
             _lastChatId: "",
             _lastSentSignature: "",
+            _lastSentTs: 0,
             _wired: false,
             _initialized: false,
 
@@ -362,23 +365,61 @@
                 const text = String(plainText || this._lastText || "");
                 if (!text.trim()) return;
 
+                const now = Date.now();
                 const signature = `${this.state.chatId}|${text}`;
-                if (signature === this._lastSentSignature) return;
+                if (signature === this._lastSentSignature && (now - this._lastSentTs) < 300) {
+                    log(`[Stealth] Защита от двойного тапа — дубль за ${now - this._lastSentTs} мс, пропускаем.`);
+                    return;
+                }
                 this._lastSentSignature = signature;
-                W.setTimeout(() => { if (this._lastSentSignature === signature) this._lastSentSignature = ""; }, 5000);
+                this._lastSentTs = now;
 
-                this._sendPending = true;
-                this._pushBody(text);
-                callAndroid("submitCompose");
-                this._composeOpen = false;
-                this._replyToId = null;
+                this._sendQueue.push(text);
+                log(`[Stealth] Сообщение добавлено в очередь. Размер очереди: ${this._sendQueue.length}`);
 
-                W.setTimeout(() => {
-                    this._sendPending = false;
+                if (!this._isSending) {
+                    this._drainSendQueue();
+                }
+            },
+
+            _drainSendQueue() {
+                if (this._sendQueue.length === 0) {
+                    this._isSending = false;
                     this._openComposeIfNeeded(true);
-                }, 1500);
+                    return;
+                }
 
-                log(`submit for chat="${this.state.chatId}"`);
+                this._isSending = true;
+                const text = this._sendQueue.shift();
+                log(`[Stealth] Отправляем из очереди: "${text.slice(0, 30).replace(/\n/g, ' ')}" | Осталось в очереди: ${this._sendQueue.length}`);
+
+                const doSend = () => {
+                    this._sendPending = true;
+                    this._pushBody(text);
+                    callAndroid("submitCompose");
+                    this._composeOpen = false;
+                    this._replyToId = null;
+                    log(`[Stealth] submitCompose отправлен. Recoil-пауза 2200 мс...`);
+
+                    W.setTimeout(() => {
+                        this._sendPending = false;
+                        if (this._sendQueue.length > 0) {
+                            log(`[Stealth] Recoil завершён. В очереди: ${this._sendQueue.length}. Открываем compose для следующего...`);
+                            this._openComposeIfNeeded(true);
+                            W.setTimeout(() => { this._drainSendQueue(); }, 500);
+                        } else {
+                            this._isSending = false;
+                            this._openComposeIfNeeded(true);
+                        }
+                    }, 2200);
+                };
+
+                if (!this._composeOpen) {
+                    this._openComposeIfNeeded(true);
+                    W.setTimeout(doSend, 600);
+                } else {
+                    doSend();
+                }
             },
 
             _onInputEvent() {
